@@ -6,6 +6,7 @@ let boardList = [{ id: 'tx__4', name: '流行指数榜', bangid: '4' }, { id: 't
 
 export default {
   limit: 300,
+  boardList,
   list: [
     {
       id: 'txlxzsb',

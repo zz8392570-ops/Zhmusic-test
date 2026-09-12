@@ -30,7 +30,8 @@
 			"test": "测试",
 			"testSources": "测试所有音源",
 			"isCachedIconVisible": "是否显示已缓存图标",
-			"songsNumsToLoad": "首页播放歌曲数量"
+			"songsNumsToLoad": "首页播放歌曲数量",
+			"homePlaylist": "首页显示歌单"
 		},
 		"descriptions": {
 			"preciseSeeking": "改善部分 FLAC 快进后的音频与歌词不同步。开启后可能需要加载完整音频，播放前等待更久。切换歌曲后生效。"

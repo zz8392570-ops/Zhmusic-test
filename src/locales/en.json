@@ -30,7 +30,8 @@
 			"test": "Test",
 			"testSources": "Test All Sources",
 			"isCachedIconVisible": "isCachedIconVisible",
-			"songsNumsToLoad": "Songs Nums to Load"
+			"songsNumsToLoad": "Songs Nums to Load",
+			"homePlaylist": "Home Playlist"
 		},
 		"descriptions": {
 			"preciseSeeking": "Helps keep audio and lyrics aligned after seeking in some FLAC files. Playback may wait for the full audio file to load. Applies after changing tracks."

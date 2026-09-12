@@ -13,6 +13,7 @@ import myTrackPlayer, {
 import { useThemeColors, useThemeMode } from '@/hooks/useAppTheme'
 import { createMusicApiFromScript, fetchScriptFromUrl } from '@/helpers/userApi/importMusicSource'
 import PersistStatus from '@/store/PersistStatus'
+import { DEFAULT_HOME_BOARD_ID, getHomeBoardName, getHomeBoards } from '@/store/library'
 import i18n, { changeLanguage, nowLanguage } from '@/utils/i18n'
 import { GlobalState } from '@/utils/stateMapper'
 import { showToast } from '@/utils/utils'
@@ -389,6 +390,9 @@ const SettingModal = () => {
 	const autoCacheLocal = autoCacheLocalStore.useValue()
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const songsNumsToLoad = songsNumsToLoadStore.useValue()
+	const homeBoardId =
+		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
+	const homeBoardName = getHomeBoardName(homeBoardId)
 	const preciseSeeking = PersistStatus.useValue('music.preciseSeeking', false) === true
 	const themeLabel = useMemo(() => {
 		switch (themeMode) {
@@ -421,6 +425,12 @@ const SettingModal = () => {
 				{
 					id: '17',
 					title: i18n.t('settings.items.songsNumsToLoad'),
+					type: 'value',
+					value: '',
+				},
+				{
+					id: '19',
+					title: i18n.t('settings.items.homePlaylist'),
 					type: 'value',
 					value: '',
 				},
@@ -561,6 +571,26 @@ const SettingModal = () => {
 		>
 			<TouchableOpacity style={styles.menuTrigger}>
 				<Text style={styles.menuTriggerText}>{'             ' + songsNumsToLoad}</Text>
+			</TouchableOpacity>
+		</MenuView>
+	)
+	const toggleHomePlaylistMenu = (
+		<MenuView
+			onPressAction={({ nativeEvent: { event } }) => {
+				const nextBoardId = parseInt(event, 10)
+				if (Number.isNaN(nextBoardId)) return
+				PersistStatus.set('music.homeBoardId', nextBoardId)
+			}}
+			actions={getHomeBoards().map((board) => ({
+				id: String(board.bangid),
+				title: board.name,
+				state: String(board.bangid) === String(homeBoardId) ? 'on' : 'off',
+			}))}
+		>
+			<TouchableOpacity style={styles.menuTrigger}>
+				<Text style={styles.menuTriggerText} numberOfLines={1}>
+					{homeBoardName}
+				</Text>
 			</TouchableOpacity>
 		</MenuView>
 	)
@@ -787,6 +817,7 @@ const SettingModal = () => {
 						{item.title === i18n.t('settings.items.isCachedIconVisible') &&
 							toggleIsCachedIconVisibleMenu}
 						{item.title === i18n.t('settings.items.songsNumsToLoad') && toggleSongsNumsToLoadMenu}
+						{item.title === i18n.t('settings.items.homePlaylist') && toggleHomePlaylistMenu}
 					</View>
 				</TouchableOpacity>
 				{index !== sectionData.length - 1 && <View style={styles.separator} />}

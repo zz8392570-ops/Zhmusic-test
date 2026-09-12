@@ -37,6 +37,7 @@ interface IPersistConfig {
 	'app.themeMode': 'system' | 'light' | 'dark'
 	'music.isCachedIconVisible': boolean
 	'music.songsNumsToLoad': number
+	'music.homeBoardId': number
 }
 
 function set<K extends keyof IPersistConfig>(key: K, value: IPersistConfig[K] | undefined) {

@@ -1,11 +1,25 @@
 import musicSdk from '@/components/utils/musicSdk'
 import { Artist, Playlist, TrackWithPlaylist } from '@/helpers/types'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Track } from '@/player/types'
 import { create } from 'zustand'
 
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import PersistStatus from '@/store/PersistStatus'
+
+export const DEFAULT_HOME_BOARD_ID = 26
+
+type HomeBoard = { id: string; name: string; bangid: string | number }
+
+export const getHomeBoards = (): HomeBoard[] => {
+	const leaderboard = musicSdk['tx'].leaderboard
+	return leaderboard.boardList ?? leaderboard.list ?? []
+}
+
+export const getHomeBoardName = (id?: number | string | null) => {
+	const bangid = String(id ?? DEFAULT_HOME_BOARD_ID)
+	return getHomeBoards().find((board) => String(board.bangid) === bangid)?.name ?? '热歌榜'
+}
 
 interface LibraryState {
 	allTracks: TrackWithPlaylist[]
@@ -100,9 +114,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 		try {
 			if (refresh || allTracks.length === 0) {
 				// 只在刷新或首次加载时请求数据
-				set({ isLoading: true })
-
-				const data = await musicSdk['tx'].leaderboard.getList(26, 1)
+				set({ isLoading: true, ...(refresh ? { tracks: [], page: 1, hasMore: true } : {}) })
+				const homeBoardId = PersistStatus.get('music.homeBoardId') ?? DEFAULT_HOME_BOARD_ID
+				const data = await musicSdk['tx'].leaderboard.getList(homeBoardId, 1)
 				const mappedTracks = data.list.map(mapTrack)
 				// console.log(mappedTracks.length)
 				set({ allTracks: mappedTracks })
@@ -174,9 +188,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
 export const useTracks = () => {
 	const { tracks, fetchTracks } = useLibraryStore()
+	const homeBoardId = PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
+	const lastBoardIdRef = useRef(homeBoardId)
 	useEffect(() => {
+		if (lastBoardIdRef.current !== homeBoardId) {
+			lastBoardIdRef.current = homeBoardId
+			fetchTracks(true)
+			return
+		}
 		fetchTracks()
-	}, [fetchTracks])
+	}, [fetchTracks, homeBoardId])
 	return tracks
 }
 export const useAllTracks = () => {
