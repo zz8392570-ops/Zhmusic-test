@@ -6,6 +6,7 @@ export {
 	musicApiStore,
 	musicApiSelectedStore,
 	nowApiState,
+	musicApiTestingStore,
 	autoCacheLocalStore,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,

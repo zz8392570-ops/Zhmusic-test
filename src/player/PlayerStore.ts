@@ -15,6 +15,8 @@ export const musicApiStore = new GlobalState<IMusic.MusicApi[] | []>(null)
 export const musicApiSelectedStore = new GlobalState<IMusic.MusicApi>(null)
 /** 音源状态 */
 export const nowApiState = new GlobalState<string>('正常')
+/** 正在批量测试音源 */
+export const musicApiTestingStore = new GlobalState<boolean>(false)
 /** 是否自动缓存本地 */
 export const autoCacheLocalStore = new GlobalState<boolean>(true)
 /** 是否显示已缓存图标 */

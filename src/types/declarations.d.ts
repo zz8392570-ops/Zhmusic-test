@@ -1,3 +1,8 @@
+declare module '*.sourcejs' {
+	const asset: number
+	export default asset
+}
+
 declare module '*.svg' {
     import React from 'react';
     import {SvgProps} from 'react-native-svg';

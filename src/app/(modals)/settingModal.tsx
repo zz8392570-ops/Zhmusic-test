@@ -6,7 +6,6 @@ import myTrackPlayer, {
 	isCachedIconVisibleStore,
 	musicApiSelectedStore,
 	musicApiStore,
-	nowApiState,
 	songsNumsToLoadStore,
 	useCurrentQuality,
 } from '@/helpers/trackPlayerIndex'
@@ -17,6 +16,7 @@ import { DEFAULT_HOME_BOARD_ID, getHomeBoardName, getHomeBoards } from '@/store/
 import i18n, { changeLanguage, nowLanguage } from '@/utils/i18n'
 import { GlobalState } from '@/utils/stateMapper'
 import { showToast } from '@/utils/utils'
+import MusicSourceHealthList from '@/components/MusicSourceHealthList'
 import { MenuView } from '@react-native-menu/menu'
 import Constants from 'expo-constants'
 import * as DocumentPicker from 'expo-document-picker'
@@ -53,7 +53,7 @@ type SettingItem = {
 			description: string
 			onValueChange: (value: boolean) => void
 		}
-	| { type: 'link' | 'value' | 'custom'; value?: string }
+	| { type: 'link' | 'value' | 'custom' | 'sources'; value?: string }
 )
 
 // 将GlobalState实例移到组件外部
@@ -385,7 +385,6 @@ const SettingModal = () => {
 	const router = useRouter()
 	const [currentQuality, setCurrentQuality] = useCurrentQuality()
 	const [isLoading, setIsLoading] = useState(false)
-	const apiState = nowApiState.useValue()
 	const language = nowLanguage.useValue()
 	const autoCacheLocal = autoCacheLocalStore.useValue()
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
@@ -462,16 +461,7 @@ const SettingModal = () => {
 		{
 			title: i18n.t('settings.sections.customSource'),
 			data: [
-				{ id: '11', title: i18n.t('settings.items.switchSource'), type: 'custom' },
-				{
-					id: '7',
-					title: i18n.t('settings.items.sourceStatus'),
-					type: 'value',
-					value:
-						apiState == '正常'
-							? i18n.t('settings.items.normal')
-							: i18n.t('settings.items.exception'),
-				},
+				{ id: 'source-health', title: i18n.t('settings.items.sourceList'), type: 'sources' },
 				{ id: '12', title: i18n.t('settings.items.deleteSource'), type: 'value', value: '' },
 				{ id: '8', title: i18n.t('settings.items.importSource'), type: 'value' },
 			],
@@ -618,7 +608,10 @@ const SettingModal = () => {
 		}
 	}
 	const handleSelectSource = (sourceId) => {
-		myTrackPlayer.setMusicApiAsSelectedById(sourceId)
+		myTrackPlayer.setMusicApiAsSelectedById(sourceId, { silent: true })
+	}
+	const handleTestAllSources = () => {
+		void myTrackPlayer.testAllMusicApis()
 	}
 	const changeLanguageMenu = (
 		<MenuView
@@ -736,6 +729,17 @@ const SettingModal = () => {
 			index === 0 && styles.firstItem,
 			index === sectionData.length - 1 && styles.lastItem,
 		]
+		if (item.type === 'sources') {
+			return (
+				<View key={item.id}>
+					<MusicSourceHealthList
+						onSelectSource={handleSelectSource}
+						onTestAll={handleTestAllSources}
+					/>
+					{index !== sectionData.length - 1 && <View style={styles.separator} />}
+				</View>
+			)
+		}
 		if (item.type === 'switch') {
 			return (
 				<View key={item.id}>
@@ -801,9 +805,6 @@ const SettingModal = () => {
 						{item.type === 'value' && <Text style={styles.itemValue}>{item.value}</Text>}
 						{item.title === i18n.t('settings.items.currentQuality') && (
 							<MusicQualityMenu currentQuality={currentQuality} onSelectQuality={setCurrentQuality} />
-						)}
-						{item.title === i18n.t('settings.items.switchSource') && (
-							<MusicSourceMenu isDelete={false} onSelectSource={handleSelectSource} />
 						)}
 						{item.title === i18n.t('settings.items.deleteSource') && (
 							<MusicSourceMenu isDelete={true} onSelectSource={handleDeleteSource} />

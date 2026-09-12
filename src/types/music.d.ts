@@ -209,6 +209,16 @@ declare namespace IMusic {
         /** 内部信息 */
         [k: symbol]: any;
     }
+    export type MusicApiHealthStatus = 'normal' | 'partial' | 'dead' | 'testing' | 'idle'
+
+    export interface MusicApiHealth {
+        successCount: number
+        totalCount: number
+        latencyMs: number | null
+        status: MusicApiHealthStatus
+        testedAt?: number
+    }
+
      export interface MusicApi {
         /** 音源编号 */
         id: string;
@@ -224,6 +234,12 @@ declare namespace IMusic {
         script: string;
         /** 脚本类型: cymusic 原有格式 / lxmusic lx-music 格式 */
         scriptType?: 'cymusic' | 'lxmusic';
+        /** 内嵌音源稳定键，删除后避免下次启动再次注入 */
+        builtinKey?: string;
+        /** 可用性探测结果 */
+        health?: MusicApiHealth;
+        /** 是否当前选中 */
+        isSelected?: boolean;
         /** 音源方法 */
         getMusicUrl: any;
         /** 其他可以被序列化的信息 */

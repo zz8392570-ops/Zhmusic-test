@@ -29,6 +29,7 @@
 			"exception": "Exception",
 			"test": "Test",
 			"testSources": "Test All Sources",
+			"sourceList": "Source List",
 			"isCachedIconVisible": "isCachedIconVisible",
 			"songsNumsToLoad": "Songs Nums to Load",
 			"homePlaylist": "Home Playlist"
@@ -84,6 +85,15 @@
 		},
 		"placeholders": {
 			"enterSourceUrl": "Please enter the source URL"
+		},
+		"sourceHealth": {
+			"normal": "OK",
+			"partial": "Fair",
+			"dead": "Dead",
+			"testing": "Testing",
+			"testingAll": "Testing...",
+			"current": "Current",
+			"empty": "No sources yet"
 		}
 	},
 	"logScreen": {

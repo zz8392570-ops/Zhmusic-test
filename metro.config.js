@@ -3,6 +3,9 @@ const { getDefaultConfig } = require('expo/metro-config')
 
 const config = getDefaultConfig(__dirname)
 
+config.resolver.assetExts = [...(config.resolver.assetExts || []), 'sourcejs']
+config.resolver.sourceExts = (config.resolver.sourceExts || []).filter((ext) => ext !== 'sourcejs')
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
 	if (moduleName === 'axios' && (platform === 'ios' || platform === 'android')) {
 		// Keep the shared browser/XHR entry for native import and require callers.

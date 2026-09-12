@@ -41,7 +41,20 @@ import { showToast } from '@/utils/utils'
 import { resolveLocalFile } from './localFile'
 import { downloadFile } from './fileDownload'
 import { logError, logInfo } from './logger'
-import { disposeLxMusicScript, isLxMusicScript, reloadLxMusicScript } from './userApi/lxMusicSourceAdapter'
+import {
+	addMusicApi,
+	clearFailedApis,
+	deleteMusicApiById,
+	ensureApiRuntime,
+	getPlaybackFailoverApis,
+	rememberFailedApi,
+	reloadMusicApi,
+	runBackgroundHealthTests,
+	seedBundledMusicSources,
+	setMusicApiAsSelectedById,
+	testAllMusicApis,
+	testMusicApiById,
+} from './userApi/musicApiControl'
 
 import {
 	currentMusicStore,
@@ -51,6 +64,7 @@ import {
 	musicApiStore,
 	musicApiSelectedStore,
 	nowApiState,
+	musicApiTestingStore,
 	autoCacheLocalStore,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,
@@ -86,6 +100,7 @@ export {
 	musicApiStore,
 	musicApiSelectedStore,
 	nowApiState,
+	musicApiTestingStore,
 	autoCacheLocalStore,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,
@@ -246,10 +261,19 @@ async function setupTrackPlayer() {
 	if (musicApiLists) {
 		musicApiStore.setValue(musicApiLists)
 	}
+	try {
+		await seedBundledMusicSources()
+	} catch (error) {
+		logError('注入内嵌音源失败:', error)
+	}
+	const seededApis = musicApiStore.getValue() || []
 	if (selectedMusicApi) {
 		musicApiSelectedStore.setValue(selectedMusicApi)
 		await reloadNowSelectedMusicApi()
+	} else if (seededApis.length) {
+		await setMusicApiAsSelectedById(seededApis[0].id, { silent: true, notify: false })
 	}
+	void runBackgroundHealthTests()
 	if (importedLocalMusic) {
 		importedLocalMusicStore.setValue(importedLocalMusic)
 	}
@@ -303,25 +327,46 @@ const getFakeNextTrack = (): Track => {
 	}
 }
 
+let failoverInProgress = false
+
 /** 播放失败时的情况 */
 async function failToPlay() {
-	const revision = controlRevision
-	const failedMusic = currentMusicStore.getValue()
-	const sourceToken = trackSourceLoadingStore.getValue()
-	retireTrackSkip()
-	if (isCurrentNativeItem(ReactNativeTrackPlayer.getActiveMediaItem())) {
-		// Keep the failed item/headers so a native Play during the delay can reload
-		// it immediately. That explicit intent also invalidates the delayed Next.
-		ReactNativeTrackPlayer.stop()
-	} else {
-		nativeQueue = null
-		ReactNativeTrackPlayer.clear()
+	if (failoverInProgress) return
+	failoverInProgress = true
+	try {
+		const revision = controlRevision
+		const failedMusic = currentMusicStore.getValue()
+		const sourceToken = trackSourceLoadingStore.getValue()
+		retireTrackSkip()
+		if (isCurrentNativeItem(ReactNativeTrackPlayer.getActiveMediaItem())) {
+			// Keep the failed item/headers so a native Play during the delay can reload
+			// it immediately. That explicit intent also invalidates the delayed Next.
+			ReactNativeTrackPlayer.stop()
+		} else {
+			nativeQueue = null
+			ReactNativeTrackPlayer.clear()
+		}
+		await delay(500)
+		if (revision !== controlRevision || !isCurrentMusic(failedMusic) ||
+			sourceToken !== trackSourceLoadingStore.getValue() ||
+			playbackIntentStore.getValue() !== 'play') return
+		const selected = musicApiSelectedStore.getValue()
+		if (failedMusic && selected?.id) {
+			rememberFailedApi(failedMusic.id, selected.id)
+			const backup = getPlaybackFailoverApis(failedMusic).find((api) => api.id !== selected.id)
+			if (backup) {
+				logInfo(`播放失败，切换备用音源: ${backup.name}`)
+				nativeQueue = null
+				await setMusicApiAsSelectedById(backup.id, { silent: true })
+				await play(failedMusic, true)
+				return
+			}
+		}
+		if (failedMusic) clearFailedApis(failedMusic.id)
+		await skipToNext()
+	} finally {
+		failoverInProgress = false
 	}
-	await delay(500)
-	if (revision !== controlRevision || !isCurrentMusic(failedMusic) ||
-		sourceToken !== trackSourceLoadingStore.getValue() ||
-		playbackIntentStore.getValue() !== 'play') return
-	await skipToNext()
 }
 
 // 播放模式相关
@@ -699,174 +744,23 @@ const getPlayListById = (playlistId: string) => {
 		logError('Error find playlist:', error)
 	}
 }
-const addMusicApi = (musicApi: IMusic.MusicApi) => {
-	try {
-		const nowMusicApiList = musicApiStore.getValue() || []
-
-		// 检查是否已存在
-		const existingApiIndex = nowMusicApiList.findIndex(
-			(existingApi) => existingApi.id === musicApi.id,
-		)
-
-		if (existingApiIndex !== -1) {
-			Alert.alert('是否覆盖', `已经存在该音源，是否覆盖？`, [
-				{
-					text: '确定',
-					onPress: () => {
-						const updatedMusicApiList = [...nowMusicApiList]
-						// 保留原有的 isSelected 状态
-						updatedMusicApiList[existingApiIndex] = {
-							...musicApi,
-							isSelected: updatedMusicApiList[existingApiIndex].isSelected,
-						}
-						musicApiStore.setValue(updatedMusicApiList)
-						PersistStatus.set('music.musicApi', updatedMusicApiList)
-						logInfo('Music API updated successfully')
-						Alert.alert('成功', '音源更新成功', [
-							{ text: '确定', onPress: () => logInfo('Update alert closed') },
-						])
-					},
-				},
-				{ text: '取消', onPress: () => {}, style: 'cancel' },
-			])
-		} else {
-			// 如果是新添加的音源，默认设置 isSelected 为 false 。如果音源为空，则自动选择
-			const newMusicApi = musicApi
-			console.log('nowMusicApiList', nowMusicApiList)
-			const updatedMusicApiList = [...nowMusicApiList, newMusicApi]
-			if (!nowMusicApiList.length) {
-				logInfo('音源为空，自动选择')
-				musicApiStore.setValue(updatedMusicApiList)
-				PersistStatus.set('music.musicApi', updatedMusicApiList)
-				setMusicApiAsSelectedById(newMusicApi.id)
-			} else {
-				musicApiStore.setValue(updatedMusicApiList)
-				PersistStatus.set('music.musicApi', updatedMusicApiList)
-			}
-			logInfo('音源导入成功')
-			Alert.alert('成功', '音源导入成功', [
-				{ text: '确定', onPress: () => logInfo('Add alert closed') },
-			])
-		}
-	} catch (error) {
-		logError('Error adding/updating music API:', error)
-		Alert.alert('失败', '音源导入/更新失败', [
-			{ text: '确定', onPress: () => logInfo('Error alert closed') },
-		])
-	}
-}
 const reloadNowSelectedMusicApi = async () => {
 	try {
-		// 获取当前存储的所有音源脚本
-		const musicApis = musicApiStore.getValue() || []
-
-		// 找到被选中的音源脚本
 		const selectedApi = musicApiSelectedStore.getValue()
 
 		if (selectedApi === null) {
 			logInfo('No music API is currently selected.')
 			return null
 		}
-		// 重新加载选中的脚本
-		const reloadedApi = await reloadMusicApi(selectedApi)
-
-		// 更新 musicApiStore 中的脚本
+		const reloadedApi = await ensureApiRuntime({ ...selectedApi, isSelected: true })
 		musicApiSelectedStore.setValue(reloadedApi)
-
-		// 更新 store 和持久化存储
 		PersistStatus.set('music.selectedMusicApi', reloadedApi)
-
 		logInfo(`Selected music API "${reloadedApi.name}" reloaded successfully`)
-
 		return reloadedApi
 	} catch (error) {
 		logError('Error reloading selected music API:', error)
 		throw error
 	}
-}
-const reloadMusicApi = async (musicApi: IMusic.MusicApi, isTest: boolean = false): Promise<IMusic.MusicApi> => {
-	if (!musicApi.isSelected && !isTest) {
-		return musicApi // 如果没有被选中，直接返回原始对象
-	}
-
-	try {
-		// 检测是否为 lx-music 格式脚本
-		if (musicApi.scriptType === 'lxmusic' || isLxMusicScript(musicApi.script)) {
-			return await reloadLxMusicScript(musicApi)
-		}
-
-		// Cymusic 原有 CommonJS 格式
-		const context: any = {
-			module: { exports: {} },
-			exports: {},
-			require: () => {},
-		}
-
-		const scriptFunction = new Function('module', 'exports', 'require', musicApi.script)
-		scriptFunction.call(context, context.module, context.exports, context.require)
-		if (!isTest) disposeLxMusicScript()
-
-		return {
-			...musicApi,
-			getMusicUrl: context.module.exports.getMusicUrl || musicApi.getMusicUrl,
-		}
-	} catch (error) {
-		logError(`Error reloading script for API "${musicApi.name}":`, error)
-		return musicApi
-	}
-}
-const setMusicApiAsSelectedById = async (musicApiId: string) => {
-	try {
-		// 获取当前存储的所有音源脚本
-		let musicApis: IMusic.MusicApi[] = musicApiStore.getValue() || []
-
-		// 检查指定的音源是否存在
-		const targetApiIndex = musicApis.findIndex((api) => api.id === musicApiId)
-
-		if (targetApiIndex === -1) {
-			logError(`Music API with id ${musicApiId} not found`)
-			Alert.alert('错误', '未找到指定的音源')
-			return
-		}
-
-		// 更新选中状态
-		musicApis = musicApis.map((api) => ({
-			...api,
-			isSelected: api.id === musicApiId,
-		}))
-
-		// 获取新选中的音源
-		const selectedApi = musicApis[targetApiIndex]
-
-		// 重新加载选中的音源脚本
-		const reloadedApi = await reloadMusicApi(selectedApi)
-
-		// 更新重新加载后的音源
-		musicApiSelectedStore.setValue(reloadedApi)
-		// 更新 store 和持久化存储
-		PersistStatus.set('music.selectedMusicApi', reloadedApi)
-
-		logInfo(`Music API "${reloadedApi.name}" set as selected and reloaded successfully`)
-		Alert.alert('成功', `音源 "${reloadedApi.name}" 已设置为当前选中并重新加载`)
-	} catch (error) {
-		logError('Error setting music API as selected:', error)
-		Alert.alert('错误', '设置选中音源时发生错误')
-	}
-}
-
-const deleteMusicApiById = (musicApiId: string) => {
-	const selectedMusicApi = musicApiSelectedStore.getValue()
-	const musicApis = musicApiStore.getValue() || []
-	if (selectedMusicApi?.id === musicApiId) {
-		musicApiSelectedStore.setValue(null)
-	}
-	const musicApisFiltered = musicApis.filter((musicApi) => musicApi.id !== musicApiId)
-	musicApiStore.setValue(musicApisFiltered)
-	PersistStatus.set('music.musicApi', musicApisFiltered)
-	logInfo('Music API deleted successfully')
-	Alert.alert('成功', '音源删除成功', [
-		{ text: '确定', onPress: () => logInfo('Add alert closed') },
-	])
 }
 const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, skipOperation?: symbol) => {
 	let trackSourceLoadingToken: string | null = null
@@ -930,6 +824,9 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 		}) as IMusic.IMusicItem
 		logInfo('获取音源成功：', track)
 		setTrackSource(track)
+		if (musicItem && sourceUrl !== fakeAudioMp3Uri && !sourceUrl.includes('fake')) {
+			clearFailedApis(musicItem.id)
+		}
 		const appliedToken = nativeQueue.token
 
 		// 7. Fetch lyrics in background (non-blocking)
@@ -1292,6 +1189,8 @@ const myTrackPlayer = {
 	addMusicApi,
 	setMusicApiAsSelectedById,
 	deleteMusicApiById,
+	testAllMusicApis,
+	testMusicApiById,
 	addSongToStoredPlayList,
 	deleteSongFromStoredPlayList,
 	addImportedLocalMusic,

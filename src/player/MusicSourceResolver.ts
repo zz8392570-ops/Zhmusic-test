@@ -1,10 +1,17 @@
 import { fakeAudioMp3Uri } from '@/constants/images'
 import { resolveLocalFile } from '@/helpers/localFile'
 import { logError, logInfo } from '@/helpers/logger'
+import {
+	getFailedApiIds,
+	rememberFailedApi,
+	requestMusicUrlFromApi,
+	setMusicApiAsSelectedById,
+} from '@/helpers/userApi/musicApiControl'
+import { getFailoverCandidates, isValidMusicUrl, MAX_FAILOVER_SOURCES } from '@/helpers/userApi/musicSourceHealth'
 import PersistStatus from '@/store/PersistStatus'
 import { showToast } from '@/utils/utils'
 import { isCached, getLocalFilePath } from './CacheManager'
-import { musicApiSelectedStore, nowApiState, qualityStore } from './PlayerStore'
+import { musicApiSelectedStore, musicApiStore, nowApiState, qualityStore } from './PlayerStore'
 
 export type SourceResult = {
 	url: string
@@ -37,11 +44,6 @@ const getSourceRequestTimeoutMs = (requestType: ResolveSourceRequestType) =>
 
 const getMusicItemSourceKey = (item: IMusic.IMusicItem) =>
 	String(item.platform || item.source || 'unknown').replace(/\s+/g, '_')
-
-const createTimeoutPromise = (timeoutMs: number) =>
-	new Promise<never>((_, reject) => {
-		setTimeout(() => reject(new Error('请求超时')), timeoutMs)
-	})
 
 const createSourceRequestKey = (
 	item: IMusic.IMusicItem,
@@ -134,69 +136,87 @@ export const resolveSource = async (
 		const requestKey = createSourceRequestKey(musicItem, requestType)
 		const logPrefix = getSourceRequestLogPrefix(requestType, requestKey)
 		const timeoutMs = getSourceRequestTimeoutMs(requestType)
+		const failedIds = getFailedApiIds(musicItem.id)
+		const qualityOrder: IMusic.IQualityKey[] = ['flac', '320k', '128k']
+		const apisToTry: IMusic.MusicApi[] = []
+		if (!failedIds.has(nowMusicApi.id)) apisToTry.push(nowMusicApi)
+		if (isCurrentSourceRequest(requestType)) {
+			for (const api of getFailoverCandidates(
+				musicApiStore.getValue() || [],
+				nowMusicApi.id,
+				failedIds,
+			)) {
+				if (!apisToTry.some((item) => item.id === api.id)) apisToTry.push(api)
+			}
+		}
+
+		logInfo(`${logPrefix} 开始请求音源: ${musicItem.title} - ${musicItem.artist}`)
 
 		try {
-			const qualityOrder: IMusic.IQualityKey[] = ['flac', '320k', '128k']
-			let currentQualityIndex = qualityOrder.indexOf(qualityStore.getValue())
-			let resp_url: string | null = null
+			for (const api of apisToTry.slice(0, MAX_FAILOVER_SOURCES)) {
+				let currentQualityIndex = qualityOrder.indexOf(qualityStore.getValue())
+				if (currentQualityIndex < 0) currentQualityIndex = qualityOrder.length - 1
+				let resp_url: string | null = null
 
-			logInfo(`${logPrefix} 开始请求音源: ${musicItem.title} - ${musicItem.artist}`)
-
-			while (currentQualityIndex < qualityOrder.length && !resp_url) {
-				const currentQuality = qualityOrder[currentQualityIndex]
-				try {
-					resp_url = await Promise.race([
-						nowMusicApi.getMusicUrl(
-							musicItem.title,
-							musicItem.artist,
-							musicItem.id,
+				while (currentQualityIndex < qualityOrder.length && !resp_url) {
+					const currentQuality = qualityOrder[currentQualityIndex]
+					try {
+						resp_url = await requestMusicUrlFromApi(
+							api,
+							musicItem,
 							currentQuality,
+							timeoutMs,
 							{ requestKey, requestType, timeoutMs } as MusicUrlRequestContext,
-						),
-						createTimeoutPromise(timeoutMs),
-					])
-					if (!resp_url || resp_url === '') {
+						)
+						if (!resp_url || !isValidMusicUrl(resp_url)) {
+							if (isCurrentSourceRequest(requestType)) {
+								logInfo(
+									`${logPrefix} ${api.name} ${currentQuality}音质无可用链接，尝试下一个音质`,
+								)
+							}
+							currentQualityIndex++
+							resp_url = null
+							continue
+						}
+						if (
+							isCurrentSourceRequest(requestType) &&
+							currentQuality !== qualityStore.getValue()
+						) {
+							showToast('提示', `已自动切换至${currentQuality}音质`, 'info')
+							setQuality(currentQuality)
+						}
+						logInfo(`${logPrefix} ${api.name} 成功获取${currentQuality}音质的音乐URL:`, resp_url)
+					} catch (error) {
 						if (isCurrentSourceRequest(requestType)) {
-							logInfo(
-								`${logPrefix} ${currentQuality}音质无可用链接，尝试下一个音质`,
-							)
+							logInfo(`${logPrefix} ${api.name} ${currentQuality}音质无可用链接(catch),尝试下一个音质`)
+							const errMsg = error instanceof Error ? error.message : String(error)
+							logError(`${logPrefix} (catch error): ${errMsg}`)
 						}
 						currentQualityIndex++
-						resp_url = null
-						continue
 					}
-					if (
-						isCurrentSourceRequest(requestType) &&
-						currentQuality !== qualityStore.getValue()
-					) {
-						showToast('提示', `已自动切换至${currentQuality}音质`, 'info')
-						setQuality(currentQuality)
+				}
+
+				if (resp_url) {
+					if (isCurrentSourceRequest(requestType) && api.id !== nowMusicApi.id) {
+						await setMusicApiAsSelectedById(api.id, { silent: true })
 					}
-					logInfo(`${logPrefix} 成功获取${currentQuality}音质的音乐URL:`, resp_url)
-				} catch (error) {
 					if (isCurrentSourceRequest(requestType)) {
-						logInfo(`${logPrefix} ${currentQuality}音质无可用链接(catch),尝试下一个音质`)
+						nowApiState.setValue('正常')
 					}
-					const errMsg = error instanceof Error ? error.message : String(error)
-					if (isCurrentSourceRequest(requestType)) {
-						logError(`${logPrefix} (catch error): ${errMsg}`)
-					}
-					currentQualityIndex++
+					logInfo(`${logPrefix} 最终的音乐 URL:`, resp_url)
+					return { url: resp_url, wasCached: false }
+				}
+
+				if (isCurrentSourceRequest(requestType)) {
+					rememberFailedApi(musicItem.id, api.id)
 				}
 			}
 
-			if (!resp_url) {
-				if (isCurrentSourceRequest(requestType)) {
-					nowApiState.setValue('异常')
-					throw new Error('无法获取任何音质的音乐，请稍后重试。')
-				}
-				return { url: fakeAudioMp3Uri, wasCached: false }
-			}
-			logInfo(`${logPrefix} 最终的音乐 URL:`, resp_url)
 			if (isCurrentSourceRequest(requestType)) {
-				nowApiState.setValue('正常')
+				nowApiState.setValue('异常')
+				throw new Error('无法获取任何音质的音乐，请稍后重试。')
 			}
-			return { url: resp_url, wasCached: false }
+			return { url: fakeAudioMp3Uri, wasCached: false }
 		} catch (error) {
 			if (isCurrentSourceRequest(requestType)) {
 				nowApiState.setValue('异常')
