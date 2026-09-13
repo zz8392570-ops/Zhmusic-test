@@ -37,6 +37,7 @@ export const QueueControls = ({
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
 	const handlePlay = async () => {
+		if (tracks.length === 0) return
 		await myTrackPlayer.playWithReplacePlayList(
 			tracks[0] as IMusic.IMusicItem,
 			tracks as IMusic.IMusicItem[],

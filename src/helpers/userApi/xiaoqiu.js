@@ -61,7 +61,7 @@ const headers = {
 		'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
 	Cookie: 'uin=',
 }
-async function searchBase(query, page, type, pageSize) {
+async function searchBase(query, page, type, pageSize = 20) {
 	const res = (
 		await (0, axios.default)({
 			url: 'https://u.y.qq.com/cgi-bin/musicu.fcg',
@@ -109,7 +109,7 @@ export async function searchArtist(query, page) {
 		data: artists.data.map(formatArtistItem),
 	}
 }
-async function searchMusicSheet(query, page) {
+export async function searchMusicSheet(query, page) {
 	const musicSheet = await searchBase(query, page, 3)
 	return {
 		isEnd: musicSheet.isEnd,
@@ -121,7 +121,7 @@ async function searchMusicSheet(query, page) {
 			worksNums: item.song_count,
 			artwork: item.imgurl,
 			id: item.dissid,
-			artist: item.creator.name,
+			artist: item.creator?.name ?? '',
 		})),
 	}
 }
@@ -524,6 +524,7 @@ module.exports = {
 	getMediaSource,
 	searchMusic,
 	searchArtist,
+	searchMusicSheet,
 	searchLyric,
 	getAlbumInfo,
 	getArtistWorks,

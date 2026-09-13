@@ -1,11 +1,11 @@
 // helpers/searchAll.ts
 
-import { searchArtist, searchMusic } from '@/helpers/userApi/xiaoqiu'
+import { searchArtist, searchMusic, searchMusicSheet } from '@/helpers/userApi/xiaoqiu'
 import type { Track } from '@/player/types'
 
 const PAGE_SIZE = 20
 
-type SearchType = 'songs' | 'artists'
+export type SearchType = 'songs' | 'artists' | 'playlists'
 
 const searchAll = async (
 	searchText: string,
@@ -15,7 +15,7 @@ const searchAll = async (
 	let result
 	if (type === 'songs') {
 		result = await searchMusic(searchText, page, PAGE_SIZE)
-	} else {
+	} else if (type === 'artists') {
 		result = await searchArtist(searchText, page)
 		result.data = result.data.map((artist) => ({
 			id: artist.singerMID || artist.id,
@@ -25,6 +25,19 @@ const searchAll = async (
 			singerMID: artist.singerMID,
 			worksNum: artist.worksNum,
 			isArtist: true,
+		})) as Track[]
+	} else {
+		result = await searchMusicSheet(searchText, page)
+		result.data = result.data.map((playlist) => ({
+			id: String(playlist.id),
+			title: playlist.title,
+			artist: playlist.artist,
+			artwork: playlist.artwork,
+			description: playlist.description,
+			playCount: playlist.playCount,
+			worksNum: playlist.worksNums,
+			platform: 'tx',
+			isPlaylist: true,
 		})) as Track[]
 	}
 

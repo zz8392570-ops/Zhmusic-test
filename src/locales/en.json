@@ -129,7 +129,7 @@
 	},
 	"find": {
 		"inRadio": "Find in Radio",
-		"inSearch": "Find Songs or Artists Online",
+		"inSearch": "Find Songs, Artists, or Playlists Online",
 		"inSongs": "Find in Songs",
 		"inFavorites": "Find in Favorites",
 		"noResults": "No results found",
@@ -138,6 +138,7 @@
 		"inPlaylist": "Find in Playlist",
 		"songs": "Songs",
 		"artists": "Artists",
+		"playlists": "Playlists",
 		"history": "Recent Searches",
 		"clear": "Clear",
 		"clearHistory": "Clear search history",
@@ -155,7 +156,16 @@
 		"retry": "Search again",
 		"loadMoreFailed": "Couldn't load more. Tap to retry",
 		"endOfResults": "You've reached the end",
-		"artistWorks": "%{works} songs"
+		"artistWorks": "%{works} songs",
+		"playlistSongs": "%{songs} songs",
+		"playlistPlays": "%{plays} plays",
+		"playlistDetails": "Playlist",
+		"loadingPlaylist": "Loading playlist…",
+		"playlistLoadFailed": "Couldn't load this playlist",
+		"emptyPlaylist": "This playlist is empty",
+		"emptyPlaylistDescription": "There aren't any playable songs here yet",
+		"unknownSong": "Unknown song",
+		"unknownArtist": "Unknown artist"
 	},
 	"playButton": {
 		"play": "Play",

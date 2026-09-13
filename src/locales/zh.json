@@ -130,7 +130,7 @@
 	},
 	"find": {
 		"inRadio": "在广播中搜索",
-		"inSearch": "在线搜索歌曲或歌手",
+		"inSearch": "在线搜索歌曲、歌手或歌单",
 		"inSongs": "在歌曲中搜索",
 		"inFavorites": "在收藏中搜索",
 		"noResults": "没有找到结果",
@@ -139,6 +139,7 @@
 		"inPlaylist": "在歌单中搜索",
 		"songs": "歌曲",
 		"artists": "歌手",
+		"playlists": "歌单",
 		"history": "最近搜索",
 		"clear": "清空",
 		"clearHistory": "清空搜索历史",
@@ -156,7 +157,16 @@
 		"retry": "重新搜索",
 		"loadMoreFailed": "加载失败，点击重试",
 		"endOfResults": "已经到底了",
-		"artistWorks": "%{works} 首歌曲"
+		"artistWorks": "%{works} 首歌曲",
+		"playlistSongs": "%{songs} 首",
+		"playlistPlays": "%{plays} 次播放",
+		"playlistDetails": "歌单详情",
+		"loadingPlaylist": "正在加载歌单…",
+		"playlistLoadFailed": "歌单加载失败",
+		"emptyPlaylist": "歌单暂无歌曲",
+		"emptyPlaylistDescription": "这个歌单目前没有可播放的歌曲",
+		"unknownSong": "未知歌曲",
+		"unknownArtist": "未知歌手"
 	},
 	"playButton": {
 		"play": "播放",

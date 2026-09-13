@@ -1,6 +1,8 @@
-import { fontSize } from '@/constants/tokens'
+import { unknownTrackImageUri } from '@/constants/images'
+import { fontSize, ThemeColors } from '@/constants/tokens'
 import { generateTracksListId } from '@/helpers/miscellaneous'
 import { Playlist } from '@/helpers/types'
+import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
@@ -23,6 +25,8 @@ type PlaylistTracksListProps = {
 	onSelectAll?: () => void
 	deleteSelectedTracks?: () => void
 	exportSelectedTracks?: () => void
+	showMetadata?: boolean
+	metadata?: string
 }
 
 export const PlaylistTracksList = ({
@@ -39,16 +43,19 @@ export const PlaylistTracksList = ({
 	onSelectAll,
 	deleteSelectedTracks,
 	exportSelectedTracks,
+	showMetadata = false,
+	metadata,
 }: PlaylistTracksListProps) => {
+	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
-	const styles = useMemo(() => createStyles(defaultStyles), [defaultStyles])
+	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
 	// const filteredPlaylistTracks = useMemo(() => {
 	// 	return playlist.tracks.filter(trackTitleFilter(search))
 	// }, [playlist.tracks, search])
 
 	return (
 		<TracksList
-			id={generateTracksListId(playlist.title)}
+			id={generateTracksListId(playlist.id || playlist.title)}
 			scrollEnabled={false}
 			hideQueueControls={true}
 			ListHeaderComponentStyle={styles.playlistHeaderContainer}
@@ -59,9 +66,11 @@ export const PlaylistTracksList = ({
 							contentFit="cover"
 							cachePolicy="memory-disk"
 							priority="high"
-							recyclingKey={(playlist.coverImg || playlist.artwork) ?? 'missing-artwork'}
+							recyclingKey={
+								(playlist.coverImg || playlist.artwork || unknownTrackImageUri) ?? 'missing-artwork'
+							}
 							source={{
-								uri: playlist.coverImg || playlist.artwork,
+								uri: playlist.coverImg || playlist.artwork || unknownTrackImageUri,
 							}}
 							style={styles.artworkImage}
 						/>
@@ -70,9 +79,24 @@ export const PlaylistTracksList = ({
 					<Text numberOfLines={1} style={styles.playlistNameText}>
 						{playlist.title}
 					</Text>
+					{showMetadata && playlist.artist ? (
+						<Text numberOfLines={1} style={styles.playlistArtistText}>
+							{playlist.artist}
+						</Text>
+					) : null}
+					{showMetadata && metadata ? (
+						<Text numberOfLines={1} style={styles.playlistStatsText}>
+							{metadata}
+						</Text>
+					) : null}
+					{showMetadata && playlist.description ? (
+						<Text numberOfLines={3} style={styles.playlistDescriptionText}>
+							{playlist.description}
+						</Text>
+					) : null}
 
 					<QueueControls
-						style={{ paddingTop: 24 }}
+						style={{ paddingTop: showMetadata ? 18 : 24 }}
 						tracks={tracks}
 						showImportMenu={showImportMenu}
 						onImportTrack={onImportTrack}
@@ -95,27 +119,45 @@ export const PlaylistTracksList = ({
 	)
 }
 
-const createStyles = (defaultStyles: ReturnType<typeof useDefaultStyles>) =>
+const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	playlistHeaderContainer: {
-		flex: 1,
-		marginBottom: 32,
-	},
-	artworkImageContainer: {
-		flexDirection: 'row',
-		justifyContent: 'center',
-		height: 300,
-	},
-	artworkImage: {
-		width: '85%',
-		height: '100%',
-		borderRadius: 12,
-	},
-	playlistNameText: {
-		...defaultStyles.text,
-		marginTop: 22,
-		textAlign: 'center',
-		fontSize: fontSize.lg,
-		fontWeight: '800',
-	},
+		playlistHeaderContainer: {
+			flex: 1,
+			marginBottom: 32,
+		},
+		artworkImageContainer: {
+			flexDirection: 'row',
+			justifyContent: 'center',
+		},
+		artworkImage: {
+			width: '85%',
+			aspectRatio: 1,
+			borderRadius: 12,
+		},
+		playlistNameText: {
+			...defaultStyles.text,
+			marginTop: 22,
+			textAlign: 'center',
+			fontSize: fontSize.lg,
+			fontWeight: '800',
+		},
+		playlistArtistText: {
+			marginTop: 7,
+			color: colors.textMuted,
+			fontSize: 14,
+			textAlign: 'center',
+		},
+		playlistStatsText: {
+			marginTop: 5,
+			color: colors.textMuted,
+			fontSize: 13,
+			textAlign: 'center',
+		},
+		playlistDescriptionText: {
+			marginTop: 12,
+			color: colors.textMuted,
+			fontSize: 13,
+			lineHeight: 19,
+			textAlign: 'center',
+		},
 	})

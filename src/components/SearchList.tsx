@@ -39,6 +39,23 @@ const ItemDivider = memo(() => {
 	return <View style={[styles.itemSeparator, { backgroundColor: colors.separator }]} />
 })
 
+const formatCompactCount = (value: unknown) => {
+	const count = Number(value)
+	if (!Number.isFinite(count) || count < 0) return null
+
+	const formatUnit = (amount: number, unit: string) =>
+		`${Number.isInteger(amount) ? amount : amount.toFixed(1)}${unit}`
+	if (i18n.locale.toLowerCase().startsWith('zh')) {
+		if (count >= 100_000_000) return formatUnit(count / 100_000_000, '亿')
+		if (count >= 10_000) return formatUnit(count / 10_000, '万')
+	} else {
+		if (count >= 1_000_000) return formatUnit(count / 1_000_000, 'M')
+		if (count >= 1_000) return formatUnit(count / 1_000, 'K')
+	}
+
+	return String(Math.trunc(count))
+}
+
 const SearchResultState = ({
 	query,
 	isLoading,
@@ -123,6 +140,35 @@ const ResultsFooter = ({
 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
+		playlistItem: {
+			minHeight: 68,
+			flexDirection: 'row',
+			alignItems: 'center',
+		},
+		playlistArtwork: {
+			width: 62,
+			height: 62,
+			borderRadius: 8,
+			marginRight: 13,
+			backgroundColor: colors.artworkPlaceholder,
+		},
+		playlistContent: {
+			flex: 1,
+			gap: 3,
+		},
+		playlistTitle: {
+			fontSize: 16,
+			fontWeight: '600',
+			color: colors.text,
+		},
+		playlistCreator: {
+			fontSize: 13,
+			color: colors.textMuted,
+		},
+		playlistMeta: {
+			fontSize: 12,
+			color: colors.textMuted,
+		},
 		artistItem: {
 			minHeight: 58,
 			flexDirection: 'row',
@@ -227,6 +273,16 @@ export const SearchList = ({
 	const insets = useSafeAreaInsets()
 
 	const handleTrackSelect = useCallback(async (selectedTrack: Track) => {
+		if (selectedTrack.isPlaylist) {
+			router.navigate({
+				pathname: '/(tabs)/search/[name]',
+				params: {
+					name: String(selectedTrack.id),
+					title: String(selectedTrack.title ?? ''),
+				},
+			})
+			return
+		}
 		if (selectedTrack.isArtist) {
 			const singerMid = selectedTrack.singerMID || selectedTrack.id
 			if (singerMid) {
@@ -239,6 +295,46 @@ export const SearchList = ({
 
 	const renderItem = useCallback(
 		({ item: track }: { item: Track }) => {
+			if (track.isPlaylist) {
+				const songs = formatCompactCount(track.worksNum)
+				const plays = formatCompactCount(track.playCount)
+				const metadata = [
+					songs ? i18n.t('find.playlistSongs', { songs }) : null,
+					plays ? i18n.t('find.playlistPlays', { plays }) : null,
+				].filter(Boolean)
+
+				return (
+					<TouchableOpacity
+						activeOpacity={0.65}
+						style={themedStyles.playlistItem}
+						onPress={() => handleTrackSelect(track)}
+					>
+						<Image
+							contentFit="cover"
+							cachePolicy="memory-disk"
+							recyclingKey={(track.artwork || unknownTrackImageUri) ?? 'missing-artwork'}
+							source={{ uri: track.artwork || unknownTrackImageUri }}
+							style={themedStyles.playlistArtwork}
+						/>
+						<View style={themedStyles.playlistContent}>
+							<Text style={themedStyles.playlistTitle} numberOfLines={1}>
+								{track.title}
+							</Text>
+							{track.artist ? (
+								<Text style={themedStyles.playlistCreator} numberOfLines={1}>
+									{track.artist}
+								</Text>
+							) : null}
+							{metadata.length > 0 ? (
+								<Text style={themedStyles.playlistMeta} numberOfLines={1}>
+									{metadata.join(' · ')}
+								</Text>
+							) : null}
+						</View>
+						<MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
+					</TouchableOpacity>
+				)
+			}
 			if (track.isArtist) {
 				return (
 					<TouchableOpacity
@@ -284,7 +380,8 @@ export const SearchList = ({
 	)
 
 	const keyExtractor = useCallback(
-		(item: Track, index: number) => `${item.isArtist ? 'artist' : 'song'}-${item.id}-${index}`,
+		(item: Track, index: number) =>
+			`${item.isPlaylist ? 'playlist' : item.isArtist ? 'artist' : 'song'}-${item.id}-${index}`,
 		[],
 	)
 

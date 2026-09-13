@@ -4,7 +4,7 @@ import { SearchList } from '@/components/SearchList'
 import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
-import searchAll from '@/helpers/searchAll'
+import searchAll, { type SearchType } from '@/helpers/searchAll'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useNavigationSearchController } from '@/hooks/useNavigationSearch'
 import type { Track } from '@/player/types'
@@ -14,7 +14,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-type SearchType = 'songs' | 'artists'
+const SEARCH_TABS: { type: SearchType; label: string }[] = [
+	{ type: 'songs', label: 'find.songs' },
+	{ type: 'artists', label: 'find.artists' },
+	{ type: 'playlists', label: 'find.playlists' },
+]
 
 const SearchScreen = () => {
 	const colors = useThemeColors()
@@ -251,36 +255,26 @@ const SearchScreen = () => {
 		<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
 			<View style={styles.contentContainer}>
 				<View style={styles.segmentedControl}>
-					<Pressable
-						accessibilityRole="tab"
-						accessibilityState={{ selected: searchType === 'songs' }}
-						onPress={() => handleSearchTypeChange('songs')}
-						style={({ pressed }) => [
-							styles.segment,
-							searchType === 'songs' && styles.activeSegment,
-							pressed && styles.pressed,
-						]}
-					>
-						<Text style={[styles.segmentText, searchType === 'songs' && styles.activeSegmentText]}>
-							{i18n.t('find.songs')}
-						</Text>
-					</Pressable>
-					<Pressable
-						accessibilityRole="tab"
-						accessibilityState={{ selected: searchType === 'artists' }}
-						onPress={() => handleSearchTypeChange('artists')}
-						style={({ pressed }) => [
-							styles.segment,
-							searchType === 'artists' && styles.activeSegment,
-							pressed && styles.pressed,
-						]}
-					>
-						<Text
-							style={[styles.segmentText, searchType === 'artists' && styles.activeSegmentText]}
-						>
-							{i18n.t('find.artists')}
-						</Text>
-					</Pressable>
+					{SEARCH_TABS.map((tab) => {
+						const isSelected = searchType === tab.type
+						return (
+							<Pressable
+								key={tab.type}
+								accessibilityRole="tab"
+								accessibilityState={{ selected: isSelected }}
+								onPress={() => handleSearchTypeChange(tab.type)}
+								style={({ pressed }) => [
+									styles.segment,
+									isSelected && styles.activeSegment,
+									pressed && styles.pressed,
+								]}
+							>
+								<Text style={[styles.segmentText, isSelected && styles.activeSegmentText]}>
+									{i18n.t(tab.label)}
+								</Text>
+							</Pressable>
+						)
+					})}
 				</View>
 
 				{showSuggestions ? (

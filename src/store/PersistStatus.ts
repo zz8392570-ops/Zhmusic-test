@@ -39,7 +39,7 @@ interface IPersistConfig {
 	'music.songsNumsToLoad': number
 	'music.homeBoardId': number
 	'search.history': string[]
-	'search.type': 'songs' | 'artists'
+	'search.type': 'songs' | 'artists' | 'playlists'
 	'music.bundledSourcesVersion': number
 	'music.removedBuiltinSources': string[]
 }
