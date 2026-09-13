@@ -2,6 +2,7 @@ import musicSdk from '@/components/utils/musicSdk'
 import { unknownTrackImageUri } from '@/constants/images'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import type { Playlist } from '@/helpers/types'
+import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
 
@@ -77,21 +78,144 @@ export const parseBoardKey = (
 }
 
 export const boardsToPlaylists = (source: LeaderboardSource): Playlist[] =>
-	getLeaderboardBoards(source).map((board) => ({
-		id: board.id,
-		title: board.name,
-		name: board.name,
-		coverImg: unknownTrackImageUri,
-		artwork: unknownTrackImageUri,
-		artworkPreview: unknownTrackImageUri,
-		singerImg: unknownTrackImageUri,
-		period: '',
-		description: '',
+	getLeaderboardBoards(source).map((board) =>
+		toRadioPlaylist(source, board.bangid, board.name, unknownTrackImageUri),
+	)
+
+const toHttps = (url?: string | null) => {
+	if (!url) return unknownTrackImageUri
+	return String(url).replace(/^http:/, 'https:').replace('{size}', '400')
+}
+
+const toRadioPlaylist = (
+	source: LeaderboardSource,
+	bangid: string | number,
+	title: string,
+	coverImg?: string | null,
+	extra?: Partial<Playlist>,
+): Playlist => {
+	const cover = toHttps(coverImg)
+	return {
+		id: `${source}__${bangid}`,
+		title,
+		name: title,
+		coverImg: cover,
+		artwork: cover,
+		artworkPreview: cover,
+		singerImg: cover,
+		period: extra?.period || '',
+		description: extra?.description || '',
 		platform: source,
 		artist: '',
-		tracks: [],
-		songs: [],
-	}))
+		tracks: extra?.tracks || [],
+		songs: extra?.songs || [],
+	}
+}
+
+const fetchJson = async (url: string, headers?: Record<string, string>) => {
+	const response = await fetch(url, { headers })
+	if (!response.ok) throw new Error(`HTTP ${response.status}`)
+	return response.json()
+}
+
+const fetchTxRadio = async (): Promise<Playlist[]> => {
+	const groups = await getTopLists()
+	return groups.flatMap((group: { data?: any[] }) =>
+		(group.data ?? []).map((item) =>
+			toRadioPlaylist('tx', item.id, item.title, item.coverImg, {
+				period: item.period,
+				description: item.description,
+			}),
+		),
+	)
+}
+
+const flattenKwBoards = (node: any, acc: Playlist[] = [], seen = new Set<string>()) => {
+	const list = Array.isArray(node) ? node : node ? [node] : []
+	for (const item of list) {
+		const bangid = String(item.sourceid || '')
+		if (item.source == '1' && bangid && !seen.has(bangid)) {
+			seen.add(bangid)
+			acc.push(toRadioPlaylist('kw', bangid, item.name, item.pic))
+		}
+		if (item.child) flattenKwBoards(item.child, acc, seen)
+	}
+	return acc
+}
+
+const fetchKwRadio = async (): Promise<Playlist[]> => {
+	const tree = await fetchJson(
+		'https://qukudata.kuwo.cn/q.k?op=query&cont=tree&node=2&pn=0&rn=1000&fmt=json&level=2',
+	)
+	const list = flattenKwBoards(tree.child || tree)
+	if (!list.length) throw new Error('empty kw boards')
+	return list
+}
+
+const fetchKgRadio = async (): Promise<Playlist[]> => {
+	const result = await fetchJson(
+		'http://mobilecdnbj.kugou.com/api/v5/rank/list?version=9108&plat=0&showtype=2&parentid=0&apiver=6&area_code=1&withsong=1',
+	)
+	const list = (result?.data?.info ?? [])
+		.filter((item: any) => item.isvol == 1 && item.rankid)
+		.map((item: any) =>
+			toRadioPlaylist('kg', item.rankid, item.rankname, item.imgurl || item.banner7url),
+		)
+	if (!list.length) throw new Error('empty kg boards')
+	return list
+}
+
+const fetchWyRadio = async (): Promise<Playlist[]> => {
+	const result = await fetchJson('https://music.163.com/api/toplist', {
+		Referer: 'https://music.163.com/',
+		'User-Agent': 'Mozilla/5.0',
+	})
+	const list = (result?.list ?? []).map((item: any) =>
+		toRadioPlaylist('wy', item.id, item.name, item.coverImgUrl),
+	)
+	if (!list.length) throw new Error('empty wy boards')
+	return list
+}
+
+const collectMgRanks = (nodes: any[], acc: Playlist[] = [], seen = new Set<string>()) => {
+	for (const item of nodes) {
+		const bangid = String(item.rankId || '')
+		if (bangid && !seen.has(bangid)) {
+			seen.add(bangid)
+			acc.push(toRadioPlaylist('mg', bangid, item.rankName, item.imageUrl))
+		}
+		if (Array.isArray(item.contents)) collectMgRanks(item.contents, acc, seen)
+	}
+	return acc
+}
+
+const fetchMgRadio = async (): Promise<Playlist[]> => {
+	const result = await fetchJson('https://app.c.nf.migu.cn/pc/bmw/rank/rank-index/v1.0', {
+		Referer: 'https://app.c.nf.migu.cn/',
+		channel: '0146921',
+	})
+	const list = collectMgRanks(result?.data?.contents ?? [])
+	if (!list.length) throw new Error('empty mg boards')
+	return list
+}
+
+const radioFetchers: Record<LeaderboardSource, () => Promise<Playlist[]>> = {
+	tx: fetchTxRadio,
+	kw: fetchKwRadio,
+	kg: fetchKgRadio,
+	wy: fetchWyRadio,
+	mg: fetchMgRadio,
+}
+
+export const fetchRadioPlaylists = async (source: LeaderboardSource): Promise<Playlist[]> => {
+	try {
+		const list = await radioFetchers[source]()
+		if (list.length) return list
+	} catch (error) {
+		console.error('Failed to fetch radio boards:', error)
+	}
+	return boardsToPlaylists(source)
+}
 
 export const mapLeaderboardTrack = (track: any, source: LeaderboardSource): Track => ({
 	id: String(track.songmid ?? ''),

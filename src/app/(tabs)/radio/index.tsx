@@ -4,7 +4,7 @@ import { screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import {
 	DEFAULT_HOME_SOURCE,
-	boardsToPlaylists,
+	fetchRadioPlaylists,
 	normalizeLeaderboardSource,
 } from '@/helpers/leaderboard'
 import { Playlist } from '@/helpers/types'
@@ -12,8 +12,8 @@ import { useThemeColors } from '@/hooks/useAppTheme'
 import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
 import { useRouter } from 'expo-router'
-import { useMemo } from 'react'
-import { ScrollView, View } from 'react-native'
+import { useEffect, useState } from 'react'
+import { ActivityIndicator, ScrollView, View } from 'react-native'
 
 const RadiolistsScreen = () => {
 	const defaultStyles = useDefaultStyles()
@@ -22,7 +22,22 @@ const RadiolistsScreen = () => {
 	const radioBoardSource = normalizeLeaderboardSource(
 		PersistStatus.useValue('music.radioBoardSource', DEFAULT_HOME_SOURCE) ?? DEFAULT_HOME_SOURCE,
 	)
-	const playlists = useMemo(() => boardsToPlaylists(radioBoardSource), [radioBoardSource])
+	const [playlists, setPlaylists] = useState<Playlist[]>([])
+	const [loading, setLoading] = useState(true)
+
+	useEffect(() => {
+		let cancelled = false
+		setLoading(true)
+		setPlaylists([])
+		fetchRadioPlaylists(radioBoardSource).then((list) => {
+			if (cancelled) return
+			setPlaylists(list)
+			setLoading(false)
+		})
+		return () => {
+			cancelled = true
+		}
+	}, [radioBoardSource])
 
 	const handlePlaylistPress = (playlist: Playlist) => {
 		router.push({
@@ -41,18 +56,24 @@ const RadiolistsScreen = () => {
 					PersistStatus.set('music.radioBoardSource', platform as MusicPlatform)
 				}}
 			/>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
-				style={{
-					paddingHorizontal: screenPadding.horizontal,
-				}}
-			>
-				<RadioList
-					scrollEnabled={false}
-					playlists={playlists}
-					onPlaylistPress={handlePlaylistPress}
-				/>
-			</ScrollView>
+			{loading ? (
+				<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+					<ActivityIndicator size="large" color={colors.loading} />
+				</View>
+			) : (
+				<ScrollView
+					contentInsetAdjustmentBehavior="automatic"
+					style={{
+						paddingHorizontal: screenPadding.horizontal,
+					}}
+				>
+					<RadioList
+						scrollEnabled={false}
+						playlists={playlists}
+						onPlaylistPress={handlePlaylistPress}
+					/>
+				</ScrollView>
+			)}
 		</View>
 	)
 }

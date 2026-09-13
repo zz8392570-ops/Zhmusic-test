@@ -1,6 +1,5 @@
-import { weapi } from './utils/crypto'
 import { httpFetch } from '../../request'
-import musicDetailApi from './musicDetail'
+import { formatPlayTime } from '../../index'
 
 const topList = [{ id: 'wy__19723756', name: '飙升榜', bangid: '19723756' },
   { id: 'wy__3779629', name: '新歌榜', bangid: '3779629' },
@@ -110,22 +109,38 @@ export default {
   _requestBoardsObj: null,
   getBoardsData() {
     if (this._requestBoardsObj) this._requestBoardsObj.cancelHttp()
-    this._requestBoardsObj = httpFetch('https://music.163.com/weapi/toplist', {
-      method: 'post',
-      form: weapi({}),
+    this._requestBoardsObj = httpFetch('https://music.163.com/api/toplist', {
+      headers: {
+        Referer: 'https://music.163.com/',
+        'User-Agent': 'Mozilla/5.0',
+      },
     })
     return this._requestBoardsObj.promise
   },
   getData(id) {
-    const requestBoardsDetailObj = httpFetch('https://music.163.com/weapi/v3/playlist/detail', {
-      method: 'post',
-      form: weapi({
-        id,
-        n: 100000,
-        p: 1,
-      }),
-    })
-    return requestBoardsDetailObj.promise
+    return httpFetch(`https://music.163.com/api/playlist/detail?id=${id}`, {
+      headers: {
+        Referer: 'https://music.163.com/',
+        'User-Agent': 'Mozilla/5.0',
+      },
+    }).promise
+  },
+  filterTracks(tracks) {
+    return (tracks || []).map(item => ({
+      singer: (item.artists || item.ar || []).map(artist => artist.name).filter(Boolean).join('、'),
+      name: item.name ?? '',
+      albumName: item.album?.name ?? item.al?.name,
+      albumId: item.album?.id ?? item.al?.id,
+      songmid: item.id,
+      source: 'wy',
+      interval: formatPlayTime((item.duration ?? item.dt ?? 0) / 1000),
+      img: item.album?.picUrl ?? item.al?.picUrl ?? '',
+      lrc: null,
+      otherSource: null,
+      types: [],
+      _types: {},
+      typeUrl: {},
+    }))
   },
 
   filterBoardsData(rawList) {
@@ -168,34 +183,19 @@ export default {
   },
   async getList(bangid, page, retryNum = 0) {
     if (++retryNum > 6) return Promise.reject(new Error('try max num'))
-    // console.log(bangid)
     let resp
     try {
       resp = await this.getData(bangid)
     } catch (err) {
-      if (err.message == 'try max num') {
-        throw err
-      } else {
-        return this.getList(bangid, page, retryNum)
-      }
+      if (err.message == 'try max num') throw err
+      return this.getList(bangid, page, retryNum)
     }
-    if (resp.statusCode !== 200 || resp.body.code !== 200) return this.getList(bangid, page, retryNum)
-    // console.log(resp.body)
-    let musicDetail
-    try {
-      musicDetail = await musicDetailApi.getList(resp.body.playlist.trackIds.map(trackId => trackId.id))
-    } catch (err) {
-      console.log(err)
-      if (err.message == 'try max num') {
-        throw err
-      } else {
-        return this.getList(bangid, page, retryNum)
-      }
-    }
-    // console.log(musicDetail)
+    const tracks = resp.body?.result?.tracks || resp.body?.playlist?.tracks
+    if (resp.statusCode !== 200 || !tracks) return this.getList(bangid, page, retryNum)
+    const list = this.filterTracks(tracks)
     return {
-      total: musicDetail.list.length,
-      list: musicDetail.list,
+      total: list.length,
+      list,
       limit: this.limit,
       page,
       source: 'wy',
