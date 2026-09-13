@@ -1,4 +1,5 @@
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
+import { getMusicPlatformLabelKey, supportsCatalogNavigation } from '@/helpers/musicPlatform'
 import { getSingerMidBySingerName } from '@/helpers/userApi/getMusicSource'
 import { useFavorites } from '@/store/library'
 import { isInPlayList } from '@/store/playList'
@@ -9,6 +10,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { PropsWithChildren, useCallback, useMemo, useState } from 'react'
 import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
+import { isSameMediaItem } from '@/utils/mediaItem'
 
 type TrackShortcutsMenuProps = PropsWithChildren<{
 	track: Track
@@ -26,10 +28,43 @@ export const TrackShortcutsMenu = ({
 }: TrackShortcutsMenuProps) => {
 	const router = useRouter()
 	const { favorites, toggleTrackFavorite } = useFavorites()
-	const isFavorite = favorites.find((trackItem) => trackItem.id === track?.id)
+	const isFavorite = favorites.some((trackItem) =>
+		isSameMediaItem(trackItem, track as IMusic.IMusicItem),
+	)
 	const { activeQueueId } = useQueue()
 
 	const [isInPlaylist, setIsInPlaylist] = useState(false)
+	const canNavigateCatalog = supportsCatalogNavigation(track.platform)
+	const sourceOptions = useMemo(() => {
+		const items = [track, ...(track.sourceAlternatives ?? [])]
+		return items.filter(
+			(item, index) =>
+				items.findIndex(
+					(candidate) => candidate.platform === item.platform && candidate.id === item.id,
+				) === index,
+		)
+	}, [track])
+	const sourceActions = useMemo<MenuAction[]>(
+		() =>
+			sourceOptions.length > 1
+				? [
+						{
+							id: 'select-source',
+							title: i18n.t('menu.selectSource'),
+							image: 'antenna.radiowaves.left.and.right',
+							subactions: sourceOptions.map((item, index) => {
+								const labelKey = getMusicPlatformLabelKey(item.platform)
+								return {
+									id: `play-source-${index}`,
+									title: labelKey ? i18n.t(labelKey) : String(item.platform ?? '').toUpperCase(),
+									image: 'music.note',
+								}
+							}),
+						},
+					]
+				: [],
+		[sourceOptions],
+	)
 
 	const updateIsInPlaylist = useCallback(() => {
 		setIsInPlaylist(isInPlayList(track as IMusic.IMusicItem))
@@ -130,6 +165,14 @@ export const TrackShortcutsMenu = ({
 			.with('delete-track', async () => {
 				onDeleteTrack?.(track.id)
 			})
+			.with(
+				P.when((actionId) => actionId.startsWith('play-source-')),
+				async (actionId) => {
+					const index = Number(actionId.replace('play-source-', ''))
+					const selectedSource = sourceOptions[index]
+					if (selectedSource) await myTrackPlayer.play(selectedSource as IMusic.IMusicItem)
+				},
+			)
 			.otherwise(() => {
 				// handleViewArtist()
 				console.warn(`Unknown menu action ${id}`)
@@ -157,7 +200,8 @@ export const TrackShortcutsMenu = ({
 					title: i18n.t('menu.addToPlaylist'),
 					image: 'text.badge.plus',
 				},
-				...(isSinger ? [] : (artistActions as MenuAction[])),
+				...sourceActions,
+				...(isSinger || !canNavigateCatalog ? [] : (artistActions as MenuAction[])),
 				...(allowDelete
 					? [
 							{

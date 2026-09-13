@@ -51,9 +51,7 @@ function resetLyricState() {
 }
 
 function getLyricSource(): ILyric.ILyricSource {
-	return {
-		rawLrc: nowLyricState.getValue() || DEFAULT_LYRIC,
-	}
+	return nowLyricState.getValue() ?? { rawLrc: DEFAULT_LYRIC }
 }
 
 function updateCurrentLyricByPosition(position: number, parser?: LyricParser) {
@@ -156,45 +154,51 @@ async function refreshLyric(fromStart?: boolean, forceRequest = false, positionO
 	}
 }
 
-const progressSubscription = ReactNativeTrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (data) => {
-	if (!myTrackPlayer.isCurrentProgressEvent(data)) return
-	durationStore.setValue(data.duration)
+const progressSubscription = ReactNativeTrackPlayer.addEventListener(
+	Event.PlaybackProgressUpdated,
+	(data) => {
+		if (!myTrackPlayer.isCurrentProgressEvent(data)) return
+		durationStore.setValue(data.duration)
 
-	const musicItem = myTrackPlayer.getCurrentMusic()
-	if (!musicItem) {
-		return
-	}
+		const musicItem = myTrackPlayer.getCurrentMusic()
+		if (!musicItem) {
+			return
+		}
 
-	const lyricParser = lyricStateStore.getValue().lyricParser
-	const rawLrc = nowLyricState.getValue() || DEFAULT_LYRIC
-	const lyricDelaySeconds = PersistStatus.get('lyric.delaySeconds') ?? 0
-	const parserReady =
-		!!lyricParser &&
-		isSameMediaItem(lyricParser.getCurrentMusicItem(), musicItem) &&
-		lastRawLyric === rawLrc &&
-		lastLyricDelaySeconds === lyricDelaySeconds
+		const lyricParser = lyricStateStore.getValue().lyricParser
+		const rawLrc = nowLyricState.getValue()?.rawLrc || DEFAULT_LYRIC
+		const lyricDelaySeconds = PersistStatus.get('lyric.delaySeconds') ?? 0
+		const parserReady =
+			!!lyricParser &&
+			isSameMediaItem(lyricParser.getCurrentMusicItem(), musicItem) &&
+			lastRawLyric === rawLrc &&
+			lastLyricDelaySeconds === lyricDelaySeconds
 
-	if (parserReady) {
-		updateCurrentLyricByPosition(data.position, lyricParser)
-		return
-	}
+		if (parserReady) {
+			updateCurrentLyricByPosition(data.position, lyricParser)
+			return
+		}
 
-	refreshLyric(false, true, data.position).catch((e) => {
-		console.log(e, 'LRC_PROGRESS')
-	})
-})
+		refreshLyric(false, true, data.position).catch((e) => {
+			console.log(e, 'LRC_PROGRESS')
+		})
+	},
+)
 
-const transitionSubscription = ReactNativeTrackPlayer.addEventListener(Event.MediaItemTransition, (event) => {
-	if (event.item == null) {
-		if (ReactNativeTrackPlayer.getActiveMediaItem() == null) durationStore.setValue(0)
-		return
-	}
-	if (!myTrackPlayer.isCurrentNativeItem(event.item)) return
-	durationStore.setValue(0)
-	refreshLyric(true, true, 0).catch((e) => {
-		console.log(e, 'LRC_ACTIVE_TRACK')
-	})
-})
+const transitionSubscription = ReactNativeTrackPlayer.addEventListener(
+	Event.MediaItemTransition,
+	(event) => {
+		if (event.item == null) {
+			if (ReactNativeTrackPlayer.getActiveMediaItem() == null) durationStore.setValue(0)
+			return
+		}
+		if (!myTrackPlayer.isCurrentNativeItem(event.item)) return
+		durationStore.setValue(0)
+		refreshLyric(true, true, 0).catch((e) => {
+			console.log(e, 'LRC_ACTIVE_TRACK')
+		})
+	},
+)
 
 const hotModule = module as typeof module & { hot?: { dispose(callback: () => void): void } }
 hotModule.hot?.dispose(() => {

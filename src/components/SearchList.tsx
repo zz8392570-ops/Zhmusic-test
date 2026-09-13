@@ -408,10 +408,17 @@ export const SearchList = ({
 					</TouchableOpacity>
 				)
 			}
-			const isActiveTrack = isSameMediaItem(
-				track as IMusic.IMusicItem,
-				currentMusic as IMusic.IMusicItem | null | undefined,
-			)
+			const isActiveTrack =
+				isSameMediaItem(
+					track as IMusic.IMusicItem,
+					currentMusic as IMusic.IMusicItem | null | undefined,
+				) ||
+				track.sourceAlternatives?.some((alternative) =>
+					isSameMediaItem(
+						alternative as IMusic.IMusicItem,
+						currentMusic as IMusic.IMusicItem | null | undefined,
+					),
+				)
 			return (
 				<TracksListItem
 					track={track}

@@ -17,6 +17,7 @@ import { create } from 'zustand'
 
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import PersistStatus from '@/store/PersistStatus'
+import { isSameMediaItem } from '@/utils/mediaItem'
 
 export { DEFAULT_HOME_BOARD_ID, DEFAULT_HOME_SOURCE }
 
@@ -67,7 +68,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 	toggleTrackFavorite: (track: Track) => {
 		set((state) => {
 			const favorites = [...state.favorites]
-			const index = favorites.findIndex((fav) => fav.id === track.id)
+			const index = favorites.findIndex((favorite) =>
+				isSameMediaItem(favorite, track as IMusic.IMusicItem),
+			)
 
 			if (index !== -1) {
 				// 如果存在，则从数组中删除

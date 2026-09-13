@@ -6,7 +6,11 @@ import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll, { type SearchType } from '@/helpers/searchAll'
-import type { MusicPlatform, SearchPlatform } from '@/helpers/crossPlatformSearch'
+import {
+	deduplicateCrossPlatformTracks,
+	type MusicPlatform,
+	type SearchPlatform,
+} from '@/helpers/crossPlatformSearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useNavigationSearchController } from '@/hooks/useNavigationSearch'
 import type { Track } from '@/player/types'
@@ -193,9 +197,12 @@ const SearchScreen = () => {
 				} = await searchAll(query, currentPage, type, platform)
 				if (requestId !== searchRequestRef.current) return
 
-				setSearchResults((currentResults) =>
-					currentPage === 1 ? data : [...currentResults, ...data],
-				)
+				setSearchResults((currentResults) => {
+					const nextResults = currentPage === 1 ? data : [...currentResults, ...data]
+					return type === 'songs' && platform === 'all'
+						? deduplicateCrossPlatformTracks(nextResults)
+						: nextResults
+				})
 				setHasMore(moreResults)
 				setUnavailablePlatforms((currentPlatforms) =>
 					currentPage === 1

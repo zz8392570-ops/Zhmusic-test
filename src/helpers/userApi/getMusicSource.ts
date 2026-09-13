@@ -1,12 +1,11 @@
-import { b64DecodeUnicode, decodeName } from '@/components/utils'
 import { headers } from '@/components/utils/musicSdk/options.js'
 import { formatSingerName } from '@/components/utils/musicSdk/utils'
-import { httpFetch } from '@/components/utils/request'
 import { fakeAudioMp3Uri } from '@/constants/images'
 import { getSingerInfo } from '@/helpers/userApi/qq-music-api'
 import axios from 'axios'
 import { Alert } from 'react-native'
 import { logError, logInfo } from '../logger'
+export { myGetLyric } from './getMusicLyric'
 const { DEV_URL_PREFIX, KW_URL } = {
 	DEV_URL_PREFIX: 'https://dev.music.ximalaya.com/api/v1/track/url',
 	KW_URL: 'https://www.kuwo.cn/api/v1/www/music/playUrl',
@@ -115,35 +114,6 @@ const parseResponse = async (response) => {
 			return await response.text()
 		} catch (e) {
 			logInfo('Failed to parse response')
-		}
-	}
-}
-
-export const myGetLyric = async (musicItem) => {
-	try {
-		const requestObj = httpFetch(
-			`https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${musicItem.id}&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&platform=yqq`,
-			{
-				headers: {
-					Referer: 'https://y.qq.com/portal/player.html',
-				},
-			},
-		)
-
-		const { body } = await requestObj.promise
-		if (body.code !== 0 || !body.lyric) {
-			throw new Error('Get lyric failed')
-		}
-
-		return {
-			lyric: decodeName(b64DecodeUnicode(body.lyric)),
-			tlyric: decodeName(b64DecodeUnicode(body.trans)),
-		}
-	} catch (error) {
-		logError('Error fetching lyrics:', error)
-		return {
-			lyric: '[00:00.00]暂无歌词',
-			tlyric: '',
 		}
 	}
 }

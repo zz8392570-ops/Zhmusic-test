@@ -9,6 +9,7 @@ import { ShowPlayerListToggle } from '@/components/ShowPlayerListToggle'
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors, fontSize, screenPadding } from '@/constants/tokens'
 import LyricManager from '@/helpers/lyricManager'
+import { getMusicPlatformLabelKey, supportsCatalogNavigation } from '@/helpers/musicPlatform'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { getSingerMidBySingerName } from '@/helpers/userApi/getMusicSource'
 import { ThemeOverrideProvider, useThemeColors } from '@/hooks/useAppTheme'
@@ -53,76 +54,86 @@ const LYRIC_DELAY_MAX = 15
 type ArtistDisplayProps = {
 	artists: string
 	onViewArtist: (artist: string) => void
+	interactive?: boolean
 }
 
-const ArtistDisplay = React.memo(({ artists, onViewArtist }: ArtistDisplayProps) => {
-	const colors = useThemeColors()
-	const defaultStyles = useDefaultStyles()
-	const styles = React.useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
-	const normalizedArtists = artists.trim()
-	const artistArray = React.useMemo(
-		() =>
-			normalizedArtists
-				.split('、')
-				.map((artist) => artist.trim())
-				.filter(Boolean),
-		[normalizedArtists],
-	)
-
-	const artistActions = React.useMemo(
-		() =>
-			artistArray.map((artist) => ({
-				id: artist,
-				title: artist,
-			})),
-		[artistArray],
-	)
-
-	const handleArtistAction = useCallback(
-		({ nativeEvent }: { nativeEvent: { event: string } }) => {
-			onViewArtist(nativeEvent.event)
-		},
-		[onViewArtist],
-	)
-
-	const displayArtist = artistArray[0] ?? normalizedArtists
-	if (!displayArtist) {
-		return null
-	}
-
-	if (artistArray.length <= 1) {
-		return (
-			<TouchableOpacity
-				activeOpacity={0.6}
-				onPress={() => onViewArtist(displayArtist)}
-				accessibilityRole="button"
-				accessibilityHint={`View artist ${displayArtist}`}
-			>
-				<Text numberOfLines={1} style={[styles.trackArtistText, { marginTop: 6 }]}>
-					{displayArtist}
-				</Text>
-			</TouchableOpacity>
+const ArtistDisplay = React.memo(
+	({ artists, onViewArtist, interactive = true }: ArtistDisplayProps) => {
+		const colors = useThemeColors()
+		const defaultStyles = useDefaultStyles()
+		const styles = React.useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
+		const normalizedArtists = artists.trim()
+		const artistArray = React.useMemo(
+			() =>
+				normalizedArtists
+					.split('、')
+					.map((artist) => artist.trim())
+					.filter(Boolean),
+			[normalizedArtists],
 		)
-	}
 
-	return (
-		<MenuView
-			title={i18n.t('player.selectArtist')}
-			onPressAction={handleArtistAction}
-			actions={artistActions}
-		>
-			<TouchableOpacity
-				activeOpacity={0.6}
-				accessibilityRole="button"
-				accessibilityHint={`View artist ${normalizedArtists}`}
-			>
+		const artistActions = React.useMemo(
+			() =>
+				artistArray.map((artist) => ({
+					id: artist,
+					title: artist,
+				})),
+			[artistArray],
+		)
+
+		const handleArtistAction = useCallback(
+			({ nativeEvent }: { nativeEvent: { event: string } }) => {
+				onViewArtist(nativeEvent.event)
+			},
+			[onViewArtist],
+		)
+
+		const displayArtist = artistArray[0] ?? normalizedArtists
+		if (!displayArtist) {
+			return null
+		}
+		if (!interactive) {
+			return (
 				<Text numberOfLines={1} style={[styles.trackArtistText, { marginTop: 6 }]}>
 					{normalizedArtists}
 				</Text>
-			</TouchableOpacity>
-		</MenuView>
-	)
-})
+			)
+		}
+
+		if (artistArray.length <= 1) {
+			return (
+				<TouchableOpacity
+					activeOpacity={0.6}
+					onPress={() => onViewArtist(displayArtist)}
+					accessibilityRole="button"
+					accessibilityHint={`View artist ${displayArtist}`}
+				>
+					<Text numberOfLines={1} style={[styles.trackArtistText, { marginTop: 6 }]}>
+						{displayArtist}
+					</Text>
+				</TouchableOpacity>
+			)
+		}
+
+		return (
+			<MenuView
+				title={i18n.t('player.selectArtist')}
+				onPressAction={handleArtistAction}
+				actions={artistActions}
+			>
+				<TouchableOpacity
+					activeOpacity={0.6}
+					accessibilityRole="button"
+					accessibilityHint={`View artist ${normalizedArtists}`}
+				>
+					<Text numberOfLines={1} style={[styles.trackArtistText, { marginTop: 6 }]}>
+						{normalizedArtists}
+					</Text>
+				</TouchableOpacity>
+			</MenuView>
+		)
+	},
+)
 
 const PlayerScreenContent = () => {
 	const colors = useThemeColors()
@@ -155,6 +166,11 @@ const PlayerScreenContent = () => {
 	}, [currentActiveTrack])
 
 	const trackToDisplay = currentActiveTrack ?? prevTrackRef.current
+	const canNavigateCatalog = supportsCatalogNavigation(trackToDisplay?.platform)
+	const platformLabelKey = getMusicPlatformLabelKey(trackToDisplay?.platform)
+	const platformLabel = platformLabelKey
+		? i18n.t(platformLabelKey)
+		: String(trackToDisplay?.platform ?? '').toUpperCase()
 
 	const artworkUri = trackToDisplay?.artwork || unknownTrackImageUri
 	const artworkSource = useMemo(() => ({ uri: artworkUri }), [artworkUri])
@@ -243,10 +259,14 @@ const PlayerScreenContent = () => {
 	}, [])
 
 	const handleShowAlbum = useCallback(() => {
-		if (!trackToDisplay?.artwork) return
-		const albumId = extractAlbumId(trackToDisplay.artwork)
+		if (!trackToDisplay || !supportsCatalogNavigation(trackToDisplay.platform)) return
+		const albumId =
+			trackToDisplay.albummid ||
+			trackToDisplay.albumid ||
+			(trackToDisplay.artwork ? extractAlbumId(trackToDisplay.artwork) : '')
+		if (!albumId) return
 		router.push(`/(modals)/${albumId}?album=true`)
-	}, [trackToDisplay?.artwork, extractAlbumId])
+	}, [extractAlbumId, trackToDisplay])
 
 	const handleShowLyrics = handleLyricsToggle
 
@@ -287,7 +307,9 @@ const PlayerScreenContent = () => {
 				titleColor: isFavorite ? colors.primary : undefined,
 				image: isFavorite ? 'heart.fill' : 'heart',
 			},
-			{ id: 'album', title: i18n.t('player.showAlbum'), image: 'music.note.list' },
+			...(canNavigateCatalog
+				? [{ id: 'album', title: i18n.t('player.showAlbum'), image: 'music.note.list' }]
+				: []),
 			{ id: 'lyrics', title: i18n.t('player.showLyrics'), image: 'text.quote' },
 			{ id: 'playlist', title: i18n.t('player.addToPlaylist'), image: 'plus.circle' },
 			{ id: 'share', title: i18n.t('player.share'), image: 'square.and.arrow.up' },
@@ -312,7 +334,7 @@ const PlayerScreenContent = () => {
 			})
 		}
 		return actions
-	}, [colors.primary, isFavorite, trackToDisplay?.platform])
+	}, [canNavigateCatalog, colors.primary, isFavorite, trackToDisplay?.platform])
 	useEffect(() => {
 		if (showLyrics) {
 			activateKeepAwakeAsync()
@@ -591,9 +613,15 @@ const PlayerScreenContent = () => {
 													<ArtistDisplay
 														artists={trackToDisplay.artist}
 														onViewArtist={handleViewArtist}
+														interactive={canNavigateCatalog}
 													/>
 												) : null}
 											</View>
+											{platformLabel ? (
+												<View style={styles.playbackSourceBadge}>
+													<Text style={styles.playbackSourceBadgeText}>{platformLabel}</Text>
+												</View>
+											) : null}
 											<AudioQualityBadge
 												quality={playbackQuality}
 												cached={isPlaybackCached}
@@ -759,6 +787,20 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 		},
 		playbackQualityBadge: {
 			marginTop: 6,
+		},
+		playbackSourceBadge: {
+			minHeight: 20,
+			justifyContent: 'center',
+			paddingHorizontal: 7,
+			borderRadius: 6,
+			backgroundColor: colors.overlaySoft,
+			marginTop: 6,
+		},
+		playbackSourceBadgeText: {
+			...defaultStyles.text,
+			fontSize: 10,
+			fontWeight: '700',
+			opacity: 0.82,
 		},
 		lyricText: {
 			...defaultStyles.text,

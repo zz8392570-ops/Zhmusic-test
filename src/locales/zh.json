@@ -218,6 +218,7 @@
 		"removeFromFavorites": "从喜欢移除",
 		"removeFromPlayingList": "从播放列表移除",
 		"showArtist": "查看歌手",
+		"selectSource": "选择播放来源",
 		"addToPlaylist": "添加到歌单",
 
 		"delete": "删除"

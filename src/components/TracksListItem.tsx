@@ -22,6 +22,7 @@ import {
 	type AudioQuality,
 } from '@/helpers/audioQuality'
 import i18n from '@/utils/i18n'
+import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 
 export type TracksListItemProps = {
 	track: Track
@@ -36,14 +37,6 @@ export type TracksListItemProps = {
 	selectedTracks?: Set<string>
 	toggleMultiSelectMode?: () => void
 	showSourceBadge?: boolean
-}
-
-const PLATFORM_LABEL_KEYS: Record<string, string> = {
-	tx: 'find.platformTx',
-	kw: 'find.platformKw',
-	kg: 'find.platformKg',
-	wy: 'find.platformWy',
-	mg: 'find.platformMg',
 }
 
 const TracksListItem = ({
@@ -130,10 +123,12 @@ const TracksListItem = ({
 	}, [cacheLookupTrack, cacheRevision, embeddedCachedQuality])
 
 	const isCachedTrack = cachedQuality !== null
-	const platformLabelKey = PLATFORM_LABEL_KEYS[String(track.platform ?? '').toLowerCase()]
+	const platformLabelKey = getMusicPlatformLabelKey(track.platform)
 	const platformLabel = platformLabelKey
 		? i18n.t(platformLabelKey)
 		: String(track.platform ?? '').toUpperCase()
+	const sourceCount = new Set(track.availablePlatforms ?? [track.platform]).size
+	const sourceBadgeLabel = sourceCount > 1 ? `${platformLabel} +${sourceCount - 1}` : platformLabel
 
 	return (
 		<TouchableHighlight
@@ -218,9 +213,9 @@ const TracksListItem = ({
 									</Text>
 								) : null}
 								<View style={styles.badgesRow}>
-									{showSourceBadge && platformLabel ? (
+									{showSourceBadge && sourceBadgeLabel ? (
 										<View style={styles.sourceBadge}>
-											<Text style={styles.sourceBadgeText}>{platformLabel}</Text>
+											<Text style={styles.sourceBadgeText}>{sourceBadgeLabel}</Text>
 										</View>
 									) : null}
 									<AudioQualityBadge quality={cachedQuality} compact />

@@ -9,6 +9,7 @@ import { useMemo } from 'react'
 import { Alert, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { Track } from '@/player/types'
+import { isSameMediaItem } from '@/utils/mediaItem'
 
 const AddToPlaylistModal = () => {
 	const defaultStyles = useDefaultStyles()
@@ -37,7 +38,7 @@ const AddToPlaylistModal = () => {
 	const handlePlaylistPress = async (playlist: IMusic.PlayList) => {
 		// console.log('playlist', playlist)
 		if (playlist.id === 'favorites') {
-			if (favorites.find((item) => item.id === track.id)) {
+			if (favorites.some((item) => isSameMediaItem(item, track))) {
 				console.log('已收藏')
 			} else {
 				toggleTrackFavorite(track as Track)
@@ -64,10 +65,10 @@ const AddToPlaylistModal = () => {
 
 const createStyles = (defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	modalContainer: {
-		...defaultStyles.container,
-		paddingHorizontal: screenPadding.horizontal,
-	},
+		modalContainer: {
+			...defaultStyles.container,
+			paddingHorizontal: screenPadding.horizontal,
+		},
 	})
 
 export default AddToPlaylistModal

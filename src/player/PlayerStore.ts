@@ -33,7 +33,7 @@ export const songsNumsToLoadStore = new GlobalState<number>(100)
 /** 已导入的本地音乐 */
 export const importedLocalMusicStore = new GlobalState<IMusic.IMusicItem[] | []>(null)
 /** 当前歌词 */
-export const nowLyricState = new GlobalState<string>(null)
+export const nowLyricState = new GlobalState<ILyric.ILyricSource | null>(null)
 /** 切歌中的按钮方向 */
 export const trackSkipLoadingStore = new GlobalState<'next' | 'previous' | null>(null)
 /** 当前曲目音源解析中 */

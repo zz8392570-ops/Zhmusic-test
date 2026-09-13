@@ -258,6 +258,8 @@ const searchMg = async (
 				songmid: id,
 				copyrightId,
 				lrcUrl: item.lrcUrl,
+				lyricUrl: item.lyricUrl,
+				ext: item.ext,
 				mrcUrl: item.mrcurl,
 				trcUrl: item.trcUrl,
 				qualities: qualities as IMusic.IQuality,
@@ -290,6 +292,83 @@ const interleave = (lists: Track[][]) => {
 	return output
 }
 
+const PLATFORM_PRIORITY = new Map(MUSIC_PLATFORMS.map((platform, index) => [platform, index]))
+
+const normalizeSearchText = (value: unknown) =>
+	String(value ?? '')
+		.normalize('NFKC')
+		.toLocaleLowerCase()
+		.replace(/[\s·•・._'’"-]+/g, '')
+
+const normalizeArtists = (value: unknown) =>
+	String(value ?? '')
+		.split(/[、,，/&＆]+/)
+		.map(normalizeSearchText)
+		.filter(Boolean)
+		.sort()
+		.join('|')
+
+const getDeduplicationKey = (track: Track) => {
+	const title = normalizeSearchText(track.title)
+	const artists = normalizeArtists(track.artist)
+	return title && artists ? `${title}::${artists}` : `${track.platform ?? 'unknown'}::${track.id}`
+}
+
+const isCompatibleDuration = (left: Track, right: Track) => {
+	const leftDuration = Number(left.duration || 0)
+	const rightDuration = Number(right.duration || 0)
+	return !leftDuration || !rightDuration || Math.abs(leftDuration - rightDuration) <= 4
+}
+
+const asStandaloneTrack = (track: Track): Track => {
+	const item = { ...track }
+	delete item.sourceAlternatives
+	delete item.availablePlatforms
+	return item
+}
+
+const mergeDuplicateGroup = (tracks: Track[]): Track => {
+	const unique = new Map<string, Track>()
+	for (const track of tracks.flatMap((item) => [item, ...(item.sourceAlternatives ?? [])])) {
+		const standalone = asStandaloneTrack(track)
+		unique.set(`${standalone.platform ?? 'unknown'}::${standalone.id}`, standalone)
+	}
+	const ordered = Array.from(unique.values()).sort((left, right) => {
+		const leftPriority =
+			PLATFORM_PRIORITY.get(left.platform as MusicPlatform) ?? Number.MAX_SAFE_INTEGER
+		const rightPriority =
+			PLATFORM_PRIORITY.get(right.platform as MusicPlatform) ?? Number.MAX_SAFE_INTEGER
+		return leftPriority - rightPriority
+	})
+	const [primary, ...sourceAlternatives] = ordered
+	return {
+		...primary,
+		sourceAlternatives,
+		availablePlatforms: Array.from(
+			new Set(ordered.map((item) => String(item.platform ?? '')).filter(Boolean)),
+		),
+	}
+}
+
+/**
+ * Collapse only strict title + complete artist matches. Duration keeps live/remix recordings
+ * separate, while every original result remains available from the song's source menu.
+ */
+export const deduplicateCrossPlatformTracks = (tracks: Track[]): Track[] => {
+	const groups = new Map<string, Track[][]>()
+	for (const track of tracks) {
+		const key = getDeduplicationKey(track)
+		const candidates = groups.get(key) ?? []
+		const matchingGroup = candidates.find((group) => isCompatibleDuration(group[0], track))
+		if (matchingGroup) matchingGroup.push(track)
+		else candidates.push([track])
+		groups.set(key, candidates)
+	}
+	return Array.from(groups.values()).flatMap((groupsForKey) =>
+		groupsForKey.map(mergeDuplicateGroup),
+	)
+}
+
 export const searchSongsAcrossPlatforms = async (
 	query: string,
 	page: number,
@@ -312,7 +391,7 @@ export const searchSongsAcrossPlatforms = async (
 
 	if (availableResults.length === 0) throw new Error('All music platforms failed to search')
 	return {
-		data: interleave(availableResults.map((result) => result.data)),
+		data: deduplicateCrossPlatformTracks(interleave(availableResults.map((result) => result.data))),
 		hasMore: availableResults.some((result) => result.hasMore),
 		unavailablePlatforms,
 	}

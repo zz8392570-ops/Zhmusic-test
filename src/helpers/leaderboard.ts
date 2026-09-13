@@ -223,7 +223,6 @@ export const mapLeaderboardTrack = (track: any, source: LeaderboardSource): Trac
 	songmid: String(track.songmid ?? ''),
 	hash: track.hash,
 	qualities: track._types,
-	source,
 	copyrightId: track.copyrightId,
 	url: track.url || 'Unknown',
 	title: track.name || 'Untitled Song',

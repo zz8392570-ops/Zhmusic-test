@@ -852,6 +852,7 @@ const play = async (
 
 		// 3. Update current music state immediately (UI updates instantly)
 		setCurrentMusic(musicItem)
+		nowLyricState.setValue(null)
 
 		// 4. Resolve source (cache check + network if needed)
 		const {
@@ -887,9 +888,9 @@ const play = async (
 
 		// 7. Fetch lyrics in background (non-blocking)
 		myGetLyric(musicItem)
-			.then((lyc) => {
+			.then((lyricSource) => {
 				if (isCurrentMusic(musicItem) && nativeQueue?.token === appliedToken) {
-					nowLyricState.setValue(lyc.lyric)
+					nowLyricState.setValue(lyricSource)
 				}
 			})
 			.catch((err) => logError('获取歌词失败:', err))
