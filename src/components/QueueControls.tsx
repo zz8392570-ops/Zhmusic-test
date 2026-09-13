@@ -9,6 +9,7 @@ import { useMemo } from 'react'
 import { StyleSheet, Text, View, ViewProps } from 'react-native'
 import { TouchableOpacity } from 'react-native-gesture-handler'
 import type { Track } from '@/player/types'
+import { hapticLight, hapticSelection } from '@/utils/haptics'
 
 type QueueControlsProps = {
 	tracks: Track[]
@@ -17,6 +18,7 @@ type QueueControlsProps = {
 	isMultiSelectMode?: boolean
 	onSelectAll?: () => void
 	isAllSelected?: boolean
+	hasSelection?: boolean
 	deleteSelectedTracks?: () => void
 	exportSelectedTracks?: () => void
 } & ViewProps
@@ -29,6 +31,7 @@ export const QueueControls = ({
 	isMultiSelectMode = false,
 	onSelectAll,
 	isAllSelected = false,
+	hasSelection = false,
 	deleteSelectedTracks,
 	exportSelectedTracks,
 	...viewProps
@@ -36,8 +39,10 @@ export const QueueControls = ({
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
+	const isEmpty = tracks.length === 0
 	const handlePlay = async () => {
-		if (tracks.length === 0) return
+		if (isEmpty) return
+		hapticLight()
 		await myTrackPlayer.playWithReplacePlayList(
 			tracks[0] as IMusic.IMusicItem,
 			tracks as IMusic.IMusicItem[],
@@ -46,7 +51,8 @@ export const QueueControls = ({
 	}
 
 	const handleShufflePlay = async () => {
-		if (tracks.length === 0) return
+		if (isEmpty) return
+		hapticLight()
 		const shuffledTracks = shuffle(tracks)
 		repeatModeStore.setValue(MusicRepeatMode.SHUFFLE)
 		await myTrackPlayer.playWithReplacePlayList(
@@ -60,7 +66,20 @@ export const QueueControls = ({
 			{/* Play button */}
 			<View style={{ flex: 1 }}>
 				{isMultiSelectMode ? (
-					<TouchableOpacity onPress={onSelectAll} activeOpacity={0.8} style={styles.button}>
+					<TouchableOpacity
+						onPress={() => {
+							hapticSelection()
+							onSelectAll?.()
+						}}
+						activeOpacity={0.8}
+						style={[styles.button, isEmpty && styles.buttonDisabled]}
+						disabled={isEmpty}
+						accessibilityRole="button"
+						accessibilityLabel={
+							isAllSelected ? i18n.t('playButton.cancel') : i18n.t('playButton.selectAll')
+						}
+						accessibilityState={{ disabled: isEmpty, selected: isAllSelected }}
+					>
 						<Ionicons
 							name={isAllSelected ? 'checkbox-outline' : 'square-outline'}
 							size={24}
@@ -71,7 +90,15 @@ export const QueueControls = ({
 						</Text>
 					</TouchableOpacity>
 				) : (
-					<TouchableOpacity onPress={handlePlay} activeOpacity={0.8} style={styles.button}>
+					<TouchableOpacity
+						onPress={handlePlay}
+						activeOpacity={0.8}
+						style={[styles.button, isEmpty && styles.buttonDisabled]}
+						disabled={isEmpty}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('playButton.play')}
+						accessibilityState={{ disabled: isEmpty }}
+					>
 						<Ionicons name="play" size={22} color={colors.primary} />
 
 						<Text style={styles.buttonText}>{i18n.t('playButton.play')}</Text>
@@ -82,7 +109,15 @@ export const QueueControls = ({
 			{/* Shuffle button */}
 			{!isMultiSelectMode ? (
 				<View style={{ flex: 1 }}>
-					<TouchableOpacity onPress={handleShufflePlay} activeOpacity={0.8} style={styles.button}>
+					<TouchableOpacity
+						onPress={handleShufflePlay}
+						activeOpacity={0.8}
+						style={[styles.button, isEmpty && styles.buttonDisabled]}
+						disabled={isEmpty}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('playButton.shuffle')}
+						accessibilityState={{ disabled: isEmpty }}
+					>
 						<Ionicons name={'shuffle-sharp'} size={24} color={colors.primary} />
 
 						<Text style={styles.buttonText}>{i18n.t('playButton.shuffle')}</Text>
@@ -91,9 +126,16 @@ export const QueueControls = ({
 			) : (
 				<View style={{ flex: 1 }}>
 					<TouchableOpacity
-						onPress={deleteSelectedTracks}
+						onPress={() => {
+							hapticSelection()
+							deleteSelectedTracks?.()
+						}}
 						activeOpacity={0.8}
-						style={styles.button}
+						style={[styles.button, !hasSelection && styles.buttonDisabled]}
+						disabled={!hasSelection}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('playButton.delete')}
+						accessibilityState={{ disabled: !hasSelection }}
 					>
 						<Ionicons name={'trash-outline'} size={24} color={colors.primary} />
 
@@ -106,16 +148,32 @@ export const QueueControls = ({
 				<View style={{ flex: 1 }}>
 					{isMultiSelectMode ? (
 						<TouchableOpacity
-							onPress={exportSelectedTracks}
+							onPress={() => {
+								hapticSelection()
+								exportSelectedTracks?.()
+							}}
 							activeOpacity={0.8}
-							style={styles.button}
+							style={[styles.button, !hasSelection && styles.buttonDisabled]}
+							disabled={!hasSelection}
+							accessibilityRole="button"
+							accessibilityLabel={i18n.t('playButton.out')}
+							accessibilityState={{ disabled: !hasSelection }}
 						>
 							<Ionicons name={'exit-outline'} size={24} color={colors.primary} />
 
 							<Text style={styles.buttonText}>{i18n.t('playButton.out')}</Text>
 						</TouchableOpacity>
 					) : (
-						<TouchableOpacity onPress={onImportTrack} activeOpacity={0.8} style={styles.button}>
+						<TouchableOpacity
+							onPress={() => {
+								hapticSelection()
+								onImportTrack?.()
+							}}
+							activeOpacity={0.8}
+							style={styles.button}
+							accessibilityRole="button"
+							accessibilityLabel={i18n.t('playButton.import')}
+						>
 							<Ionicons name={'enter-outline'} size={24} color={colors.primary} />
 
 							<Text style={styles.buttonText}>{i18n.t('playButton.import')}</Text>
@@ -127,26 +185,26 @@ export const QueueControls = ({
 	)
 }
 
-const createStyles = (
-	colors: ThemeColors,
-	defaultStyles: ReturnType<typeof useDefaultStyles>,
-) =>
+const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	button: {
-		padding: 12,
-		backgroundColor: colors.surfaceMuted,
-		borderRadius: 10,
-		borderCurve: 'continuous',
-		flexDirection: 'row',
-		justifyContent: 'center',
-		alignItems: 'center',
-		columnGap: 8,
-	},
-	buttonText: {
-		...defaultStyles.text,
-		color: colors.primary,
-		fontWeight: '600',
-		fontSize: 17,
-		textAlign: 'center',
-	},
+		button: {
+			padding: 12,
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 10,
+			borderCurve: 'continuous',
+			flexDirection: 'row',
+			justifyContent: 'center',
+			alignItems: 'center',
+			columnGap: 8,
+		},
+		buttonText: {
+			...defaultStyles.text,
+			color: colors.primary,
+			fontWeight: '600',
+			fontSize: 17,
+			textAlign: 'center',
+		},
+		buttonDisabled: {
+			opacity: 0.45,
+		},
 	})

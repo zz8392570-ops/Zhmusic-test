@@ -63,6 +63,7 @@ export const PlaylistsListModal = ({
 				<Text style={utilsStyles.emptyContentText}>{i18n.t('find.noResults')}</Text>
 
 				<Image
+					accessible={false}
 					contentFit="cover"
 					cachePolicy="memory-disk"
 					priority="normal"

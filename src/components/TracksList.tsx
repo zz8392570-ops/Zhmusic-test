@@ -12,6 +12,7 @@ import { Image } from 'expo-image'
 import type { Track } from '@/player/types'
 import { useIsPlaying } from '@rntp/player'
 import { QueueControls } from './QueueControls'
+import i18n from '@/utils/i18n'
 export type TracksListProps = {
 	id: string
 	tracks: Track[]
@@ -60,8 +61,14 @@ export const TracksList = React.memo(
 		const emptyListComponent = useMemo(
 			() => (
 				<View>
-					<Text style={utilsStyles.emptyContentText}>No songs found</Text>
+					<Text style={utilsStyles.emptyContentText}>{i18n.t('tracks.empty')}</Text>
+					<Text
+						style={[utilsStyles.emptyContentText, { fontSize: 14, marginTop: 4, opacity: 0.7 }]}
+					>
+						{i18n.t('tracks.emptyHint')}
+					</Text>
 					<Image
+						accessible={false}
 						contentFit="cover"
 						cachePolicy="memory-disk"
 						priority="normal"
@@ -184,7 +191,7 @@ export const TracksList = React.memo(
 				scrollEnabled={scrollEnabled}
 				contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
 				ListHeaderComponent={combinedListHeader}
-				ListFooterComponent={ItemDivider}
+				ListFooterComponent={tracks.length > 0 ? ItemDivider : null}
 				ItemSeparatorComponent={ItemDivider}
 				ListEmptyComponent={emptyListComponent}
 				renderItem={renderItem}

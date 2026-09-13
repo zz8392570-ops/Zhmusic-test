@@ -9,6 +9,7 @@ import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
 import React, { useMemo } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { hapticSelection } from '@/utils/haptics'
 
 type MusicSourceHealthListProps = {
 	onSelectSource: (sourceId: string) => void
@@ -67,8 +68,14 @@ const MusicSourceHealthList = ({ onSelectSource, onTestAll }: MusicSourceHealthL
 							{index > 0 && <View style={styles.separator} />}
 							<TouchableOpacity
 								style={[styles.row, selected && styles.selectedRow]}
-								onPress={() => onSelectSource(api.id)}
+								onPress={() => {
+									hapticSelection()
+									onSelectSource(api.id)
+								}}
 								disabled={testing}
+								accessibilityRole="button"
+								accessibilityLabel={`${api.name}, ${statusLabel(api.health?.status)}`}
+								accessibilityState={{ selected, disabled: testing }}
 							>
 								<View style={styles.titleRow}>
 									<Text style={styles.name} numberOfLines={1}>
@@ -92,7 +99,17 @@ const MusicSourceHealthList = ({ onSelectSource, onTestAll }: MusicSourceHealthL
 				})
 			)}
 			<View style={styles.separator} />
-			<TouchableOpacity style={styles.testRow} onPress={onTestAll} disabled={testing}>
+			<TouchableOpacity
+				style={styles.testRow}
+				onPress={() => {
+					hapticSelection()
+					onTestAll()
+				}}
+				disabled={testing}
+				accessibilityRole="button"
+				accessibilityLabel={i18n.t('settings.items.testSources')}
+				accessibilityState={{ disabled: testing, busy: testing }}
+			>
 				{testing ? <ActivityIndicator size="small" color={colors.loading} /> : null}
 				<Text style={[styles.testText, testing && styles.testDisabled]}>
 					{testing

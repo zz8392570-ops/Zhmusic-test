@@ -14,13 +14,20 @@ import {
 	View,
 } from 'react-native'
 import { Image } from 'expo-image'
+import { hapticLight, hapticWarning } from '@/utils/haptics'
 
 type PlaylistListItemProps = {
 	playlist: Playlist
 	onDeletePress?: () => void
 } & TouchableHighlightProps
 
-export const PlaylistListItem = ({ playlist, onDeletePress, ...props }: PlaylistListItemProps) => {
+export const PlaylistListItem = ({
+	playlist,
+	onDeletePress,
+	onPress,
+	onLongPress,
+	...props
+}: PlaylistListItemProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
@@ -33,6 +40,21 @@ export const PlaylistListItem = ({ playlist, onDeletePress, ...props }: Playlist
 				activeOpacity={0.8}
 				underlayColor={colors.surfaceMuted}
 				style={styles.mainAction}
+				onPress={(event) => {
+					hapticLight()
+					onPress?.(event)
+				}}
+				onLongPress={
+					onLongPress
+						? (event) => {
+								hapticWarning()
+								onLongPress(event)
+							}
+						: undefined
+				}
+				accessibilityRole="button"
+				accessibilityLabel={playlist.title || playlist.name}
+				accessibilityHint={i18n.t('library.openPlaylist')}
 				{...props}
 			>
 				<View style={styles.playlistItemContainer}>
@@ -61,7 +83,10 @@ export const PlaylistListItem = ({ playlist, onDeletePress, ...props }: Playlist
 				<TouchableOpacity
 					accessibilityLabel={i18n.t('library.deleteTitle')}
 					accessibilityRole="button"
-					onPress={onDeletePress}
+					onPress={() => {
+						hapticWarning()
+						onDeletePress()
+					}}
 					style={styles.deleteAction}
 				>
 					<Ionicons name="trash-outline" size={20} color={colors.textMuted} />

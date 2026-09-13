@@ -19,7 +19,9 @@ import { playbackCachedStore, playbackQualityStore } from '@/player/PlayerStore'
 import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
-import { setTimingClose } from '@/utils/timingClose'
+import { setTimingClose, useTimingClose } from '@/utils/timingClose'
+import { showToast } from '@/utils/utils'
+import { hapticSelection, hapticSuccess, hapticWarning } from '@/utils/haptics'
 import { Entypo, MaterialCommunityIcons } from '@expo/vector-icons'
 import { MenuView } from '@react-native-menu/menu'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
@@ -106,7 +108,7 @@ const ArtistDisplay = React.memo(
 					activeOpacity={0.6}
 					onPress={() => onViewArtist(displayArtist)}
 					accessibilityRole="button"
-					accessibilityHint={`View artist ${displayArtist}`}
+					accessibilityHint={i18n.t('player.viewArtist', { artist: displayArtist })}
 				>
 					<Text numberOfLines={1} style={[styles.trackArtistText, { marginTop: 6 }]}>
 						{displayArtist}
@@ -124,7 +126,7 @@ const ArtistDisplay = React.memo(
 				<TouchableOpacity
 					activeOpacity={0.6}
 					accessibilityRole="button"
-					accessibilityHint={`View artist ${normalizedArtists}`}
+					accessibilityHint={i18n.t('player.viewArtist', { artist: normalizedArtists })}
 				>
 					<Text numberOfLines={1} style={[styles.trackArtistText, { marginTop: 6 }]}>
 						{normalizedArtists}
@@ -143,6 +145,7 @@ const PlayerScreenContent = () => {
 	const { width, height } = useWindowDimensions()
 	const compact = height - top - bottom < 700
 	const { isFavorite, toggleFavorite } = useTrackPlayerFavorite()
+	const sleepTimerSeconds = useTimingClose()
 	const [showLyrics, setShowLyrics] = useState(false)
 	const [showLyricDelayControls, setShowLyricDelayControls] = useState(false)
 	const lyricDelaySeconds = PersistStatus.useValue('lyric.delaySeconds', 0) ?? 0
@@ -224,6 +227,7 @@ const PlayerScreenContent = () => {
 	)
 
 	const handleLyricsToggle = useCallback(() => {
+		hapticSelection()
 		setShowLyrics((prev) => {
 			const newShowLyrics = !prev
 			if (newShowLyrics) {
@@ -249,6 +253,7 @@ const PlayerScreenContent = () => {
 	}, [])
 
 	const handleFavorite = useCallback(() => {
+		hapticSelection()
 		toggleFavorite()
 	}, [toggleFavorite])
 
@@ -288,7 +293,10 @@ const PlayerScreenContent = () => {
 		try {
 			await Share.share({
 				title: trackToDisplay?.title,
-				message: `歌曲: ${trackToDisplay?.title} by ${trackToDisplay?.artist}`,
+				message: i18n.t('player.shareMessage', {
+					title: trackToDisplay?.title ?? '',
+					artist: trackToDisplay?.artist ?? '',
+				}),
 				url: trackToDisplay?.url,
 			})
 		} catch (error) {
@@ -296,8 +304,25 @@ const PlayerScreenContent = () => {
 		}
 	}, [trackToDisplay])
 	const handleTimingClose = useCallback((minutes: number) => {
-		setTimingClose(Date.now() + minutes * 60 * 1000)
+		if (!setTimingClose(Date.now() + minutes * 60 * 1000)) {
+			hapticWarning()
+			showToast(i18n.t('player.timerFailed'), '', 'error')
+			return
+		}
+		hapticSuccess()
+		showToast(i18n.t('player.timerSet', { minutes }), '', 'info')
 	}, [])
+	const handleCancelTimingClose = useCallback(() => {
+		setTimingClose(null)
+		hapticSelection()
+		showToast(i18n.t('player.timerCancelled'), '', 'info')
+	}, [])
+	const sleepTimerLabel = useMemo(() => {
+		if (sleepTimerSeconds === null || sleepTimerSeconds <= 0) return null
+		const seconds = Math.max(0, Math.ceil(sleepTimerSeconds))
+		const minutes = Math.floor(seconds / 60)
+		return `${minutes}:${String(seconds % 60).padStart(2, '0')}`
+	}, [sleepTimerSeconds])
 
 	const menuActions = React.useMemo(() => {
 		const actions = [
@@ -315,9 +340,14 @@ const PlayerScreenContent = () => {
 			{ id: 'share', title: i18n.t('player.share'), image: 'square.and.arrow.up' },
 			{
 				id: 'timing',
-				title: i18n.t('player.closeAfter'),
+				title: sleepTimerLabel
+					? i18n.t('player.timerActive', { time: sleepTimerLabel })
+					: i18n.t('player.closeAfter'),
 				image: 'timer',
 				subactions: [
+					...(sleepTimerLabel
+						? [{ id: 'timing_cancel', title: i18n.t('player.cancelTimer'), image: 'xmark.circle' }]
+						: []),
 					{ id: 'timing_10', title: '10 ' + i18n.t('player.minutes') },
 					{ id: 'timing_15', title: '15 ' + i18n.t('player.minutes') },
 					{ id: 'timing_20', title: '20 ' + i18n.t('player.minutes') },
@@ -334,7 +364,7 @@ const PlayerScreenContent = () => {
 			})
 		}
 		return actions
-	}, [canNavigateCatalog, colors.primary, isFavorite, trackToDisplay?.platform])
+	}, [canNavigateCatalog, colors.primary, isFavorite, sleepTimerLabel, trackToDisplay?.platform])
 	useEffect(() => {
 		if (showLyrics) {
 			activateKeepAwakeAsync()
@@ -347,11 +377,13 @@ const PlayerScreenContent = () => {
 		}
 	}, [showLyrics])
 	const handleLyricsFontSizeDecrease = useCallback(() => {
+		hapticSelection()
 		const currentFontSize = PersistStatus.get('lyric.detailFontSize') ?? 1
 		PersistStatus.set('lyric.detailFontSize', currentFontSize - 1 < 0 ? 0 : currentFontSize - 1)
 	}, [])
 
 	const handleLyricsFontSizeIncrease = useCallback(() => {
+		hapticSelection()
 		const currentFontSize = PersistStatus.get('lyric.detailFontSize') ?? 1
 		PersistStatus.set('lyric.detailFontSize', currentFontSize + 1 > 3 ? 3 : currentFontSize + 1)
 	}, [])
@@ -370,17 +402,21 @@ const PlayerScreenContent = () => {
 		})
 	}
 	function handleLyricDelayDecrease(): void {
+		hapticSelection()
 		const currentDelay = PersistStatus.get('lyric.delaySeconds') ?? 0
 		updateLyricDelay(currentDelay - LYRIC_DELAY_STEP)
 	}
 	function handleLyricDelayIncrease(): void {
+		hapticSelection()
 		const currentDelay = PersistStatus.get('lyric.delaySeconds') ?? 0
 		updateLyricDelay(currentDelay + LYRIC_DELAY_STEP)
 	}
 	function handleLyricDelayReset(): void {
+		hapticSelection()
 		updateLyricDelay(0)
 	}
 	function toggleLyricDelayControls(): void {
+		hapticSelection()
 		setShowLyricDelayControls((prev) => !prev)
 	}
 	function setCustomTimingClose() {
@@ -395,9 +431,9 @@ const PlayerScreenContent = () => {
 				{
 					text: i18n.t('player.confirm'),
 					onPress: (minutes) => {
-						if (minutes && !isNaN(Number(minutes))) {
-							const milliseconds = Number(minutes) * 60 * 1000
-							setTimingClose(Date.now() + milliseconds)
+						const value = Number(minutes)
+						if (Number.isFinite(value) && value > 0) {
+							handleTimingClose(value)
 						} else {
 							Alert.alert(i18n.t('player.error.title'), i18n.t('player.error.minutesErrorMessage'))
 						}
@@ -432,6 +468,9 @@ const PlayerScreenContent = () => {
 									color={colors.text}
 									onPress={handleLyricsToggle}
 									style={{ marginBottom: 4 }}
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('player.hideLyrics')}
+									hitSlop={10}
 								/>
 							</View>
 							<View style={styles.centeredItem}>
@@ -441,6 +480,9 @@ const PlayerScreenContent = () => {
 									color={colors.text}
 									onPress={handleLyricsFontSizeDecrease}
 									style={{ marginBottom: 4 }}
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('player.decreaseLyricSize')}
+									hitSlop={10}
 								/>
 							</View>
 							<View style={styles.centeredItem}>
@@ -450,12 +492,18 @@ const PlayerScreenContent = () => {
 									color={colors.text}
 									onPress={handleLyricsFontSizeIncrease}
 									style={{ marginBottom: 4 }}
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('player.increaseLyricSize')}
+									hitSlop={10}
 								/>
 							</View>
 							<View style={styles.rightItem}>
 								<TouchableOpacity
 									style={styles.lyricDelayToggleButton}
 									onPress={toggleLyricDelayControls}
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('player.lyricDelay')}
+									accessibilityState={{ expanded: showLyricDelayControls }}
 								>
 									<MaterialCommunityIcons
 										name="timer-outline"
@@ -471,12 +519,19 @@ const PlayerScreenContent = () => {
 									<TouchableOpacity
 										style={styles.delayAdjustButton}
 										onPress={handleLyricDelayDecrease}
+										accessibilityRole="button"
+										accessibilityLabel={i18n.t('player.decreaseLyricDelay')}
 									>
 										<Text style={styles.delayAdjustText}>-0.5s</Text>
 									</TouchableOpacity>
 								</View>
 								<View style={styles.centeredItem}>
-									<TouchableOpacity style={styles.delayValueButton} onPress={handleLyricDelayReset}>
+									<TouchableOpacity
+										style={styles.delayValueButton}
+										onPress={handleLyricDelayReset}
+										accessibilityRole="button"
+										accessibilityLabel={i18n.t('player.resetLyricDelay')}
+									>
 										<Text style={styles.delayLabel}>{i18n.t('player.lyricDelay')}</Text>
 										<Text style={styles.delayValueText}>{formatLyricDelay(lyricDelaySeconds)}</Text>
 									</TouchableOpacity>
@@ -485,6 +540,8 @@ const PlayerScreenContent = () => {
 									<TouchableOpacity
 										style={styles.delayAdjustButton}
 										onPress={handleLyricDelayIncrease}
+										accessibilityRole="button"
+										accessibilityLabel={i18n.t('player.increaseLyricDelay')}
 									>
 										<Text style={styles.delayAdjustText}>+0.5s</Text>
 									</TouchableOpacity>
@@ -590,6 +647,9 @@ const PlayerScreenContent = () => {
 													case 'timing_cus':
 														setCustomTimingClose()
 														break
+													case 'timing_cancel':
+														handleCancelTimingClose()
+														break
 												}
 											}}
 											actions={menuActions}
@@ -648,6 +708,9 @@ const PlayerScreenContent = () => {
 										color={colors.text}
 										onPress={handleLyricsToggle}
 										style={{ marginBottom: 2 }}
+										accessibilityRole="button"
+										accessibilityLabel={i18n.t('player.showLyrics')}
+										hitSlop={10}
 									/>
 								</View>
 								<View style={styles.centeredItem}>

@@ -4,6 +4,7 @@ import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
 import { memo, useMemo } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native'
+import { hapticSelection } from '@/utils/haptics'
 
 type SearchPlatformSelectorProps = {
 	value: SearchPlatform
@@ -44,8 +45,12 @@ const SearchPlatformSelector = ({
 					<Pressable
 						key={platform.id}
 						accessibilityRole="button"
+						accessibilityLabel={i18n.t(platform.label)}
 						accessibilityState={{ selected }}
-						onPress={() => onChange(platform.id)}
+						onPress={() => {
+							hapticSelection()
+							onChange(platform.id)
+						}}
 						style={({ pressed }) => [
 							styles.chip,
 							selected && styles.selectedChip,

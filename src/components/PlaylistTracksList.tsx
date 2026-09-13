@@ -103,6 +103,7 @@ export const PlaylistTracksList = ({
 						isMultiSelectMode={isMultiSelectMode}
 						onSelectAll={onSelectAll}
 						isAllSelected={selectedTracks.size === tracks.length}
+						hasSelection={selectedTracks.size > 0}
 						deleteSelectedTracks={deleteSelectedTracks}
 						exportSelectedTracks={exportSelectedTracks}
 					/>

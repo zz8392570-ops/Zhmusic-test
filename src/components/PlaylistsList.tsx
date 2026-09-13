@@ -33,6 +33,7 @@ export const PlaylistsList = ({
 				</Text>
 
 				<Image
+					accessible={false}
 					contentFit="cover"
 					cachePolicy="memory-disk"
 					priority="normal"

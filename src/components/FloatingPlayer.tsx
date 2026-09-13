@@ -6,17 +6,14 @@ import { useAppTheme, useThemeColors } from '@/hooks/useAppTheme'
 import { useLastActiveTrack } from '@/hooks/useLastActiveTrack'
 import { useDefaultStyles } from '@/styles'
 import { BlurView } from 'expo-blur'
-import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { ActivityIndicator, StyleSheet, TouchableOpacity, View, ViewProps } from 'react-native'
 import { Image } from 'expo-image'
-import Animated, {
-	useAnimatedStyle,
-	useSharedValue,
-	withTiming,
-} from 'react-native-reanimated'
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { MovingText } from './MovingText'
+import i18n from '@/utils/i18n'
+import { hapticLight } from '@/utils/haptics'
 
 const ProgressIndicator = React.memo(() => {
 	const colors = useThemeColors()
@@ -50,41 +47,50 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 			artworkOpacity.value = withTiming(1, { duration: 400 })
 			prevArtworkRef.current = displayedTrack.artwork
 		}
-	}, [displayedTrack?.artwork])
+	}, [artworkOpacity, displayedTrack?.artwork])
 
 	const artworkAnimatedStyle = useAnimatedStyle(() => ({
 		opacity: artworkOpacity.value,
 	}))
 
 	const handlePress = useCallback(() => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+		hapticLight()
 		router.navigate('/player')
 	}, [router])
 
 	if (!displayedTrack) return null
 
 	return (
-		<TouchableOpacity onPress={handlePress} activeOpacity={0.9} style={[styles.container, style]}>
+		<View style={[styles.container, style]}>
 			<BlurView intensity={80} tint={blurTint} style={styles.blurContainer}>
-				<Animated.View style={[styles.trackArtworkContainer, artworkAnimatedStyle]}>
-					<Image
-						contentFit="cover"
-						cachePolicy="memory-disk"
-						recyclingKey={displayedTrack.artwork ?? unknownTrackImageUri ?? 'missing-artwork'}
-						source={{
-							uri: displayedTrack.artwork ?? unknownTrackImageUri,
-						}}
-						style={StyleSheet.absoluteFill}
-					/>
-				</Animated.View>
+				<TouchableOpacity
+					onPress={handlePress}
+					activeOpacity={0.9}
+					style={styles.trackInfoAction}
+					accessibilityRole="button"
+					accessibilityLabel={displayedTrack.title ?? i18n.t('player.nowPlaying')}
+					accessibilityHint={i18n.t('player.openNowPlaying')}
+				>
+					<Animated.View style={[styles.trackArtworkContainer, artworkAnimatedStyle]}>
+						<Image
+							contentFit="cover"
+							cachePolicy="memory-disk"
+							recyclingKey={displayedTrack.artwork ?? unknownTrackImageUri ?? 'missing-artwork'}
+							source={{
+								uri: displayedTrack.artwork ?? unknownTrackImageUri,
+							}}
+							style={StyleSheet.absoluteFill}
+						/>
+					</Animated.View>
 
-				<View style={styles.trackTitleContainer}>
-					<MovingText
-						style={styles.trackTitle}
-						text={displayedTrack.title ?? ''}
-						animationThreshold={20}
-					/>
-				</View>
+					<View style={styles.trackTitleContainer}>
+						<MovingText
+							style={styles.trackTitle}
+							text={displayedTrack.title ?? ''}
+							animationThreshold={20}
+						/>
+					</View>
+				</TouchableOpacity>
 
 				<View style={styles.trackControlsContainer}>
 					{isTrackSourceLoading ? (
@@ -99,69 +105,71 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 
 				{!isTrackSourceLoading && <ProgressIndicator />}
 			</BlurView>
-		</TouchableOpacity>
+		</View>
 	)
 })
 
-const createStyles = (
-	colors: ThemeColors,
-	defaultStyles?: ReturnType<typeof useDefaultStyles>,
-) =>
+const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	container: {
-		borderRadius: 14,
-		borderCurve: 'continuous',
-		borderColor: colors.border,
-		borderWidth: StyleSheet.hairlineWidth,
-		overflow: 'hidden',
-	},
-	blurContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		paddingHorizontal: 10,
-		paddingVertical: 10,
-	},
-	trackArtworkContainer: {
-		width: 40,
-		height: 40,
-		borderRadius: 8,
-		overflow: 'hidden',
-	},
-	trackTitleContainer: {
-		flex: 1,
-		overflow: 'hidden',
-		marginLeft: 12,
-	},
-	trackTitle: {
-		...(defaultStyles?.text ?? {}),
-		fontSize: 17,
-		fontWeight: '500',
-	},
-	trackControlsContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		columnGap: 18,
-		marginRight: 8,
-		paddingLeft: 12,
-	},
-	loadingIndicatorContainer: {
-		minWidth: 24,
-		minHeight: 24,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	progressBarContainer: {
-		position: 'absolute',
-		bottom: 0,
-		left: 8,
-		right: 8,
-		height: 2,
-		backgroundColor: colors.overlaySoft,
-		borderRadius: 1,
-	},
-	progressBar: {
-		height: '100%',
-		backgroundColor: colors.minimumTrackTintColor,
-		borderRadius: 1,
-	},
+		container: {
+			borderRadius: 14,
+			borderCurve: 'continuous',
+			borderColor: colors.border,
+			borderWidth: StyleSheet.hairlineWidth,
+			overflow: 'hidden',
+		},
+		blurContainer: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			paddingHorizontal: 10,
+			paddingVertical: 10,
+		},
+		trackInfoAction: {
+			flex: 1,
+			flexDirection: 'row',
+			alignItems: 'center',
+		},
+		trackArtworkContainer: {
+			width: 40,
+			height: 40,
+			borderRadius: 8,
+			overflow: 'hidden',
+		},
+		trackTitleContainer: {
+			flex: 1,
+			overflow: 'hidden',
+			marginLeft: 12,
+		},
+		trackTitle: {
+			...(defaultStyles?.text ?? {}),
+			fontSize: 17,
+			fontWeight: '500',
+		},
+		trackControlsContainer: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			columnGap: 18,
+			marginRight: 8,
+			paddingLeft: 12,
+		},
+		loadingIndicatorContainer: {
+			minWidth: 24,
+			minHeight: 24,
+			alignItems: 'center',
+			justifyContent: 'center',
+		},
+		progressBarContainer: {
+			position: 'absolute',
+			bottom: 0,
+			left: 8,
+			right: 8,
+			height: 2,
+			backgroundColor: colors.overlaySoft,
+			borderRadius: 1,
+		},
+		progressBar: {
+			height: '100%',
+			backgroundColor: colors.minimumTrackTintColor,
+			borderRadius: 1,
+		},
 	})

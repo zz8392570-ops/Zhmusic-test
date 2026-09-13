@@ -8,14 +8,12 @@ import { isCachedIconVisibleStore } from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import { getThumbnailArtwork } from '@/utils/imageUtils'
-import rpx from '@/utils/rpx'
 import { Entypo, Ionicons } from '@expo/vector-icons'
 import React, { memo, useEffect, useMemo, useState } from 'react'
 import { StyleSheet, Text, TouchableHighlight, TouchableOpacity, View } from 'react-native'
 import { Image } from 'expo-image'
 import LoaderKit from 'react-native-loader-kit'
 import type { Track } from '@/player/types'
-import { StopPropagation } from './utils/StopPropagation'
 import {
 	inferAudioQualityFromPath,
 	normalizeAudioQuality,
@@ -23,6 +21,7 @@ import {
 } from '@/helpers/audioQuality'
 import i18n from '@/utils/i18n'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
+import { hapticLight, hapticSelection } from '@/utils/haptics'
 
 export type TracksListItemProps = {
 	track: Track
@@ -129,63 +128,76 @@ const TracksListItem = ({
 		: String(track.platform ?? '').toUpperCase()
 	const sourceCount = new Set(track.availablePlatforms ?? [track.platform]).size
 	const sourceBadgeLabel = sourceCount > 1 ? `${platformLabel} +${sourceCount - 1}` : platformLabel
+	const selected = selectedTracks?.has(track.id) === true
+	const handlePress = () => {
+		if (isMultiSelectMode) {
+			hapticSelection()
+			onToggleSelection?.(track.id)
+			return
+		}
+		hapticLight()
+		handleTrackSelect(track)
+	}
+	const handleLongPress = () => {
+		if (!toggleMultiSelectMode) return
+		hapticSelection()
+		toggleMultiSelectMode()
+	}
 
 	return (
-		<TouchableHighlight
-			onPress={() => (isMultiSelectMode ? onToggleSelection?.(track.id) : handleTrackSelect(track))}
-			onLongPress={toggleMultiSelectMode}
-			underlayColor={colors.surfaceMuted}
-		>
-			<View style={styles.trackItemContainer}>
-				{isMultiSelectMode && (
-					<TouchableOpacity
-						onPress={() => onToggleSelection?.(track.id)}
-						style={{ marginRight: 10 }}
-					>
-						<Ionicons
-							name={selectedTracks?.has(track.id) ? 'checkbox' : 'square-outline'}
-							size={24}
-							color={selectedTracks?.has(track.id) ? colors.primary : colors.textMuted}
-						/>
-					</TouchableOpacity>
-				)}
-				<View>
-					<Image
-						contentFit="cover"
-						cachePolicy="memory-disk"
-						priority="normal"
-						recyclingKey={artworkSource.uri ?? 'missing-artwork'}
-						source={artworkSource}
-						style={{
-							...styles.trackArtworkImage,
-							opacity: isActiveTrack ? 0.6 : 1,
-						}}
-					/>
-
-					{isActiveTrack &&
-						(isPlaying ? (
-							<LoaderKit
-								style={styles.trackPlayingIconIndicator}
-								name="LineScaleParty"
-								color={colors.icon}
-							/>
-						) : (
+		<View style={styles.rowContainer}>
+			<TouchableHighlight
+				onPress={handlePress}
+				onLongPress={handleLongPress}
+				underlayColor={colors.surfaceMuted}
+				style={styles.mainAction}
+				accessibilityRole="button"
+				accessibilityLabel={[track.title, track.artist].filter(Boolean).join(', ')}
+				accessibilityHint={
+					isMultiSelectMode ? i18n.t('tracks.selectHint') : i18n.t('tracks.playHint')
+				}
+				accessibilityState={{ selected: isMultiSelectMode ? selected : undefined }}
+			>
+				<View style={styles.trackItemContainer}>
+					{isMultiSelectMode && (
+						<View style={styles.selectionIndicator}>
 							<Ionicons
-								style={styles.trackPausedIndicator}
-								name="play"
+								name={selected ? 'checkbox' : 'square-outline'}
 								size={24}
-								color={colors.icon}
+								color={selected ? colors.primary : colors.textMuted}
 							/>
-						))}
-				</View>
-				<View
-					style={{
-						flex: 1,
-						flexDirection: 'row',
-						alignItems: 'center',
-					}}
-				>
-					<View style={{ flex: 3 }}>
+						</View>
+					)}
+					<View>
+						<Image
+							contentFit="cover"
+							cachePolicy="memory-disk"
+							priority="normal"
+							recyclingKey={artworkSource.uri ?? 'missing-artwork'}
+							source={artworkSource}
+							style={{
+								...styles.trackArtworkImage,
+								opacity: isActiveTrack ? 0.6 : 1,
+							}}
+						/>
+
+						{isActiveTrack &&
+							(isPlaying ? (
+								<LoaderKit
+									style={styles.trackPlayingIconIndicator}
+									name="LineScaleParty"
+									color={colors.icon}
+								/>
+							) : (
+								<Ionicons
+									style={styles.trackPausedIndicator}
+									name="play"
+									size={24}
+									color={colors.icon}
+								/>
+							))}
+					</View>
+					<View style={styles.trackInfo}>
 						<View style={styles.trackTitleRow}>
 							{isCachedTrack && isCachedIconVisible && (
 								<Ionicons
@@ -223,43 +235,55 @@ const TracksListItem = ({
 							</View>
 						) : null}
 					</View>
-
-					{!isMultiSelectMode && (
-						<View style={{ flex: 1 }}>
-							<StopPropagation>
-								<TrackShortcutsMenu
-									track={track}
-									isSinger={isSinger}
-									allowDelete={allowDelete}
-									onDeleteTrack={onDeleteTrack}
-								>
-									<View
-										style={{
-											flex: 1,
-											alignItems: 'flex-end',
-											justifyContent: 'center',
-											paddingLeft: rpx(100),
-										}}
-									>
-										<Entypo name="dots-three-horizontal" size={18} color={colors.icon} />
-									</View>
-								</TrackShortcutsMenu>
-							</StopPropagation>
-						</View>
-					)}
 				</View>
-			</View>
-		</TouchableHighlight>
+			</TouchableHighlight>
+			{!isMultiSelectMode ? (
+				<TrackShortcutsMenu
+					track={track}
+					isSinger={isSinger}
+					allowDelete={allowDelete}
+					onDeleteTrack={onDeleteTrack}
+				>
+					<TouchableOpacity
+						style={styles.shortcutsButton}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('player.songOptions')}
+					>
+						<Entypo name="dots-three-horizontal" size={18} color={colors.icon} />
+					</TouchableOpacity>
+				</TrackShortcutsMenu>
+			) : null}
+		</View>
 	)
 }
 export default memo(TracksListItem)
 const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
+		rowContainer: {
+			flexDirection: 'row',
+			alignItems: 'center',
+		},
+		mainAction: {
+			flex: 1,
+			borderRadius: 8,
+		},
 		trackItemContainer: {
 			flexDirection: 'row',
 			columnGap: 14,
 			alignItems: 'center',
-			paddingRight: 0,
+			paddingRight: 8,
+		},
+		selectionIndicator: {
+			marginRight: 10,
+		},
+		trackInfo: {
+			flex: 1,
+		},
+		shortcutsButton: {
+			width: 44,
+			height: 44,
+			alignItems: 'center',
+			justifyContent: 'center',
 		},
 		trackPlayingIconIndicator: {
 			position: 'absolute',

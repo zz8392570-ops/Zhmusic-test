@@ -23,7 +23,8 @@ function pauseIfExpired(event: SleepDeadlineEvent) {
 		event.deadline !== deadline ||
 		deadline === null ||
 		Date.now() < deadline
-	) return
+	)
+		return
 
 	// Invalidate before any asynchronous pause so native/foreground delivery settles once.
 	generation = null
@@ -60,7 +61,7 @@ function setTimingClose(nextDeadline: number | null) {
 			nextGeneration = CyMusicSleepTimer.schedule(nextDeadline)
 		} catch (error) {
 			logWarn('Failed to schedule sleep timer', error)
-			return
+			return false
 		}
 	} else {
 		cancelNativeTimer()
@@ -71,6 +72,7 @@ function setTimingClose(nextDeadline: number | null) {
 	if (nextDeadline) {
 		logInfo('将在', (nextDeadline - Date.now()) / 1000 / 60, '分钟后暂停播放')
 	}
+	return true
 }
 
 function useTimingClose() {

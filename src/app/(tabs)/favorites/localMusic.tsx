@@ -203,7 +203,22 @@ const LocalMusicScreen = () => {
 		<View style={defaultStyles.container}>
 			{isLoading && (
 				<View style={styles.loadingOverlay}>
-					<View style={styles.loadingCard}>
+					<View
+						style={styles.loadingCard}
+						accessible
+						accessibilityRole="progressbar"
+						accessibilityLiveRegion="polite"
+						accessibilityValue={
+							importProgress
+								? {
+										min: 0,
+										now: importProgress.current,
+										max: importProgress.total,
+										text: i18n.t('localMusic.importing', importProgress),
+									}
+								: { text: i18n.t('localMusic.preparingImport') }
+						}
+					>
 						<ActivityIndicator size="large" color={colors.loading} />
 						<Text style={styles.loadingText}>
 							{importProgress
