@@ -118,6 +118,10 @@
 		"favoritesSongs": "Favorite Songs",
 		"localOrCachedSongs": "Local/Cached Songs"
 	},
+	"home": {
+		"title": "Home",
+		"selectBoard": "Choose chart"
+	},
 	"addToPlaylist": {
 		"title": "Import Playlist",
 		"placeholder": "Please enter playlist link",

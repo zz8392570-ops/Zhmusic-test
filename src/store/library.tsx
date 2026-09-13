@@ -30,7 +30,7 @@ interface LibraryState {
 	isLoading: boolean
 	toggleTrackFavorite: (track: Track) => void
 	addToPlaylist: (track: Track, playlistName: string) => void
-	fetchTracks: (refresh?: boolean) => Promise<void>
+	fetchTracks: (refresh?: boolean, homeBoardId?: number) => Promise<void>
 	setNowLyric: (lyric: string) => void
 	setPlayList: (newPlayList?: Playlist[]) => void
 	page: number
@@ -40,6 +40,8 @@ interface LibraryState {
 	// getPlayListMusicAt: (index: number) => IMusic.IMusicItem | null
 	// isPlayListEmpty: () => boolean
 }
+
+let homeBoardRequestId = 0
 
 const mapTrack = (track: {
 	songmid: any
@@ -106,21 +108,29 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 				return currentTrack
 			}),
 		})),
-	fetchTracks: async (refresh = false) => {
+	fetchTracks: async (refresh = false, requestedHomeBoardId) => {
 		const { page, hasMore, isLoading, allTracks } = get()
-		if (isLoading || (!hasMore && !refresh)) return
+		if (!refresh && (isLoading || !hasMore)) return
 		const PAGE_SIZE = 100
+		const needsBoardRequest = refresh || allTracks.length === 0
+		const requestId = needsBoardRequest ? ++homeBoardRequestId : homeBoardRequestId
 
 		try {
-			if (refresh || allTracks.length === 0) {
+			if (needsBoardRequest) {
 				// 只在刷新或首次加载时请求数据
-				set({ isLoading: true, ...(refresh ? { tracks: [], page: 1, hasMore: true } : {}) })
-				const homeBoardId = PersistStatus.get('music.homeBoardId') ?? DEFAULT_HOME_BOARD_ID
+				set({
+					isLoading: true,
+					...(refresh ? { allTracks: [], tracks: [], page: 1, hasMore: true } : {}),
+				})
+				const homeBoardId =
+					requestedHomeBoardId ?? PersistStatus.get('music.homeBoardId') ?? DEFAULT_HOME_BOARD_ID
 				const data = await musicSdk['tx'].leaderboard.getList(homeBoardId, 1)
+				if (requestId !== homeBoardRequestId) return
 				const mappedTracks = data.list.map(mapTrack)
 				// console.log(mappedTracks.length)
 				set({ allTracks: mappedTracks })
 			}
+			if (requestId !== homeBoardRequestId) return
 			set({ isLoading: true })
 			// // 延时
 			// await new Promise((resolve) => setTimeout(resolve, 5000))
@@ -138,7 +148,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 			}))
 		} catch (error) {
 			console.error('Failed to fetch tracks:', error)
-			set({ isLoading: false })
+			if (requestId === homeBoardRequestId) {
+				set({ isLoading: false })
+			}
 		}
 	},
 	setNowLyric: (nowLyric: string) => {
@@ -188,15 +200,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
 export const useTracks = () => {
 	const { tracks, fetchTracks } = useLibraryStore()
-	const homeBoardId = PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
+	const homeBoardId =
+		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
 	const lastBoardIdRef = useRef(homeBoardId)
 	useEffect(() => {
 		if (lastBoardIdRef.current !== homeBoardId) {
 			lastBoardIdRef.current = homeBoardId
-			fetchTracks(true)
+			fetchTracks(true, homeBoardId)
 			return
 		}
-		fetchTracks()
+		fetchTracks(false, homeBoardId)
 	}, [fetchTracks, homeBoardId])
 	return tracks
 }

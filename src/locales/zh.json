@@ -119,6 +119,10 @@
 		"favoritesSongs": "喜欢的歌曲",
 		"localOrCachedSongs": "本地/缓存的歌曲"
 	},
+	"home": {
+		"title": "首页",
+		"selectBoard": "切换榜单"
+	},
 	"addToPlaylist": {
 		"title": "导入歌单",
 		"placeholder": "请输入歌单链接",
