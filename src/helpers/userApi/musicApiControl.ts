@@ -32,6 +32,9 @@ type AddMusicApiOptions = {
 }
 
 const failedApiByMusicId = new Map<string, Set<string>>()
+
+export const getMusicFailureKey = (musicItem: IMusic.IMusicItem) =>
+	`${String(musicItem.platform || 'unknown').toLowerCase()}:${musicItem.id}`
 let loadedRuntimeId: string | null = null
 let runtimeLock: Promise<void> = Promise.resolve()
 let healthQueue: Promise<void> = Promise.resolve()
@@ -144,23 +147,24 @@ export const requestMusicUrlFromApi = async (
 	withSourceRuntime(async () => {
 		const ready = await ensureApiRuntime(api)
 		if (typeof ready.getMusicUrl !== 'function') return null
-		try {
-			const url = await Promise.race([
-				ready.getMusicUrl(
-					musicItem.title,
-					musicItem.artist,
-					musicItem.id,
-					quality,
-					requestContext,
-				),
-				new Promise<never>((_, reject) => {
-					setTimeout(() => reject(new Error('请求超时')), timeoutMs)
-				}),
-			])
-			return typeof url === 'string' && isValidMusicUrl(url) ? url : null
-		} catch (error) {
-			throw error
+		const enrichedRequestContext = {
+			...requestContext,
+			platform: musicItem.platform,
+			musicItem,
 		}
+		const url = await Promise.race([
+			ready.getMusicUrl(
+				musicItem.title,
+				musicItem.artist,
+				musicItem.id,
+				quality,
+				enrichedRequestContext,
+			),
+			new Promise<never>((_, reject) => {
+				setTimeout(() => reject(new Error('请求超时')), timeoutMs)
+			}),
+		])
+		return typeof url === 'string' && isValidMusicUrl(url) ? url : null
 	})
 
 export const restoreSelectedRuntime = async () => {
@@ -189,7 +193,9 @@ export const setMusicApiAsSelectedById = async (
 			})),
 		)
 		const selectedApi = musicApis[targetApiIndex]
-		const reloadedApi = await withSourceRuntime(() => ensureApiRuntime({ ...selectedApi, isSelected: true }))
+		const reloadedApi = await withSourceRuntime(() =>
+			ensureApiRuntime({ ...selectedApi, isSelected: true }),
+		)
 		musicApiSelectedStore.setValue(reloadedApi)
 		PersistStatus.set('music.selectedMusicApi', reloadedApi)
 		nowApiState.setValue(reloadedApi.health?.status === 'dead' ? '异常' : '正常')
@@ -210,7 +216,9 @@ const maybeSwitchFromDeadSelected = async () => {
 	const selected = musicApiSelectedStore.getValue()
 	if (!selected || selected.health?.status !== 'dead') return
 	const best = sortMusicApis(musicApiStore.getValue() || []).find(
-		(api) => api.id !== selected.id && (api.health?.status === 'normal' || api.health?.status === 'partial'),
+		(api) =>
+			api.id !== selected.id &&
+			(api.health?.status === 'normal' || api.health?.status === 'partial'),
 	)
 	if (!best) return
 	await setMusicApiAsSelectedById(best.id, { silent: true, notify: false })
@@ -255,7 +263,9 @@ const testMusicApiInternal = async (apiId: string) => {
 			testedAt: Date.now(),
 		}
 		patchMusicApi(apiId, { health }, true)
-		logInfo(`音源 ${api.name} 测试完成: ${health.successCount}/${health.totalCount} ${health.latencyMs ?? '-'}ms`)
+		logInfo(
+			`音源 ${api.name} 测试完成: ${health.successCount}/${health.totalCount} ${health.latencyMs ?? '-'}ms`,
+		)
 	} catch (error) {
 		logError(`测试音源 ${api.name} 失败:`, error)
 		patchMusicApi(
@@ -319,7 +329,9 @@ export const runBackgroundHealthTests = () =>
 export const addMusicApi = (musicApi: IMusic.MusicApi, options: AddMusicApiOptions = {}) => {
 	try {
 		const nowMusicApiList = musicApiStore.getValue() || []
-		const existingApiIndex = nowMusicApiList.findIndex((existingApi) => existingApi.id === musicApi.id)
+		const existingApiIndex = nowMusicApiList.findIndex(
+			(existingApi) => existingApi.id === musicApi.id,
+		)
 		const shouldAutoTest = options.autoTest !== false
 
 		if (existingApiIndex !== -1) {
@@ -410,7 +422,7 @@ export const getPlaybackFailoverApis = (musicItem: IMusic.IMusicItem) => {
 	return getFailoverCandidates(
 		musicApiStore.getValue() || [],
 		selected?.id,
-		getFailedApiIds(musicItem.id),
+		getFailedApiIds(getMusicFailureKey(musicItem)),
 	)
 }
 

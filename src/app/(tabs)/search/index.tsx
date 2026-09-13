@@ -1,10 +1,12 @@
 import SearchDiscovery from '@/components/search/SearchDiscovery'
+import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import SearchSuggestions from '@/components/search/SearchSuggestions'
 import { SearchList } from '@/components/SearchList'
 import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll, { type SearchType } from '@/helpers/searchAll'
+import type { MusicPlatform, SearchPlatform } from '@/helpers/crossPlatformSearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useNavigationSearchController } from '@/hooks/useNavigationSearch'
 import type { Track } from '@/player/types'
@@ -24,6 +26,7 @@ const SearchScreen = () => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const searchType = PersistStatus.useValue('search.type', 'songs') ?? 'songs'
+	const searchPlatform = PersistStatus.useValue('search.platform', 'all') ?? 'all'
 	const searchHistory = PersistStatus.useValue('search.history', []) ?? []
 	const [searchResults, setSearchResults] = useState<Track[]>([])
 	const [submittedQuery, setSubmittedQuery] = useState('')
@@ -37,6 +40,7 @@ const SearchScreen = () => {
 	const [hasMore, setHasMore] = useState(false)
 	const [hasSearchError, setHasSearchError] = useState(false)
 	const [hasHotError, setHasHotError] = useState(false)
+	const [unavailablePlatforms, setUnavailablePlatforms] = useState<MusicPlatform[]>([])
 	const [isEditing, setIsEditing] = useState(false)
 	const searchRequestRef = useRef(0)
 	const suggestionRequestRef = useRef(0)
@@ -58,6 +62,7 @@ const SearchScreen = () => {
 		setPage(1)
 		setHasMore(false)
 		setHasSearchError(false)
+		setUnavailablePlatforms([])
 		setIsLoading(false)
 	}, [cancelSearchRequest])
 
@@ -175,19 +180,28 @@ const SearchScreen = () => {
 	}, [cancelSuggestionRequest, draftQuery, isEditing])
 
 	const fetchSearchResults = useCallback(
-		async (query: string, type: SearchType, currentPage: number) => {
+		async (query: string, type: SearchType, platform: SearchPlatform, currentPage: number) => {
 			const requestId = ++searchRequestRef.current
 			setIsLoading(true)
 			setHasSearchError(false)
 
 			try {
-				const { data, hasMore: moreResults } = await searchAll(query, currentPage, type)
+				const {
+					data,
+					hasMore: moreResults,
+					unavailablePlatforms: failedPlatforms,
+				} = await searchAll(query, currentPage, type, platform)
 				if (requestId !== searchRequestRef.current) return
 
 				setSearchResults((currentResults) =>
 					currentPage === 1 ? data : [...currentResults, ...data],
 				)
 				setHasMore(moreResults)
+				setUnavailablePlatforms((currentPlatforms) =>
+					currentPage === 1
+						? failedPlatforms
+						: Array.from(new Set([...currentPlatforms, ...failedPlatforms])),
+				)
 				setPage(currentPage)
 			} catch (error) {
 				if (requestId !== searchRequestRef.current) return
@@ -208,13 +222,21 @@ const SearchScreen = () => {
 		setPage(1)
 		setHasMore(false)
 		setHasSearchError(false)
+		setUnavailablePlatforms([])
 
 		if (submittedQuery) {
-			void fetchSearchResults(submittedQuery, searchType, 1)
+			void fetchSearchResults(submittedQuery, searchType, searchPlatform, 1)
 		}
 
 		return cancelSearchRequest
-	}, [cancelSearchRequest, fetchSearchResults, searchRevision, searchType, submittedQuery])
+	}, [
+		cancelSearchRequest,
+		fetchSearchResults,
+		searchPlatform,
+		searchRevision,
+		searchType,
+		submittedQuery,
+	])
 
 	const handleKeywordSearch = useCallback(
 		(keyword: string) => {
@@ -228,18 +250,38 @@ const SearchScreen = () => {
 	const handleSearchTypeChange = useCallback((type: SearchType) => {
 		PersistStatus.set('search.type', type)
 	}, [])
+	const handleSearchPlatformChange = useCallback((platform: SearchPlatform) => {
+		PersistStatus.set('search.platform', platform)
+	}, [])
 
 	const handleLoadMore = useCallback(() => {
 		if (!isLoading && !hasSearchError && hasMore && submittedQuery) {
-			void fetchSearchResults(submittedQuery, searchType, page + 1)
+			void fetchSearchResults(submittedQuery, searchType, searchPlatform, page + 1)
 		}
-	}, [fetchSearchResults, hasMore, hasSearchError, isLoading, page, searchType, submittedQuery])
+	}, [
+		fetchSearchResults,
+		hasMore,
+		hasSearchError,
+		isLoading,
+		page,
+		searchPlatform,
+		searchType,
+		submittedQuery,
+	])
 
 	const handleRetrySearch = useCallback(() => {
 		if (!submittedQuery || isLoading) return
 		const retryPage = searchResults.length > 0 ? page + 1 : 1
-		void fetchSearchResults(submittedQuery, searchType, retryPage)
-	}, [fetchSearchResults, isLoading, page, searchResults.length, searchType, submittedQuery])
+		void fetchSearchResults(submittedQuery, searchType, searchPlatform, retryPage)
+	}, [
+		fetchSearchResults,
+		isLoading,
+		page,
+		searchPlatform,
+		searchResults.length,
+		searchType,
+		submittedQuery,
+	])
 
 	const handleRemoveHistory = useCallback((keyword: string) => {
 		const history = PersistStatus.get('search.history') ?? []
@@ -276,6 +318,9 @@ const SearchScreen = () => {
 						)
 					})}
 				</View>
+				{searchType === 'songs' ? (
+					<SearchPlatformSelector value={searchPlatform} onChange={handleSearchPlatformChange} />
+				) : null}
 
 				{showSuggestions ? (
 					<SearchSuggestions
@@ -306,6 +351,7 @@ const SearchScreen = () => {
 						hasMore={hasMore}
 						hasError={hasSearchError}
 						isLoading={isLoading}
+						unavailablePlatforms={unavailablePlatforms}
 					/>
 				) : null}
 			</View>

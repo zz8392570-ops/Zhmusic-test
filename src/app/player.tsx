@@ -1,4 +1,5 @@
 import Lyric from '@/components/lyric'
+import AudioQualityBadge from '@/components/AudioQualityBadge'
 import { MovingText } from '@/components/MovingText'
 import { PlayerControls } from '@/components/PlayerControls'
 import { PlayerProgressBar } from '@/components/PlayerProgressbar'
@@ -13,6 +14,7 @@ import { getSingerMidBySingerName } from '@/helpers/userApi/getMusicSource'
 import { ThemeOverrideProvider, useThemeColors } from '@/hooks/useAppTheme'
 import { usePlayerBackground } from '@/hooks/usePlayerBackground'
 import { useTrackPlayerFavorite } from '@/hooks/useTrackPlayerFavorite'
+import { playbackCachedStore, playbackQualityStore } from '@/player/PlayerStore'
 import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
@@ -142,6 +144,8 @@ const PlayerScreenContent = () => {
 	}))
 
 	const currentActiveTrack = myTrackPlayer.useCurrentMusic()
+	const playbackQuality = playbackQualityStore.useValue()
+	const isPlaybackCached = playbackCachedStore.useValue()
 	const prevTrackRef = useRef(currentActiveTrack)
 
 	useEffect(() => {
@@ -579,12 +583,23 @@ const PlayerScreenContent = () => {
 										</MenuView>
 									</View>
 
-									{/* Track artist */}
-									{trackToDisplay?.artist ? (
-										<ArtistDisplay
-											artists={trackToDisplay.artist}
-											onViewArtist={handleViewArtist}
-										/>
+									{/* Track artist and actual playback quality */}
+									{trackToDisplay?.artist || playbackQuality ? (
+										<View style={styles.trackMetadataRow}>
+											<View style={styles.trackArtistContainer}>
+												{trackToDisplay?.artist ? (
+													<ArtistDisplay
+														artists={trackToDisplay.artist}
+														onViewArtist={handleViewArtist}
+													/>
+												) : null}
+											</View>
+											<AudioQualityBadge
+												quality={playbackQuality}
+												cached={isPlaybackCached}
+												style={styles.playbackQualityBadge}
+											/>
+										</View>
 									) : null}
 								</View>
 
@@ -732,6 +747,18 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			fontSize: fontSize.base,
 			opacity: 0.8,
 			maxWidth: '90%',
+		},
+		trackMetadataRow: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 10,
+		},
+		trackArtistContainer: {
+			flex: 1,
+			minWidth: 0,
+		},
+		playbackQualityBadge: {
+			marginTop: 6,
 		},
 		lyricText: {
 			...defaultStyles.text,

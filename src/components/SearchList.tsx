@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors, screenPadding } from '@/constants/tokens'
+import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import type { Track } from '@/player/types'
@@ -32,6 +33,15 @@ export type SearchListProps = {
 	hasMore: boolean
 	hasError: boolean
 	isLoading: boolean
+	unavailablePlatforms?: MusicPlatform[]
+}
+
+const PLATFORM_LABEL_KEYS: Record<MusicPlatform, string> = {
+	tx: 'find.platformTx',
+	kw: 'find.platformKw',
+	kg: 'find.platformKg',
+	wy: 'find.platformWy',
+	mg: 'find.platformMg',
 }
 
 const ItemDivider = memo(() => {
@@ -138,6 +148,25 @@ const ResultsFooter = ({
 	return null
 }
 
+const PartialResultsNotice = ({ platforms }: { platforms: MusicPlatform[] }) => {
+	const colors = useThemeColors()
+	const themedStyles = useMemo(() => createStyles(colors), [colors])
+	if (platforms.length === 0) return null
+
+	return (
+		<View style={themedStyles.partialNotice}>
+			<MaterialCommunityIcons name="alert-circle-outline" size={18} color={colors.textMuted} />
+			<Text style={themedStyles.partialNoticeText}>
+				{i18n.t('find.partialResults', {
+					platforms: platforms
+						.map((platform) => i18n.t(PLATFORM_LABEL_KEYS[platform]))
+						.join(i18n.locale.toLowerCase().startsWith('zh') ? '、' : ', '),
+				})}
+			</Text>
+		</View>
+	)
+}
+
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
 		playlistItem: {
@@ -168,6 +197,21 @@ const createStyles = (colors: ThemeColors) =>
 		playlistMeta: {
 			fontSize: 12,
 			color: colors.textMuted,
+		},
+		partialNotice: {
+			minHeight: 38,
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 8,
+			marginBottom: 8,
+			paddingHorizontal: 12,
+			borderRadius: 10,
+			backgroundColor: colors.surfaceMuted,
+		},
+		partialNoticeText: {
+			flex: 1,
+			color: colors.textMuted,
+			fontSize: 12,
 		},
 		artistItem: {
 			minHeight: 58,
@@ -264,6 +308,7 @@ export const SearchList = ({
 	hasMore,
 	hasError,
 	isLoading,
+	unavailablePlatforms = [],
 }: SearchListProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
@@ -373,6 +418,7 @@ export const SearchList = ({
 					onTrackSelect={handleTrackSelect}
 					isActiveTrack={isActiveTrack}
 					isPlaying={isActiveTrack && !!playing}
+					showSourceBadge
 				/>
 			)
 		},
@@ -381,15 +427,15 @@ export const SearchList = ({
 
 	const keyExtractor = useCallback(
 		(item: Track, index: number) =>
-			`${item.isPlaylist ? 'playlist' : item.isArtist ? 'artist' : 'song'}-${item.id}-${index}`,
+			`${item.isPlaylist ? 'playlist' : item.isArtist ? 'artist' : 'song'}-${item.platform ?? 'unknown'}-${item.id}-${index}`,
 		[],
 	)
 
 	const handleEndReached = useCallback(() => {
-		if (hasMore && !hasError && !isLoading && tracks.length >= 20) {
+		if (hasMore && !hasError && !isLoading) {
 			onLoadMore()
 		}
-	}, [hasError, hasMore, isLoading, onLoadMore, tracks.length])
+	}, [hasError, hasMore, isLoading, onLoadMore])
 
 	const footerComponent = useMemo(
 		() =>
@@ -426,6 +472,9 @@ export const SearchList = ({
 						hasError={hasError}
 						onRetry={onRetry}
 					/>
+				}
+				ListHeaderComponent={
+					tracks.length > 0 ? <PartialResultsNotice platforms={unavailablePlatforms} /> : null
 				}
 				renderItem={renderItem}
 				keyExtractor={keyExtractor}

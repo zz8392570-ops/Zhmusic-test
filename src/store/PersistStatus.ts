@@ -40,6 +40,8 @@ interface IPersistConfig {
 	'music.homeBoardId': number
 	'search.history': string[]
 	'search.type': 'songs' | 'artists' | 'playlists'
+	'search.platform': 'all' | 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
+	'music.cacheQualityMap': Record<string, string>
 	'music.bundledSourcesVersion': number
 	'music.removedBuiltinSources': string[]
 }

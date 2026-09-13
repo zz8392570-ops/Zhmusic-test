@@ -14,7 +14,7 @@ import {
 	destroy,
 	loadScript,
 	onScriptAction,
-	sendAction
+	sendAction,
 } from '@/components/utils/nativeModules/userApi'
 import { Buffer } from 'buffer'
 import { logError, logInfo } from '../logger'
@@ -49,9 +49,7 @@ const INFO_NAMES = {
 
 type InfoKeys = keyof typeof INFO_NAMES
 
-export const parseLxMusicScriptInfo = (
-	script: string,
-): Record<InfoKeys, string> => {
+export const parseLxMusicScriptInfo = (script: string): Record<InfoKeys, string> => {
 	const headerMatch = /^\/\*[\s\S]+?\*\//.exec(script.trim())
 	const infos: Partial<Record<InfoKeys, string>> = {}
 
@@ -67,12 +65,9 @@ export const parseLxMusicScriptInfo = (
 		}
 	}
 
-	for (const [key, maxLen] of Object.entries(INFO_NAMES) as Array<
-		[InfoKeys, number]
-	>) {
+	for (const [key, maxLen] of Object.entries(INFO_NAMES) as Array<[InfoKeys, number]>) {
 		infos[key] ||= ''
-		if (infos[key]!.length > maxLen)
-			infos[key] = infos[key]!.substring(0, maxLen) + '...'
+		if (infos[key]!.length > maxLen) infos[key] = infos[key]!.substring(0, maxLen) + '...'
 	}
 
 	return infos as Record<InfoKeys, string>
@@ -88,6 +83,8 @@ type LxRequestContext = {
 	requestKey?: string
 	requestType?: LxRequestType
 	timeoutMs?: number
+	platform?: string
+	musicItem?: IMusic.IMusicItem
 }
 
 type PendingRequest = {
@@ -114,7 +111,7 @@ type LxRuntime = {
 	pendingHttpRequests: Map<string, HttpRequest>
 	inited: boolean
 	disposed: boolean
-	init: { resolve: () => void, reject: (err: Error) => void } | null
+	init: { resolve: () => void; reject: (err: Error) => void } | null
 	removeListener: (() => void) | null
 }
 
@@ -154,10 +151,8 @@ export const disposeLxMusicScript = () => {
 	if (activeRuntime) destroy()
 }
 
-const getLxRequestLogPrefix = (
-	requestType: LxRequestType | 'unknown',
-	requestKey: string,
-) => `[lxMusicAdapter][${requestType}][requestKey=${requestKey}]`
+const getLxRequestLogPrefix = (requestType: LxRequestType | 'unknown', requestKey: string) =>
+	`[lxMusicAdapter][${requestType}][requestKey=${requestKey}]`
 
 const rememberSettledRequestType = (
 	runtime: LxRuntime,
@@ -180,7 +175,8 @@ const shouldLogScriptAction = (runtime: LxRuntime, event: any) => {
 	if (event.action !== 'response') return true
 	const data = event.data as ResponseParams
 	const pending = runtime.pendingRequests.get(data.requestKey)
-	const requestType = pending?.requestType ?? runtime.settledRequestTypes.get(data.requestKey)?.requestType
+	const requestType =
+		pending?.requestType ?? runtime.settledRequestTypes.get(data.requestKey)?.requestType
 	return !(requestType === 'preload' && (!data.status || !pending))
 }
 
@@ -196,22 +192,20 @@ const formatScriptActionLog = (runtime: LxRuntime, event: any) => {
 			const parentRequestKeyLabel = data.parentRequestKey
 				? `[parentRequestKey=${data.parentRequestKey}]`
 				: ''
-			const httpRequestKeyLabel = data.requestKey
-				? `[httpRequestKey=${data.requestKey}]`
-				: ''
+			const httpRequestKeyLabel = data.requestKey ? `[httpRequestKey=${data.requestKey}]` : ''
 			return `[lxMusicAdapter] Script action: request${requestTypeLabel}${parentRequestKeyLabel}${httpRequestKeyLabel}`
 		}
 		case 'response': {
 			const data = event.data as ResponseParams
 			const pending = runtime.pendingRequests.get(data.requestKey)
-			const requestType = pending?.requestType ?? runtime.settledRequestTypes.get(data.requestKey)?.requestType
-			const requestTypeLabel = requestType
-				? `[${requestType}]`
-				: ''
-			const businessKey = pending?.requestKey ?? runtime.settledRequestTypes.get(data.requestKey)?.requestKey ?? data.requestKey
-			const requestKeyLabel = businessKey
-				? `[requestKey=${businessKey}]`
-				: ''
+			const requestType =
+				pending?.requestType ?? runtime.settledRequestTypes.get(data.requestKey)?.requestType
+			const requestTypeLabel = requestType ? `[${requestType}]` : ''
+			const businessKey =
+				pending?.requestKey ??
+				runtime.settledRequestTypes.get(data.requestKey)?.requestKey ??
+				data.requestKey
+			const requestKeyLabel = businessKey ? `[requestKey=${businessKey}]` : ''
 			return `[lxMusicAdapter] Script action: response${requestTypeLabel}${requestKeyLabel}`
 		}
 		default:
@@ -237,12 +231,8 @@ const handleScriptAction = (runtime: LxRuntime, event: any) => {
 				runtime.inited = true
 				runtime.init?.resolve()
 			} else {
-				logError(
-					`[lxMusicAdapter] Script init failed: ${data.errorMessage || 'unknown'}`,
-				)
-				failRuntime(runtime,
-					new Error(data.errorMessage || 'Script init failed'),
-				)
+				logError(`[lxMusicAdapter] Script init failed: ${data.errorMessage || 'unknown'}`)
+				failRuntime(runtime, new Error(data.errorMessage || 'Script init failed'))
 			}
 			break
 		}
@@ -266,10 +256,7 @@ const handleScriptAction = (runtime: LxRuntime, event: any) => {
 			const respData = event.data as ResponseParams
 			const pending = runtime.pendingRequests.get(respData.requestKey)
 			if (pending) {
-				const logPrefix = getLxRequestLogPrefix(
-					pending.requestType,
-					pending.requestKey,
-				)
+				const logPrefix = getLxRequestLogPrefix(pending.requestType, pending.requestKey)
 				if (respData.status) {
 					const result = respData.result as any
 					if (result?.action === 'musicUrl') {
@@ -285,13 +272,9 @@ const handleScriptAction = (runtime: LxRuntime, event: any) => {
 					}
 				} else {
 					if (pending.requestType === 'current') {
-						logError(
-							`${logPrefix} Script response error: ${respData.errorMessage || 'unknown'}`,
-						)
+						logError(`${logPrefix} Script response error: ${respData.errorMessage || 'unknown'}`)
 					}
-					pending.reject(
-						new Error(respData.errorMessage || 'Script returned error'),
-					)
+					pending.reject(new Error(respData.errorMessage || 'Script returned error'))
 				}
 			}
 			const settled = runtime.settledRequestTypes.get(respData.requestKey)
@@ -306,9 +289,7 @@ const handleScriptAction = (runtime: LxRuntime, event: any) => {
 		}
 
 		default:
-			logInfo(
-				`[lxMusicAdapter] Unhandled action: ${event.action}`,
-			)
+			logInfo(`[lxMusicAdapter] Unhandled action: ${event.action}`)
 	}
 }
 
@@ -349,9 +330,13 @@ const handleHttpRequest = async (runtime: LxRuntime, reqData: RequestParams) => 
 	const controller = new AbortController()
 	const request: HttpRequest = { controller, timeout: null }
 	runtime.pendingHttpRequests.set(requestKey, request)
-	request.timeout = options.timeout > 0
-		? setTimeout(() => abortHttpRequest(runtime, requestKey, request), Math.min(options.timeout, 60000))
-		: null
+	request.timeout =
+		options.timeout > 0
+			? setTimeout(
+					() => abortHttpRequest(runtime, requestKey, request),
+					Math.min(options.timeout, 60000),
+				)
+			: null
 
 	try {
 		const fetchOptions: RequestInit = {
@@ -475,17 +460,20 @@ const initLxMusicScript = (
 		runtime.init = init
 
 		try {
-			runtime.removeListener = onScriptAction(event => handleScriptAction(runtime, event))
-			loadScript({
-				id: scriptId,
-				name: info.name || 'lx-music 音源',
-				description: info.description || '',
-				version: info.version || '',
-				author: info.author || '',
-				homepage: info.homepage || '',
-				script,
-				allowShowUpdateAlert: false,
-			}, () => retireRuntime(runtime, new Error('音源脚本已替换或销毁')))
+			runtime.removeListener = onScriptAction((event) => handleScriptAction(runtime, event))
+			loadScript(
+				{
+					id: scriptId,
+					name: info.name || 'lx-music 音源',
+					description: info.description || '',
+					version: info.version || '',
+					author: info.author || '',
+					homepage: info.homepage || '',
+					script,
+					allowShowUpdateAlert: false,
+				},
+				() => retireRuntime(runtime, new Error('音源脚本已替换或销毁')),
+			)
 		} catch (error) {
 			failRuntime(runtime, error instanceof Error ? error : new Error(String(error)))
 		}
@@ -510,8 +498,7 @@ const getMusicUrlViaScript = (
 		}
 		const requestType = requestContext?.requestType ?? 'current'
 		const requestKey =
-			requestContext?.requestKey ??
-			`req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+			requestContext?.requestKey ?? `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 		// A quality retry may reuse its business key while the previous attempt is
 		// still completing. Only the envelope uses this unique correlation key.
 		const wireRequestKey = `${requestKey}#${++nextRequestId}`
@@ -543,6 +530,28 @@ const getMusicUrlViaScript = (
 		runtime.pendingRequests.set(wireRequestKey, pending)
 
 		logInfo(`${logPrefix} Sending musicUrl request: ${title} - ${artist}`)
+		const originalMusicItem = requestContext?.musicItem
+		const lxQualityMap = originalMusicItem?._types ?? originalMusicItem?.qualities ?? {}
+		const lxQualityList =
+			originalMusicItem?.types ??
+			Object.entries(lxQualityMap).map(([type, detail]) => ({
+				type,
+				...(detail as object),
+			}))
+		const sourceAliases: Record<string, LX.OnlineSource> = {
+			qq: 'tx',
+			qqmusic: 'tx',
+			kuwo: 'kw',
+			kugou: 'kg',
+			netease: 'wy',
+			migu: 'mg',
+		}
+		const requestedSource = String(requestContext?.platform || originalMusicItem?.platform || 'tx')
+		const source =
+			sourceAliases[requestedSource.toLowerCase()] ??
+			(['tx', 'kw', 'kg', 'wy', 'mg'].includes(requestedSource)
+				? (requestedSource as LX.OnlineSource)
+				: 'tx')
 
 		// 向 JavaScriptCore 脚本发送 musicUrl 请求
 		try {
@@ -550,17 +559,25 @@ const getMusicUrlViaScript = (
 				requestKey: wireRequestKey,
 				data: {
 					action: 'musicUrl',
-					source: 'tx',
+					source,
 					info: {
 						musicInfo: {
-							id: songmid,
-							songmid,
+							...originalMusicItem,
+							id: originalMusicItem?.id || songmid,
+							songmid: originalMusicItem?.songmid || songmid,
 							title,
 							name: title,
 							singer: artist,
 							artist,
-							source: 'tx',
-							hash: songmid,
+							source,
+							hash: originalMusicItem?.hash || songmid,
+							albumId: originalMusicItem?.albumId ?? originalMusicItem?.albumid,
+							albumName: originalMusicItem?.albumName ?? originalMusicItem?.album,
+							img: originalMusicItem?.img ?? originalMusicItem?.artwork,
+							interval: originalMusicItem?.interval ?? originalMusicItem?.duration,
+							types: lxQualityList,
+							_types: lxQualityMap,
+							typeUrl: originalMusicItem?.typeUrl ?? {},
 						},
 						requestContext: {
 							requestKey,
@@ -579,9 +596,7 @@ const getMusicUrlViaScript = (
 /**
  * 将 lx-music 格式脚本适配为 Cymusic 的 MusicApi 对象
  */
-export const adaptLxMusicScript = async (
-	script: string,
-): Promise<IMusic.MusicApi> => {
+export const adaptLxMusicScript = async (script: string): Promise<IMusic.MusicApi> => {
 	const info = parseLxMusicScriptInfo(script)
 
 	const scriptId = info.name
@@ -618,9 +633,7 @@ export const adaptLxMusicScript = async (
 /**
  * 重新加载 lx-music 脚本（从保存的 script 重建）
  */
-export const reloadLxMusicScript = async (
-	musicApi: IMusic.MusicApi,
-): Promise<IMusic.MusicApi> => {
+export const reloadLxMusicScript = async (musicApi: IMusic.MusicApi): Promise<IMusic.MusicApi> => {
 	try {
 		const info = parseLxMusicScriptInfo(musicApi.script)
 		const runtime = await initLxMusicScript(musicApi.id, info, musicApi.script)
@@ -636,10 +649,7 @@ export const reloadLxMusicScript = async (
 			) => getMusicUrlViaScript(runtime, title, artist, songmid, quality, requestContext),
 		}
 	} catch (err) {
-		logError(
-			`[lxMusicAdapter] Failed to reload lx-music script "${musicApi.name}":`,
-			err,
-		)
+		logError(`[lxMusicAdapter] Failed to reload lx-music script "${musicApi.name}":`, err)
 		return musicApi
 	}
 }

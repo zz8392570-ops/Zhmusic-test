@@ -1,4 +1,5 @@
 import { MusicRepeatMode } from '@/helpers/types'
+import type { AudioQuality } from '@/helpers/audioQuality'
 import { GlobalState } from '@/utils/stateMapper'
 
 /** 当前播放 */
@@ -9,6 +10,12 @@ export const playListsStore = new GlobalState<IMusic.PlayList[] | []>(null)
 export const repeatModeStore = new GlobalState<MusicRepeatMode>(MusicRepeatMode.QUEUE)
 /** 音质 */
 export const qualityStore = new GlobalState<IMusic.IQualityKey>('128k')
+/** 当前歌曲实际使用的音质 */
+export const playbackQualityStore = new GlobalState<AudioQuality | null>(null)
+/** 当前歌曲是否来自缓存 */
+export const playbackCachedStore = new GlobalState<boolean>(false)
+/** 缓存变化通知 */
+export const cacheRevisionStore = new GlobalState<number>(0)
 /** 音源 */
 export const musicApiStore = new GlobalState<IMusic.MusicApi[] | []>(null)
 /** 当前音源 */

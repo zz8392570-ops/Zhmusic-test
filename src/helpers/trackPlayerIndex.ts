@@ -47,6 +47,7 @@ import {
 	deleteMusicApiById,
 	ensureApiRuntime,
 	getPlaybackFailoverApis,
+	getMusicFailureKey,
 	rememberFailedApi,
 	reloadMusicApi,
 	runBackgroundHealthTests,
@@ -73,6 +74,9 @@ import {
 	trackSkipLoadingStore,
 	trackSourceLoadingStore,
 	playbackIntentStore,
+	playbackQualityStore,
+	playbackCachedStore,
+	cacheRevisionStore,
 } from '@/player/PlayerStore'
 
 import {
@@ -83,6 +87,7 @@ import {
 	getCacheFileUri,
 	ensureCacheDirExists,
 	ensureDirExists,
+	setCachedQuality,
 } from '@/player/CacheManager'
 
 import { resolveSource, preloadSource } from '@/player/MusicSourceResolver'
@@ -109,6 +114,9 @@ export {
 	trackSkipLoadingStore,
 	trackSourceLoadingStore,
 	playbackIntentStore,
+	playbackQualityStore,
+	playbackCachedStore,
+	cacheRevisionStore,
 }
 
 export function useCurrentQuality() {
@@ -137,18 +145,24 @@ function isCurrentNativeItem(item: MediaItem | null | undefined, placeholder = f
 	const identity = getNativeTrackIdentity(item)
 	const active = ReactNativeTrackPlayer.getActiveMediaItem()
 	const activeIdentity = getNativeTrackIdentity(active)
-	return identity?.token === nativeQueue.token &&
+	return (
+		identity?.token === nativeQueue.token &&
 		identity.placeholder === placeholder &&
 		activeIdentity?.token === nativeQueue.token &&
 		activeIdentity.placeholder === placeholder &&
 		item?.mediaId === active?.mediaId &&
 		ReactNativeTrackPlayer.getActiveMediaItemIndex() === (placeholder ? 1 : 0)
+	)
 }
 
 function isCurrentProgressEvent(event: PlaybackProgressUpdatedEvent) {
 	const active = ReactNativeTrackPlayer.getActiveMediaItem()
-	return isCurrentNativeItem(active) && event.mediaId === active?.mediaId &&
-		Number.isFinite(event.timestamp) && event.timestamp >= nativeQueue.startedAt
+	return (
+		isCurrentNativeItem(active) &&
+		event.mediaId === active?.mediaId &&
+		Number.isFinite(event.timestamp) &&
+		event.timestamp >= nativeQueue.startedAt
+	)
 }
 
 function setPlaybackIntent(intent: 'play' | 'pause' | 'stop') {
@@ -163,14 +177,19 @@ function retireTrackSkip() {
 
 function handleNativeTransition(item: MediaItem | null | undefined, index: number | null) {
 	// clear() can omit item entirely. A duplicate/stale placeholder must not advance.
-	if (item == null || index !== 1 || !isCurrentNativeItem(item, true) ||
-		nativeQueue.handoffConsumed || trackSourceLoadingStore.getValue() !== null ||
-		playbackIntentStore.getValue() !== 'play') return
+	if (
+		item == null ||
+		index !== 1 ||
+		!isCurrentNativeItem(item, true) ||
+		nativeQueue.handoffConsumed ||
+		trackSourceLoadingStore.getValue() !== null ||
+		playbackIntentStore.getValue() !== 'play'
+	)
+		return
 	nativeQueue.handoffConsumed = true
 	logInfo('队列末尾，播放下一首')
-	const advance = repeatModeStore.getValue() === MusicRepeatMode.SINGLE
-		? play(null, true)
-		: skipToNext()
+	const advance =
+		repeatModeStore.getValue() === MusicRepeatMode.SINGLE ? play(null, true) : skipToNext()
 	void advance.catch((error) => logError('自动切歌失败', error))
 }
 
@@ -180,7 +199,10 @@ function observeNativeTransport(intent: 'play' | 'pause' | 'stop') {
 	if (intent === 'play') {
 		// Pause can arrive before a queued placeholder transition reaches JS. A
 		// later native resume must complete that deferred business-queue handoff.
-		handleNativeTransition(ReactNativeTrackPlayer.getActiveMediaItem(), ReactNativeTrackPlayer.getActiveMediaItemIndex())
+		handleNativeTransition(
+			ReactNativeTrackPlayer.getActiveMediaItem(),
+			ReactNativeTrackPlayer.getActiveMediaItemIndex(),
+		)
 	}
 }
 
@@ -189,6 +211,8 @@ function reset() {
 	retireTrackSkip()
 	playbackIntentStore.setValue('stop')
 	trackSourceLoadingStore.setValue(null)
+	playbackQualityStore.setValue(null)
+	playbackCachedStore.setValue(false)
 	nativeQueue = null
 	ReactNativeTrackPlayer.clear()
 }
@@ -298,9 +322,13 @@ async function setupTrackPlayer() {
 				handleNativeTransition(event.item, event.index)
 			}),
 			ReactNativeTrackPlayer.addEventListener(Event.PlaybackError, (error) => {
-				if (!error.message || trackSourceLoadingStore.getValue() !== null ||
+				if (
+					!error.message ||
+					trackSourceLoadingStore.getValue() !== null ||
 					ReactNativeTrackPlayer.getPlaybackState() !== PlaybackState.Error ||
-					!isCurrentNativeItem(ReactNativeTrackPlayer.getActiveMediaItem())) return
+					!isCurrentNativeItem(ReactNativeTrackPlayer.getActiveMediaItem())
+				)
+					return
 				logInfo('播放出错', { message: error.message, code: error.code })
 				void failToPlay().catch((failure) => logError('播放错误恢复失败', failure))
 			}),
@@ -347,12 +375,16 @@ async function failToPlay() {
 			ReactNativeTrackPlayer.clear()
 		}
 		await delay(500)
-		if (revision !== controlRevision || !isCurrentMusic(failedMusic) ||
+		if (
+			revision !== controlRevision ||
+			!isCurrentMusic(failedMusic) ||
 			sourceToken !== trackSourceLoadingStore.getValue() ||
-			playbackIntentStore.getValue() !== 'play') return
+			playbackIntentStore.getValue() !== 'play'
+		)
+			return
 		const selected = musicApiSelectedStore.getValue()
 		if (failedMusic && selected?.id) {
-			rememberFailedApi(failedMusic.id, selected.id)
+			rememberFailedApi(getMusicFailureKey(failedMusic), selected.id)
 			const backup = getPlaybackFailoverApis(failedMusic).find((api) => api.id !== selected.id)
 			if (backup) {
 				logInfo(`播放失败，切换备用音源: ${backup.name}`)
@@ -362,7 +394,7 @@ async function failToPlay() {
 				return
 			}
 		}
-		if (failedMusic) clearFailedApis(failedMusic.id)
+		if (failedMusic) clearFailedApis(getMusicFailureKey(failedMusic))
 		await skipToNext()
 	} finally {
 		failoverInProgress = false
@@ -472,7 +504,8 @@ const remove = async (musicItem: IMusic.IMusicItem) => {
 			currentMusic = newPlayList[currentIndex % newPlayList.length]
 			// Native route loss/interruption can pause output without a remote event.
 			// Intent only stands in for output while the requested source is pending.
-			shouldPlayCurrent = ReactNativeTrackPlayer.isPlaying() ||
+			shouldPlayCurrent =
+				ReactNativeTrackPlayer.isPlaying() ||
 				(playbackIntentStore.getValue() === 'play' &&
 					(trackSourceLoadingStore.getValue() !== null ||
 						ReactNativeTrackPlayer.getPlaybackState() === PlaybackState.Buffering))
@@ -762,7 +795,11 @@ const reloadNowSelectedMusicApi = async () => {
 		throw error
 	}
 }
-const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, skipOperation?: symbol) => {
+const play = async (
+	musicItem?: IMusic.IMusicItem | null,
+	forcePlay?: boolean,
+	skipOperation?: symbol,
+) => {
 	let trackSourceLoadingToken: string | null = null
 	try {
 		// A direct selection supersedes an older Next/Previous request. Its late
@@ -782,11 +819,17 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 			// reads the latest intent; explicit replacement still gets a new token.
 			if (trackSourceLoadingStore.getValue() !== null && !forcePlay) return
 			const firstItem = ReactNativeTrackPlayer.getQueue()[0]
-			if (nativeQueue && getNativeTrackIdentity(firstItem)?.token === nativeQueue.token &&
-				isSameMediaItem(musicItem, nativeQueue.track as IMusic.IMusicItem)) {
+			if (
+				nativeQueue &&
+				getNativeTrackIdentity(firstItem)?.token === nativeQueue.token &&
+				isSameMediaItem(musicItem, nativeQueue.track as IMusic.IMusicItem)
+			) {
 				trackSourceLoadingStore.setValue(null)
-				if (forcePlay || ReactNativeTrackPlayer.getActiveMediaItemIndex() !== 0 ||
-					ReactNativeTrackPlayer.getPlaybackState() === PlaybackState.Error) {
+				if (
+					forcePlay ||
+					ReactNativeTrackPlayer.getActiveMediaItemIndex() !== 0 ||
+					ReactNativeTrackPlayer.getPlaybackState() === PlaybackState.Error
+				) {
 					// A fresh transport token also retires already-queued placeholder events.
 					setTrackSource(nativeQueue.track)
 				} else {
@@ -804,28 +847,41 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 
 		trackSourceLoadingToken = createTrackSourceLoadingToken(musicItem)
 		trackSourceLoadingStore.setValue(trackSourceLoadingToken)
+		playbackQualityStore.setValue(null)
+		playbackCachedStore.setValue(false)
 
 		// 3. Update current music state immediately (UI updates instantly)
 		setCurrentMusic(musicItem)
 
 		// 4. Resolve source (cache check + network if needed)
-		const { url: sourceUrl, wasCached } = await resolveSource(musicItem, {
+		const {
+			url: sourceUrl,
+			wasCached,
+			quality: playbackQuality,
+		} = await resolveSource(musicItem, {
 			requestType: 'current',
 		})
 
 		// 5. Race condition guard
-		if (!isCurrentMusic(musicItem) || trackSourceLoadingStore.getValue() !== trackSourceLoadingToken) {
+		if (
+			!isCurrentMusic(musicItem) ||
+			trackSourceLoadingStore.getValue() !== trackSourceLoadingToken
+		) {
 			return
 		}
 
 		// 6. Build track and set source
+		playbackQualityStore.setValue(playbackQuality)
+		playbackCachedStore.setValue(wasCached)
 		const track = mergeProps(musicItem, {
 			url: wasCached ? getCacheFileUri(sourceUrl) : sourceUrl,
+			playbackQuality,
+			...(wasCached && playbackQuality ? { cachedQuality: playbackQuality } : {}),
 		}) as IMusic.IMusicItem
 		logInfo('获取音源成功：', track)
 		setTrackSource(track)
 		if (musicItem && sourceUrl !== fakeAudioMp3Uri && !sourceUrl.includes('fake')) {
-			clearFailedApis(musicItem.id)
+			clearFailedApis(getMusicFailureKey(musicItem))
 		}
 		const appliedToken = nativeQueue.token
 
@@ -847,10 +903,14 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 			!sourceUrl.startsWith('file://')
 		) {
 			setTimeout(() => {
-				downloadToCache(track)
+				downloadToCache(track, playbackQuality ?? qualityStore.getValue())
 					.then((localUri) => {
 						logInfo('音乐已缓存到本地:', localUri)
-						const newTrack = { ...track, url: localUri }
+						const newTrack = {
+							...track,
+							url: localUri,
+							cachedQuality: playbackQuality ?? qualityStore.getValue(),
+						}
 						addImportedLocalMusic([newTrack], false)
 					})
 					.catch((error) => {
@@ -871,7 +931,8 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 			}, NEXT_TRACK_PRELOAD_DELAY_MS)
 		}
 	} catch (e: any) {
-		if (trackSourceLoadingToken && trackSourceLoadingStore.getValue() !== trackSourceLoadingToken) return
+		if (trackSourceLoadingToken && trackSourceLoadingStore.getValue() !== trackSourceLoadingToken)
+			return
 		const message = e?.message
 		if (message === PlayFailReason.FORBID_CELLUAR_NETWORK_PLAY) {
 			logInfo('移动网络')
@@ -884,10 +945,7 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 			logError('播放失败', e)
 		}
 	} finally {
-		if (
-			trackSourceLoadingToken &&
-			trackSourceLoadingStore.getValue() === trackSourceLoadingToken
-		) {
+		if (trackSourceLoadingToken && trackSourceLoadingStore.getValue() === trackSourceLoadingToken) {
 			trackSourceLoadingStore.setValue(null)
 		}
 	}
@@ -895,13 +953,15 @@ const play = async (musicItem?: IMusic.IMusicItem | null, forcePlay?: boolean, s
 const cacheAndImportMusic = async (track: IMusic.IMusicItem) => {
 	try {
 		await ensureCacheDirExists()
-		const localPath = getLocalFilePath(track)
+		const cachedQuality = playbackQualityStore.getValue() ?? qualityStore.getValue()
+		const localPath = getLocalFilePath(track, cachedQuality)
 		console.log('localPath:', localPath)
 		const fileUri = getCacheFileUri(localPath)
 		const isCacheExist = Paths.info(fileUri).exists
 		if (isCacheExist) {
+			setCachedQuality(localPath, cachedQuality)
 			logInfo('音乐已缓存到本地:', localPath)
-			const newTrack = { ...track, url: localPath }
+			const newTrack = { ...track, url: localPath, cachedQuality }
 			await addImportedLocalMusic([newTrack], false)
 		} else {
 			logInfo('开始下载音乐:', track.url)
@@ -909,8 +969,9 @@ const cacheAndImportMusic = async (track: IMusic.IMusicItem) => {
 				const progress = res.bytesWritten / res.contentLength
 				logInfo(`下载进度: ${(progress * 100).toFixed(2)}%`)
 			})
+			setCachedQuality(localPath, cachedQuality)
 			logInfo('音乐已缓存到本地:', `${localPath}`)
-			const newTrack = { ...track, url: `${localPath}` }
+			const newTrack = { ...track, url: `${localPath}`, cachedQuality }
 			await addImportedLocalMusic([newTrack], false)
 		}
 

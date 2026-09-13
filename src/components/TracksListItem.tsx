@@ -1,7 +1,10 @@
 import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
+import AudioQualityBadge from '@/components/AudioQualityBadge'
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors } from '@/constants/tokens'
-import myTrackPlayer, { isCachedIconVisibleStore } from '@/helpers/trackPlayerIndex'
+import { getCachedQuality } from '@/player/CacheManager'
+import { cacheRevisionStore } from '@/player/PlayerStore'
+import { isCachedIconVisibleStore } from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import { getThumbnailArtwork } from '@/utils/imageUtils'
@@ -13,6 +16,12 @@ import { Image } from 'expo-image'
 import LoaderKit from 'react-native-loader-kit'
 import type { Track } from '@/player/types'
 import { StopPropagation } from './utils/StopPropagation'
+import {
+	inferAudioQualityFromPath,
+	normalizeAudioQuality,
+	type AudioQuality,
+} from '@/helpers/audioQuality'
+import i18n from '@/utils/i18n'
 
 export type TracksListItemProps = {
 	track: Track
@@ -26,6 +35,15 @@ export type TracksListItemProps = {
 	onToggleSelection?: (trackId: string) => void
 	selectedTracks?: Set<string>
 	toggleMultiSelectMode?: () => void
+	showSourceBadge?: boolean
+}
+
+const PLATFORM_LABEL_KEYS: Record<string, string> = {
+	tx: 'find.platformTx',
+	kw: 'find.platformKw',
+	kg: 'find.platformKg',
+	wy: 'find.platformWy',
+	mg: 'find.platformMg',
 }
 
 const TracksListItem = ({
@@ -40,14 +58,22 @@ const TracksListItem = ({
 	selectedTracks,
 	onDeleteTrack,
 	toggleMultiSelectMode,
+	showSourceBadge = false,
 }: TracksListItemProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
-	const [isCachedTrack, setIsCachedTrack] = useState(
-		typeof track.url === 'string' && track.url.includes('/musicCache/'),
+	const cacheRevision = cacheRevisionStore.useValue()
+	const embeddedCachedQuality = useMemo(
+		() =>
+			normalizeAudioQuality(track.cachedQuality) ??
+			(typeof track.url === 'string' && track.url.includes('/musicCache/')
+				? inferAudioQualityFromPath(track.url)
+				: null),
+		[track.cachedQuality, track.url],
 	)
+	const [cachedQuality, setCachedQuality] = useState<AudioQuality | null>(embeddedCachedQuality)
 	const cacheLookupTrack = useMemo(
 		() =>
 			({
@@ -55,8 +81,23 @@ const TracksListItem = ({
 				platform: track.platform,
 				title: track.title,
 				artist: track.artist,
+				duration: track.duration ?? 0,
+				album: track.album ?? '',
+				artwork: track.artwork ?? '',
+				url: track.url,
+				cachedQuality: track.cachedQuality,
 			}) as IMusic.IMusicItem,
-		[track.id, track.platform, track.title, track.artist],
+		[
+			track.album,
+			track.artist,
+			track.artwork,
+			track.cachedQuality,
+			track.duration,
+			track.id,
+			track.platform,
+			track.title,
+			track.url,
+		],
 	)
 	const artworkSource = useMemo(
 		() => ({
@@ -67,24 +108,16 @@ const TracksListItem = ({
 
 	useEffect(() => {
 		let isMounted = true
-		const hasCachedFileUrl = typeof track.url === 'string' && track.url.includes('/musicCache/')
-
-		if (hasCachedFileUrl) {
-			setIsCachedTrack(true)
-			return () => {
-				isMounted = false
-			}
-		}
-
+		setCachedQuality(embeddedCachedQuality)
 		const checkCachedState = async () => {
 			try {
-				const cached = await myTrackPlayer.isCached(cacheLookupTrack)
+				const quality = await getCachedQuality(cacheLookupTrack)
 				if (isMounted) {
-					setIsCachedTrack(cached)
+					setCachedQuality(quality)
 				}
 			} catch {
 				if (isMounted) {
-					setIsCachedTrack(false)
+					setCachedQuality(null)
 				}
 			}
 		}
@@ -94,7 +127,13 @@ const TracksListItem = ({
 		return () => {
 			isMounted = false
 		}
-	}, [cacheLookupTrack, track.url])
+	}, [cacheLookupTrack, cacheRevision, embeddedCachedQuality])
+
+	const isCachedTrack = cachedQuality !== null
+	const platformLabelKey = PLATFORM_LABEL_KEYS[String(track.platform ?? '').toLowerCase()]
+	const platformLabel = platformLabelKey
+		? i18n.t(platformLabelKey)
+		: String(track.platform ?? '').toUpperCase()
 
 	return (
 		<TouchableHighlight
@@ -171,11 +210,23 @@ const TracksListItem = ({
 								{track.title}
 							</Text>
 						</View>
-						{track.artist && (
-							<Text numberOfLines={1} style={styles.trackArtistText}>
-								{track.artist}
-							</Text>
-						)}
+						{track.artist || showSourceBadge || cachedQuality ? (
+							<View style={styles.trackMetadataRow}>
+								{track.artist ? (
+									<Text numberOfLines={1} style={styles.trackArtistText}>
+										{track.artist}
+									</Text>
+								) : null}
+								<View style={styles.badgesRow}>
+									{showSourceBadge && platformLabel ? (
+										<View style={styles.sourceBadge}>
+											<Text style={styles.sourceBadgeText}>{platformLabel}</Text>
+										</View>
+									) : null}
+									<AudioQualityBadge quality={cachedQuality} compact />
+								</View>
+							</View>
+						) : null}
 					</View>
 
 					{!isMultiSelectMode && (
@@ -207,53 +258,73 @@ const TracksListItem = ({
 	)
 }
 export default memo(TracksListItem)
-const createStyles = (
-	colors: ThemeColors,
-	defaultStyles: ReturnType<typeof useDefaultStyles>,
-) =>
+const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	trackItemContainer: {
-		flexDirection: 'row',
-		columnGap: 14,
-		alignItems: 'center',
-		paddingRight: 0,
-	},
-	trackPlayingIconIndicator: {
-		position: 'absolute',
-		top: 18,
-		left: 16,
-		width: 16,
-		height: 16,
-	},
-	trackPausedIndicator: {
-		position: 'absolute',
-		top: 14,
-		left: 14,
-	},
-	trackArtworkImage: {
-		borderRadius: 8,
-		width: 50,
-		height: 50,
-	},
-	trackTitleRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	cachedIcon: {
-		marginRight: 4,
-	},
-	trackTitleText: {
-		...defaultStyles.text,
-		fontSize: 17,
-		fontWeight: '400',
-		flexShrink: 1,
-		maxWidth: '100%',
-	},
-	trackArtistText: {
-		...defaultStyles.text,
-		color: colors.textMuted,
-		fontSize: 14,
-		marginTop: 3,
-		maxWidth: '80%',
-	},
+		trackItemContainer: {
+			flexDirection: 'row',
+			columnGap: 14,
+			alignItems: 'center',
+			paddingRight: 0,
+		},
+		trackPlayingIconIndicator: {
+			position: 'absolute',
+			top: 18,
+			left: 16,
+			width: 16,
+			height: 16,
+		},
+		trackPausedIndicator: {
+			position: 'absolute',
+			top: 14,
+			left: 14,
+		},
+		trackArtworkImage: {
+			borderRadius: 8,
+			width: 50,
+			height: 50,
+		},
+		trackTitleRow: {
+			flexDirection: 'row',
+			alignItems: 'center',
+		},
+		cachedIcon: {
+			marginRight: 4,
+		},
+		trackTitleText: {
+			...defaultStyles.text,
+			fontSize: 17,
+			fontWeight: '400',
+			flexShrink: 1,
+			maxWidth: '100%',
+		},
+		trackArtistText: {
+			...defaultStyles.text,
+			color: colors.textMuted,
+			fontSize: 14,
+			flex: 1,
+		},
+		trackMetadataRow: {
+			minHeight: 21,
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 7,
+			marginTop: 3,
+		},
+		badgesRow: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 5,
+		},
+		sourceBadge: {
+			minHeight: 18,
+			justifyContent: 'center',
+			paddingHorizontal: 6,
+			borderRadius: 5,
+			backgroundColor: colors.surfaceMuted,
+		},
+		sourceBadgeText: {
+			color: colors.textMuted,
+			fontSize: 10,
+			fontWeight: '600',
+		},
 	})
