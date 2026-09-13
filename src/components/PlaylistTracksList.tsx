@@ -123,20 +123,21 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 	StyleSheet.create({
 		playlistHeaderContainer: {
 			flex: 1,
-			marginBottom: 32,
+			marginBottom: 24,
 		},
 		artworkImageContainer: {
 			flexDirection: 'row',
 			justifyContent: 'center',
 		},
 		artworkImage: {
-			width: '85%',
+			width: '62%',
+			maxWidth: 240,
 			aspectRatio: 1,
-			borderRadius: 12,
+			borderRadius: 14,
 		},
 		playlistNameText: {
 			...defaultStyles.text,
-			marginTop: 22,
+			marginTop: 16,
 			textAlign: 'center',
 			fontSize: fontSize.lg,
 			fontWeight: '800',

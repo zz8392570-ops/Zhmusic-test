@@ -745,8 +745,8 @@ const addPlayLists = (playlist: IMusic.PlayList) => {
 }
 const deletePlayLists = (playlistId: string) => {
 	try {
-		if (playlistId == 'favorites') {
-			return '不能删除收藏歌单'
+		if (playlistId === 'favorites' || playlistId === 'local') {
+			return 'protected'
 		}
 		const nowPlayLists = playListsStore.getValue() || []
 
@@ -1121,7 +1121,11 @@ function getNextMusic() {
 
 	return getPlayListMusicAt(currentIndex + 1)
 }
-const addImportedLocalMusic = async (musicItem: IMusic.IMusicItem[], isAlert: boolean = true) => {
+const addImportedLocalMusic = async (
+	musicItem: IMusic.IMusicItem[],
+	shouldMoveToLibrary: boolean = true,
+	showSuccessAlert: boolean = shouldMoveToLibrary,
+) => {
 	try {
 		console.log('addImportedLocalMusic', musicItem[0])
 		const importedLocalMusic = importedLocalMusicStore.getValue() || []
@@ -1130,10 +1134,10 @@ const addImportedLocalMusic = async (musicItem: IMusic.IMusicItem[], isAlert: bo
 		)
 		if (newMusicItems.length === 0) {
 			// Alert.alert('提示', '所有选择的音乐已经存在，没有新的音乐被导入。')
-			return
+			return 'empty'
 		}
-		// 确保目标目录存在 isAlert只有导入本地音乐为true。所有自动缓存为false.,不需要移动文件
-		if (isAlert) {
+		// 手动导入需要移动到应用文档目录；自动缓存已经位于应用目录中。
+		if (shouldMoveToLibrary) {
 			const targetDir = `${FileSystemNative.documentDirectoryPath}/importedLocalMusic`
 			await ensureDirExists(targetDir)
 
@@ -1158,13 +1162,15 @@ const addImportedLocalMusic = async (musicItem: IMusic.IMusicItem[], isAlert: bo
 		const updatedImportedLocalMusic = [...importedLocalMusic, ...newMusicItems]
 		importedLocalMusicStore.setValue(updatedImportedLocalMusic)
 		PersistStatus.set('music.importedLocalMusic', updatedImportedLocalMusic)
-		if (isAlert) {
+		if (showSuccessAlert) {
 			Alert.alert('成功', '音乐导入成功,请手动选择', [
 				{ text: '确定', onPress: () => logInfo('Add alert closed') },
 			])
 		}
+		return 'success'
 	} catch (error) {
 		logError('本地音乐保存时出错:', error)
+		return 'error'
 	}
 }
 const deleteImportedLocalMusic = async (musicItemsIdToDelete: string) => {

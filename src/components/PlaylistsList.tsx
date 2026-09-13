@@ -2,7 +2,6 @@ import { PlaylistListItem } from '@/components/PlaylistListItem'
 import { unknownTrackImageUri } from '@/constants/images'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
-import { useNavigationSearch } from '@/hooks/useNavigationSearch'
 import { useUtilsStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { useMemo } from 'react'
@@ -19,30 +18,19 @@ export const PlaylistsList = ({
 	...flatListProps
 }: PlaylistsListProps) => {
 	const utilsStyles = useUtilsStyles()
-	const search = useNavigationSearch({
-		searchBarOptions: {
-			placeholder: i18n.t('find.inPlaylist'),
-			cancelButtonText: i18n.t('find.cancel'),
-		},
-	})
-
-	const filteredPlaylist = useMemo(() => {
-		if (!search) {
-			return playlists
-		}
-
-		return playlists.filter((playlist) =>
-			playlist.name.toLowerCase().includes(search.toLowerCase()),
-		)
-	}, [playlists, search])
 	const itemDivider = useMemo(
-		() => () => <View style={{ ...utilsStyles.itemSeparator, marginLeft: 80, marginVertical: 12 }} />,
+		() => () => (
+			<View style={{ ...utilsStyles.itemSeparator, marginLeft: 80, marginVertical: 12 }} />
+		),
 		[utilsStyles],
 	)
 	const emptyListComponent = useMemo(
 		() => (
 			<View>
-				<Text style={utilsStyles.emptyContentText}>No playlist found</Text>
+				<Text style={utilsStyles.emptyContentText}>{i18n.t('library.empty')}</Text>
+				<Text style={[utilsStyles.emptyContentText, { fontSize: 14, marginTop: 4, opacity: 0.7 }]}>
+					{i18n.t('library.emptyHint')}
+				</Text>
 
 				<Image
 					contentFit="cover"
@@ -57,42 +45,49 @@ export const PlaylistsList = ({
 	)
 
 	const showDeleteAlert = (playlist: Playlist) => {
-		Alert.alert('删除歌单', `确定要删除这个歌单吗 "${playlist.name}"?`, [
-			{ text: '取消', style: 'cancel' },
-			{
-				text: '删除',
-				style: 'destructive',
-				onPress: async () => {
-					try {
-						const result = await myTrackPlayer.deletePlayLists(playlist.id)
-						if (result === 'success') {
-							// 删除成功
-							// 可以在这里添加一些成功的反馈，比如显示一个成功的提示
-							Alert.alert('成功', '歌单删除成功')
-						} else {
-							// 删除失败，显示错误信息
-							Alert.alert('错误', result)
+		if (playlist.id === 'favorites' || playlist.id === 'local') return
+
+		Alert.alert(
+			i18n.t('library.deleteTitle'),
+			i18n.t('library.deleteMessage', { name: playlist.title || playlist.name }),
+			[
+				{ text: i18n.t('find.cancel'), style: 'cancel' },
+				{
+					text: i18n.t('library.delete'),
+					style: 'destructive',
+					onPress: async () => {
+						try {
+							const result = await myTrackPlayer.deletePlayLists(playlist.id)
+							if (result !== 'success') Alert.alert(i18n.t('library.deleteFailed'))
+						} catch {
+							Alert.alert(i18n.t('library.deleteFailed'))
 						}
-					} catch (error) {
-						// 处理可能发生的错误
-						Alert.alert('错误', 'An error occurred while deleting the playlist')
-					}
+					},
 				},
-			},
-		])
+			],
+		)
 	}
 	return (
 		<FlatList
 			contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
 			ItemSeparatorComponent={itemDivider}
-			ListFooterComponent={itemDivider}
+			ListFooterComponent={playlists.length > 0 ? itemDivider : null}
 			ListEmptyComponent={emptyListComponent}
-			data={filteredPlaylist}
+			data={playlists}
 			renderItem={({ item: playlist }) => (
 				<PlaylistListItem
 					playlist={playlist}
 					onPress={() => handlePlaylistPress(playlist)}
-					onLongPress={() => showDeleteAlert(playlist)}
+					onLongPress={
+						playlist.id === 'favorites' || playlist.id === 'local'
+							? undefined
+							: () => showDeleteAlert(playlist)
+					}
+					onDeletePress={
+						playlist.id === 'favorites' || playlist.id === 'local'
+							? undefined
+							: () => showDeleteAlert(playlist)
+					}
 				/>
 			)}
 			{...flatListProps}

@@ -2,10 +2,12 @@
 	"settings": {
 		"title": "Settings",
 		"sections": {
-			"appInfo": "App Information",
-			"audioSettings": "Audio Settings",
-			"customSource": "Custom Music Source",
-			"qualitySelection": "Quality Selection"
+			"general": "General",
+			"playback": "Playback",
+			"downloadsCache": "Downloads & Cache",
+			"sources": "Sources",
+			"advanced": "Advanced",
+			"about": "About"
 		},
 		"items": {
 			"version": "Version",
@@ -14,7 +16,7 @@
 			"clearCache": "Clear Cache",
 			"viewLogs": "View Logs",
 			"clearPlaylist": "Clear Playlist",
-			"autoCacheLocal": "Auto Cache Songs Locally",
+			"autoCacheLocal": "Auto-cache Played Songs",
 			"preciseSeeking": "Precise seeking",
 			"switchSource": "Switch Source",
 			"selectSource": "Select Source",
@@ -30,12 +32,14 @@
 			"test": "Test",
 			"testSources": "Test All Sources",
 			"sourceList": "Source List",
-			"isCachedIconVisible": "isCachedIconVisible",
-			"songsNumsToLoad": "Songs Nums to Load",
-			"homePlaylist": "Home Playlist"
+			"isCachedIconVisible": "Show Cache Badges",
+			"songsNumsToLoad": "Home Song Count",
+			"homePlaylist": "Home Chart"
 		},
 		"descriptions": {
-			"preciseSeeking": "Helps keep audio and lyrics aligned after seeking in some FLAC files. Playback may wait for the full audio file to load. Applies after changing tracks."
+			"preciseSeeking": "Helps keep audio and lyrics aligned after seeking in some FLAC files. Playback may wait for the full audio file to load. Applies after changing tracks.",
+			"autoCacheLocal": "Automatically save streamed songs for faster playback next time.",
+			"isCachedIconVisible": "Show cached status and audio format in song lists."
 		},
 		"actions": {
 			"import": {
@@ -73,6 +77,10 @@
 				"cancel": "Cancel"
 			},
 			"cache": {
+				"title": "Clear Cache",
+				"message": "Cached song files will be removed. Favorites and playlists won't be affected.",
+				"cancel": "Cancel",
+				"confirm": "Clear",
 				"success": "Success",
 				"successMessage": "Cache has been cleared",
 				"error": "Failed",
@@ -113,10 +121,38 @@
 	"appTab": {
 		"songs": "Songs",
 		"search": "Search",
-		"radio": "Radio",
-		"favorites": "Favorites",
+		"radio": "Charts",
+		"favorites": "Library",
 		"favoritesSongs": "Favorite Songs",
 		"localOrCachedSongs": "Local/Cached Songs"
+	},
+	"library": {
+		"songCount": "%{count} songs",
+		"empty": "No playlists yet",
+		"emptyHint": "Imported playlists will appear here",
+		"deleteTitle": "Delete Playlist",
+		"deleteMessage": "Delete “%{name}”? Cached songs won't be removed.",
+		"delete": "Delete",
+		"deleteFailed": "Couldn't delete the playlist. Try again later."
+	},
+	"localMusic": {
+		"notice": "Notice",
+		"unknownAlbum": "Unknown album",
+		"preparingImport": "Preparing import…",
+		"importing": "Importing %{current}/%{total}",
+		"importLimit": "You can import up to 50 songs at a time.",
+		"nothingNewTitle": "No New Songs",
+		"nothingNewMessage": "All selected songs have already been imported.",
+		"importSuccessTitle": "Import Complete",
+		"importSuccessMessage": "Imported %{count} songs",
+		"importFailed": "Import failed. Check the files and try again.",
+		"deleteTitle": "Delete Local Songs",
+		"deleteOneMessage": "Delete “%{name}” and its local file?",
+		"deleteSelectedMessage": "Delete the selected %{count} songs and their local files?",
+		"delete": "Delete",
+		"selectBeforeExport": "Select songs to export first.",
+		"fileLocation": "Files are stored in the CyMusic/importedLocalMusic folder.",
+		"exportFailed": "Export failed. Try again later."
 	},
 	"home": {
 		"title": "Home",

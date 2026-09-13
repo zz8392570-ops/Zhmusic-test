@@ -2,10 +2,12 @@
 	"settings": {
 		"title": "设置",
 		"sections": {
-			"appInfo": "应用信息",
-			"audioSettings": "音频设置",
-			"customSource": "自定义音源",
-			"qualitySelection": "音质选择"
+			"general": "通用",
+			"playback": "播放",
+			"downloadsCache": "下载与缓存",
+			"sources": "音源",
+			"advanced": "高级",
+			"about": "关于"
 		},
 		"items": {
 			"version": "版本号",
@@ -14,7 +16,7 @@
 			"clearCache": "清空缓存",
 			"viewLogs": "查看日志",
 			"clearPlaylist": "清空待播清单",
-			"autoCacheLocal": "自动缓存歌曲到本地",
+			"autoCacheLocal": "自动缓存播放歌曲",
 			"preciseSeeking": "精确跳转",
 			"switchSource": "切换音源",
 			"selectSource": "选择音源",
@@ -30,12 +32,14 @@
 			"test": "测试",
 			"testSources": "测试所有音源",
 			"sourceList": "音源列表",
-			"isCachedIconVisible": "是否显示已缓存图标",
-			"songsNumsToLoad": "首页播放歌曲数量",
-			"homePlaylist": "首页显示歌单"
+			"isCachedIconVisible": "显示缓存标记",
+			"songsNumsToLoad": "首页歌曲数量",
+			"homePlaylist": "首页榜单"
 		},
 		"descriptions": {
-			"preciseSeeking": "改善部分 FLAC 快进后的音频与歌词不同步。开启后可能需要加载完整音频，播放前等待更久。切换歌曲后生效。"
+			"preciseSeeking": "改善部分 FLAC 快进后的音频与歌词不同步。开启后可能需要加载完整音频，播放前等待更久。切换歌曲后生效。",
+			"autoCacheLocal": "播放在线歌曲后自动保存，方便下次快速播放。",
+			"isCachedIconVisible": "在歌曲列表中显示已缓存状态和对应格式。"
 		},
 		"actions": {
 			"import": {
@@ -74,6 +78,10 @@
 				"errorMessage": "无法检查更新，请稍后再试"
 			},
 			"cache": {
+				"title": "清空缓存",
+				"message": "将删除已缓存的歌曲文件，收藏和歌单不会受到影响。",
+				"cancel": "取消",
+				"confirm": "清空",
 				"success": "成功",
 				"successMessage": "缓存已清理",
 				"error": "失败",
@@ -114,10 +122,38 @@
 	"appTab": {
 		"songs": "音乐",
 		"search": "搜索",
-		"radio": "广播",
-		"favorites": "收藏",
+		"radio": "榜单",
+		"favorites": "我的",
 		"favoritesSongs": "喜欢的歌曲",
 		"localOrCachedSongs": "本地/缓存的歌曲"
+	},
+	"library": {
+		"songCount": "%{count} 首歌曲",
+		"empty": "还没有歌单",
+		"emptyHint": "导入歌单后会显示在这里",
+		"deleteTitle": "删除歌单",
+		"deleteMessage": "确定要删除“%{name}”吗？此操作不会删除歌曲缓存。",
+		"delete": "删除",
+		"deleteFailed": "删除歌单失败，请稍后重试"
+	},
+	"localMusic": {
+		"notice": "提示",
+		"unknownAlbum": "未知专辑",
+		"preparingImport": "正在准备导入…",
+		"importing": "正在导入 %{current}/%{total}",
+		"importLimit": "一次最多导入 50 首歌曲",
+		"nothingNewTitle": "没有新歌曲",
+		"nothingNewMessage": "所选歌曲均已导入，请换一些文件试试。",
+		"importSuccessTitle": "导入完成",
+		"importSuccessMessage": "已导入 %{count} 首歌曲",
+		"importFailed": "导入失败，请检查文件后重试",
+		"deleteTitle": "删除本地歌曲",
+		"deleteOneMessage": "确定要删除“%{name}”及其本地文件吗？",
+		"deleteSelectedMessage": "确定要删除选中的 %{count} 首歌曲及其本地文件吗？",
+		"delete": "删除",
+		"selectBeforeExport": "请先选择要导出的歌曲",
+		"fileLocation": "文件位于 CyMusic/importedLocalMusic 文件夹",
+		"exportFailed": "导出失败，请稍后重试"
 	},
 	"home": {
 		"title": "首页",

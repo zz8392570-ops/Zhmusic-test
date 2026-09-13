@@ -3,6 +3,7 @@ import { unknownTrackImageUri } from '@/constants/images'
 import { playListsStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { useNavigationSearch } from '@/hooks/useNavigationSearch'
+import { useFavorites } from '@/store/library'
 import { useUtilsStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { useMemo } from 'react'
@@ -23,16 +24,17 @@ export const PlaylistsListModal = ({
 			cancelButtonText: i18n.t('find.cancel'),
 		},
 	})
+	const { favorites } = useFavorites()
 	const favoritePlayListItem = useMemo(
 		() => ({
 			name: 'Favorites',
 			id: 'favorites',
-			tracks: [],
-			title: '喜欢的歌曲',
+			tracks: favorites,
+			title: i18n.t('appTab.favoritesSongs'),
 			coverImg: 'https://y.qq.com/mediastyle/global/img/cover_like.png?max_age=2592000',
-			description: '喜欢的歌曲',
+			description: i18n.t('appTab.favoritesSongs'),
 		}),
-		[],
+		[favorites],
 	)
 	const storedPlayLists = playListsStore.useValue()
 	const filteredPlayLists = useMemo(() => {
@@ -40,18 +42,25 @@ export const PlaylistsListModal = ({
 
 		if (!search) return playLists
 
+		const keyword = search.toLocaleLowerCase()
 		return playLists.filter((playlist: Playlist) =>
-			playlist.name.toLowerCase().includes(search.toLowerCase()),
+			[playlist.title, playlist.name]
+				.filter(Boolean)
+				.join(' ')
+				.toLocaleLowerCase()
+				.includes(keyword),
 		)
 	}, [search, favoritePlayListItem, storedPlayLists])
 	const itemDivider = useMemo(
-		() => () => <View style={{ ...utilsStyles.itemSeparator, marginLeft: 80, marginVertical: 12 }} />,
+		() => () => (
+			<View style={{ ...utilsStyles.itemSeparator, marginLeft: 80, marginVertical: 12 }} />
+		),
 		[utilsStyles],
 	)
 	const emptyListComponent = useMemo(
 		() => (
 			<View>
-				<Text style={utilsStyles.emptyContentText}>No playlist found</Text>
+				<Text style={utilsStyles.emptyContentText}>{i18n.t('find.noResults')}</Text>
 
 				<Image
 					contentFit="cover"

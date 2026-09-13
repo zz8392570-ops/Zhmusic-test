@@ -5,21 +5,27 @@ import { ThemeColors, screenPadding } from '@/constants/tokens'
 import { logError, logInfo } from '@/helpers/logger'
 import myTrackPlayer, { importedLocalMusicStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
-import { searchMusicInfoByName } from '@/helpers/userApi/getMusicSource'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import MusicInfo from '@/utils/musicInfo'
 import * as DocumentPicker from 'expo-document-picker'
 import React, { useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Track } from '@/player/types'
+
+type ImportProgress = {
+	current: number
+	total: number
+}
+
 const LocalMusicScreen = () => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const localTracks = importedLocalMusicStore.useValue() || []
 	const [isLoading, setIsLoading] = useState(false)
+	const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
 	const playListItem = {
 		name: 'Local',
 		id: 'local',
@@ -36,11 +42,26 @@ const LocalMusicScreen = () => {
 		setSelectedTracks(new Set())
 	}
 	const deleteSelectedTracks = () => {
-		selectedTracks.forEach((trackId) => {
-			myTrackPlayer.deleteImportedLocalMusic(trackId)
-		})
-		setSelectedTracks(new Set())
-		setIsMultiSelectMode(false)
+		if (selectedTracks.size === 0) return
+
+		Alert.alert(
+			i18n.t('localMusic.deleteTitle'),
+			i18n.t('localMusic.deleteSelectedMessage', { count: selectedTracks.size }),
+			[
+				{ text: i18n.t('find.cancel'), style: 'cancel' },
+				{
+					text: i18n.t('localMusic.delete'),
+					style: 'destructive',
+					onPress: async () => {
+						await Promise.all(
+							[...selectedTracks].map((trackId) => myTrackPlayer.deleteImportedLocalMusic(trackId)),
+						)
+						setSelectedTracks(new Set())
+						setIsMultiSelectMode(false)
+					},
+				},
+			],
+		)
 	}
 	const toggleSelectAll = () => {
 		if (!localTracks || !Array.isArray(localTracks)) {
@@ -69,15 +90,15 @@ const LocalMusicScreen = () => {
 	}
 	const exportSelectedTracks = async () => {
 		if (selectedTracks.size === 0) {
-			Alert.alert('提示', '请先选择要导出的歌曲')
+			Alert.alert(i18n.t('localMusic.notice'), i18n.t('localMusic.selectBeforeExport'))
 			setIsMultiSelectMode(false)
 			return
 		}
 		try {
-			Alert.alert('文件已保存到: 文件 App > 我的 iPhone > CyMusic > importedLocalMusic')
+			Alert.alert(i18n.t('localMusic.fileLocation'))
 		} catch (error) {
 			console.error('导出过程中出错:', error)
-			Alert.alert('错误', '导出过程中出现错误，请重试。')
+			Alert.alert(i18n.t('localMusic.exportFailed'))
 		}
 	}
 	const importLocalMusic = async () => {
@@ -95,93 +116,114 @@ const LocalMusicScreen = () => {
 			}
 			console.log('result.assets:', result.assets)
 			if (result.assets.length > 50) {
-				Alert.alert('提示', '一次最多只能导入50首歌曲')
-				setIsLoading(false)
+				Alert.alert(i18n.t('localMusic.notice'), i18n.t('localMusic.importLimit'))
 				return
 			}
-			const newTracks: IMusic.IMusicItem[] = await Promise.all(
-				result.assets
-					.filter((file) => !myTrackPlayer.isExistImportedLocalMusic(file.name))
-					.map(async (file) => {
-						const metadata = await MusicInfo.getMusicInfoAsync(file.uri, {
-							title: true,
-							artist: true,
-							album: true,
-							genre: true,
-							picture: true,
-						})
-
-						// console.log('文件元数据:', metadata)
-
-						return {
-							id: file.uri,
-							title: metadata?.title || file.name || '未知标题',
-							artist: metadata?.artist || '未知艺术家',
-							album: metadata?.album || '未知专辑',
-							artwork: unknownTrackImageUri,
-							url: file.uri,
-							platform: 'local',
-							duration: 0, // 如果 MusicInfo 能提供持续时间，可以在这里使用
-							genre: file.name || '',
-						}
-					}),
+			const filesToImport = result.assets.filter(
+				(file) => !myTrackPlayer.isExistImportedLocalMusic(file.name),
 			)
-			// console.log('newTracks:', newTracks)
-			if (newTracks.length === 0) {
-				console.log('没有新导入的音轨')
-				// Alert.alert('提示', '没有新的音乐被导入。可能是因为所选文件已存在或不是支持的音频格式。')
-				setIsLoading(false)
+			if (filesToImport.length === 0) {
+				Alert.alert(i18n.t('localMusic.nothingNewTitle'), i18n.t('localMusic.nothingNewMessage'))
 				return
 			}
 
-			// console.log('新导入的音轨:', newTracks)
-			// 批量处理新导入的音轨
-			const processedTracks = await Promise.all(
-				newTracks.map(async (track) => {
-					if (track.title !== '未知标题') {
-						try {
-							console.log(track.title)
-							const searchResult = await searchMusicInfoByName(track.title)
-							logInfo('搜索结果:', searchResult)
-							if (searchResult != null) {
-								return {
-									...track,
-									id: searchResult.songmid || track.id,
-									artwork: searchResult.artwork || track.artwork,
-									album: searchResult.albumName || track.album,
-								}
-							} else {
-								logError('没有匹配到歌曲')
-							}
-						} catch (error) {
-							logError(`获取歌曲 "${track.title}" 信息时出错:`, error)
-						}
-					}
-					return track
-				}),
-			)
+			const newTracks: IMusic.IMusicItem[] = []
+			for (const [index, file] of filesToImport.entries()) {
+				setImportProgress({ current: index + 1, total: filesToImport.length })
+				let metadata: Awaited<ReturnType<typeof MusicInfo.getMusicInfoAsync>> = null
+				try {
+					metadata = await MusicInfo.getMusicInfoAsync(file.uri, {
+						title: true,
+						artist: true,
+						album: true,
+						genre: true,
+						picture: true,
+					})
+				} catch (error) {
+					logError(`读取本地音乐元数据失败: ${file.name}`, error)
+				}
 
-			console.log('处理后的音轨:', processedTracks)
+				const embeddedArtwork = metadata?.picture?.pictureData
+				const fallbackTitle = file.name.replace(/\.[^.]+$/, '')
+				const extension = file.name.split('.').pop()?.toLocaleLowerCase()
+				newTracks.push({
+					id: file.uri,
+					title: metadata?.title || fallbackTitle || i18n.t('find.unknownSong'),
+					artist: metadata?.artist || i18n.t('find.unknownArtist'),
+					album: metadata?.album || i18n.t('localMusic.unknownAlbum'),
+					artwork:
+						embeddedArtwork && embeddedArtwork.length <= 500_000
+							? embeddedArtwork
+							: unknownTrackImageUri,
+					url: file.uri,
+					platform: 'local',
+					duration: 0,
+					genre: file.name,
+					contentType: file.mimeType,
+					format: extension,
+					fileSize: file.size,
+				})
+			}
 
-			// setLocalTracks((prevTracks) => [...prevTracks, ...newTracks])
-			myTrackPlayer.addImportedLocalMusic(processedTracks)
-			// logInfo('导入的本地音乐:', newTracks)
+			const resultStatus = await myTrackPlayer.addImportedLocalMusic(newTracks, true, false)
+			if (resultStatus === 'success') {
+				Alert.alert(
+					i18n.t('localMusic.importSuccessTitle'),
+					i18n.t('localMusic.importSuccessMessage', { count: newTracks.length }),
+				)
+			} else {
+				Alert.alert(i18n.t('localMusic.importFailed'))
+			}
 		} catch (err) {
 			logError('导入本地音乐时出错:', err)
+			Alert.alert(i18n.t('localMusic.importFailed'))
 		} finally {
+			setImportProgress(null)
 			setIsLoading(false)
 		}
 	}
 
 	function deleteLocalMusic(trackId: string): void {
-		myTrackPlayer.deleteImportedLocalMusic(trackId)
+		const track = localTracks.find((item) => item.id === trackId)
+		Alert.alert(
+			i18n.t('localMusic.deleteTitle'),
+			i18n.t('localMusic.deleteOneMessage', { name: track?.title || i18n.t('find.unknownSong') }),
+			[
+				{ text: i18n.t('find.cancel'), style: 'cancel' },
+				{
+					text: i18n.t('localMusic.delete'),
+					style: 'destructive',
+					onPress: () => void myTrackPlayer.deleteImportedLocalMusic(trackId),
+				},
+			],
+		)
 	}
 
 	return (
 		<View style={defaultStyles.container}>
 			{isLoading && (
 				<View style={styles.loadingOverlay}>
-					<ActivityIndicator size="large" color={colors.loading} />
+					<View style={styles.loadingCard}>
+						<ActivityIndicator size="large" color={colors.loading} />
+						<Text style={styles.loadingText}>
+							{importProgress
+								? i18n.t('localMusic.importing', importProgress)
+								: i18n.t('localMusic.preparingImport')}
+						</Text>
+						{importProgress ? (
+							<View style={styles.progressTrack}>
+								<View
+									style={[
+										styles.progressFill,
+										{
+											width:
+												`${(importProgress.current / importProgress.total) * 100}%` as `${number}%`,
+										},
+									]}
+								/>
+							</View>
+						) : null}
+					</View>
 				</View>
 			)}
 			<ScrollView
@@ -209,22 +251,48 @@ const LocalMusicScreen = () => {
 }
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
-	loadingOverlay: {
-		position: 'absolute',
-		left: 0,
-		right: 0,
-		top: 0,
-		bottom: 0,
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: colors.overlay,
-		zIndex: 1000,
-	},
-	header: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		padding: 10,
-	},
+		loadingOverlay: {
+			position: 'absolute',
+			left: 0,
+			right: 0,
+			top: 0,
+			bottom: 0,
+			alignItems: 'center',
+			justifyContent: 'center',
+			backgroundColor: colors.overlay,
+			zIndex: 1000,
+		},
+		loadingCard: {
+			alignItems: 'center',
+			width: 220,
+			paddingHorizontal: 24,
+			paddingVertical: 22,
+			borderRadius: 16,
+			backgroundColor: colors.surfaceElevated,
+		},
+		loadingText: {
+			marginTop: 12,
+			fontSize: 15,
+			color: colors.text,
+		},
+		progressTrack: {
+			width: '100%',
+			height: 4,
+			marginTop: 14,
+			borderRadius: 2,
+			overflow: 'hidden',
+			backgroundColor: colors.maximumTrackTintColor,
+		},
+		progressFill: {
+			height: '100%',
+			borderRadius: 2,
+			backgroundColor: colors.loading,
+		},
+		header: {
+			flexDirection: 'row',
+			justifyContent: 'space-between',
+			alignItems: 'center',
+			padding: 10,
+		},
 	})
 export default LocalMusicScreen

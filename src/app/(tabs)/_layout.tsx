@@ -30,12 +30,15 @@ const TabsNavigation = () => {
 	const { bottom } = useSafeAreaInsets()
 	const { blurTint, colors } = useAppTheme()
 
-	const floatingPlayerStyle = useMemo(() => ({
-		position: 'absolute' as const,
-		left: 8,
-		right: 8,
-		bottom: TAB_BAR_HEIGHT + bottom + 8,
-	}), [bottom])
+	const floatingPlayerStyle = useMemo(
+		() => ({
+			position: 'absolute' as const,
+			left: 8,
+			right: 8,
+			bottom: TAB_BAR_HEIGHT + bottom + 8,
+		}),
+		[bottom],
+	)
 
 	return (
 		<>
@@ -64,7 +67,11 @@ const TabsNavigation = () => {
 					options={{
 						title: i18n.t('appTab.songs'),
 						tabBarIcon: ({ color, focused }) => (
-							<Ionicons name={focused ? 'musical-notes' : 'musical-notes-outline'} size={24} color={color} />
+							<Ionicons
+								name={focused ? 'musical-notes' : 'musical-notes-outline'}
+								size={24}
+								color={color}
+							/>
 						),
 					}}
 				/>
@@ -73,7 +80,7 @@ const TabsNavigation = () => {
 					options={{
 						title: i18n.t('appTab.radio'),
 						tabBarIcon: ({ color, focused }) => (
-							<Ionicons name={focused ? 'radio' : 'radio-outline'} size={24} color={color} />
+							<Ionicons name={focused ? 'podium' : 'podium-outline'} size={24} color={color} />
 						),
 					}}
 				/>
@@ -82,7 +89,7 @@ const TabsNavigation = () => {
 					options={{
 						title: i18n.t('appTab.favorites'),
 						tabBarIcon: ({ color, focused }) => (
-							<Ionicons name={focused ? 'heart' : 'heart-outline'} size={24} color={color} />
+							<Ionicons name={focused ? 'library' : 'library-outline'} size={24} color={color} />
 						),
 					}}
 				/>

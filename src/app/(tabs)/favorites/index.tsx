@@ -1,9 +1,10 @@
 import localImage from '@/assets/local.png'
 import { PlaylistsList } from '@/components/PlaylistsList'
 import { screenPadding } from '@/constants/tokens'
-import { playListsStore } from '@/helpers/trackPlayerIndex'
+import { importedLocalMusicStore, playListsStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { useNavigationSearch } from '@/hooks/useNavigationSearch'
+import { useFavorites } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { router } from 'expo-router'
@@ -20,12 +21,14 @@ const FavoritesScreen = () => {
 	})
 
 	const storedPlayLists = playListsStore.useValue()
+	const localTracks = importedLocalMusicStore.useValue()
+	const { favorites } = useFavorites()
 	const playLists = useMemo(
 		() => [
 			{
 				name: 'Favorites',
 				id: 'favorites',
-				tracks: [],
+				tracks: favorites,
 				title: i18n.t('appTab.favoritesSongs'),
 				coverImg: 'https://y.qq.com/mediastyle/global/img/cover_like.png?max_age=2592000',
 				description: i18n.t('appTab.favoritesSongs'),
@@ -33,27 +36,32 @@ const FavoritesScreen = () => {
 			{
 				name: 'Local',
 				id: 'local',
-				tracks: [],
+				tracks: localTracks ?? [],
 				title: i18n.t('appTab.localOrCachedSongs'),
 				coverImg: Image.resolveAssetSource(localImage).uri,
 				description: i18n.t('appTab.localOrCachedSongs'),
 			},
 			...(storedPlayLists ?? []),
 		],
-		[storedPlayLists],
+		[storedPlayLists, favorites, localTracks],
 	)
 
 	const filteredPlayLists = useMemo(() => {
 		if (!search) return playLists as Playlist[]
 
+		const keyword = search.toLocaleLowerCase()
 		return playLists.filter((playlist: Playlist) =>
-			playlist.name.toLowerCase().includes(search.toLowerCase()),
+			[playlist.title, playlist.name]
+				.filter(Boolean)
+				.join(' ')
+				.toLocaleLowerCase()
+				.includes(keyword),
 		) as Playlist[]
 	}, [playLists, search])
 	const handlePlaylistPress = (playlist: Playlist) => {
-		if (playlist.name == 'Favorites') {
+		if (playlist.id === 'favorites') {
 			router.push(`/(tabs)/favorites/favoriteMusic`)
-		} else if (playlist.name == 'Local') {
+		} else if (playlist.id === 'local') {
 			router.push(`/(tabs)/favorites/localMusic`)
 		} else {
 			router.push(`/(tabs)/favorites/${playlist.id}`)

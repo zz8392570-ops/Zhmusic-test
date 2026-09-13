@@ -1,4 +1,5 @@
 // src/app/modals/settingModal.tsx
+import appIcon from '@/assets/144.png'
 import { ThemeColors } from '@/constants/tokens'
 import { logError, logInfo } from '@/helpers/logger'
 import myTrackPlayer, {
@@ -44,23 +45,28 @@ import {
 	View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message'
 const QUALITY_OPTIONS = ['128k', '320k', 'flac']
 const CURRENT_VERSION = Constants.expoConfig?.version ?? '未知版本'
 
-type SettingItem = {
+type SettingItemBase = {
 	id: string
 	title: string
 	icon?: ImageSourcePropType
-} & (
-	| {
-			type: 'switch'
-			value: boolean
-			description: string
-			onValueChange: (value: boolean) => void
-		}
-	| { type: 'link' | 'value' | 'custom' | 'sources'; value?: string }
-)
+}
+
+type SettingSwitchItem = {
+	type: 'switch'
+	value: boolean
+	description: string
+	onValueChange: (value: boolean) => void
+}
+
+type SettingActionItem = {
+	type: 'link' | 'value' | 'custom' | 'sources'
+	value?: string
+}
+
+type SettingItem = SettingItemBase & (SettingSwitchItem | SettingActionItem)
 
 // 将GlobalState实例移到组件外部
 const cooldownStore = new GlobalState<number>(0) // 冷却时间（秒）
@@ -415,14 +421,8 @@ const SettingModal = () => {
 	}, [themeMode])
 	const settingsData: { title: string; data: SettingItem[] }[] = [
 		{
-			title: i18n.t('settings.sections.appInfo'),
+			title: i18n.t('settings.sections.general'),
 			data: [
-				{ id: '1', title: 'CyMusic', type: 'link', icon: require('@/assets/144.png') },
-				{ id: '2', title: i18n.t('settings.items.version'), type: 'value', value: CURRENT_VERSION },
-				{ id: '3', title: i18n.t('settings.items.checkUpdate'), type: 'value' },
-				{ id: '5', title: i18n.t('settings.items.projectLink'), type: 'value', value: '' },
-				{ id: '9', title: i18n.t('settings.items.clearCache'), type: 'value', value: '' },
-				{ id: '13', title: i18n.t('settings.items.viewLogs'), type: 'link' },
 				{
 					id: '15',
 					title: i18n.t('settings.items.changeLanguage'),
@@ -430,55 +430,81 @@ const SettingModal = () => {
 					value: '',
 				},
 				{ id: '18', title: i18n.t('settings.items.theme'), type: 'value', value: '' },
-				{ id: '16', title: i18n.t('settings.items.isCachedIconVisible'), type: 'value', value: '' },
-				{
-					id: '17',
-					title: i18n.t('settings.items.songsNumsToLoad'),
-					type: 'value',
-					value: '',
-				},
 				{
 					id: '19',
 					title: i18n.t('settings.items.homePlaylist'),
 					type: 'value',
 					value: '',
 				},
+				{
+					id: '17',
+					title: i18n.t('settings.items.songsNumsToLoad'),
+					type: 'value',
+					value: '',
+				},
 			],
 		},
 		{
-			title: i18n.t('settings.sections.audioSettings'),
+			title: i18n.t('settings.sections.playback'),
 			data: [
+				{ id: '10', title: i18n.t('settings.items.currentQuality'), type: 'value' },
 				{ id: '6', title: i18n.t('settings.items.clearPlaylist'), type: 'link' },
-				{
-					id: '14',
-					title: i18n.t('settings.items.autoCacheLocal'),
-					type: 'value',
-				},
 				...(Platform.OS === 'ios'
 					? [
-						{
-							id: 'preciseSeeking',
-							title: i18n.t('settings.items.preciseSeeking'),
-							description: i18n.t('settings.descriptions.preciseSeeking'),
-							type: 'switch' as const,
-							value: preciseSeeking,
-							onValueChange: (value: boolean) => PersistStatus.set('music.preciseSeeking', value),
-						},
-					]
+							{
+								id: 'preciseSeeking',
+								title: i18n.t('settings.items.preciseSeeking'),
+								description: i18n.t('settings.descriptions.preciseSeeking'),
+								type: 'switch' as const,
+								value: preciseSeeking,
+								onValueChange: (value: boolean) => PersistStatus.set('music.preciseSeeking', value),
+							},
+						]
 					: []),
 			],
 		},
 		{
-			title: i18n.t('settings.sections.customSource'),
+			title: i18n.t('settings.sections.downloadsCache'),
 			data: [
-				{ id: 'source-health', title: i18n.t('settings.items.sourceList'), type: 'sources' },
-				{ id: '12', title: i18n.t('settings.items.deleteSource'), type: 'value', value: '' },
-				{ id: '8', title: i18n.t('settings.items.importSource'), type: 'value' },
+				{
+					id: '14',
+					title: i18n.t('settings.items.autoCacheLocal'),
+					description: i18n.t('settings.descriptions.autoCacheLocal'),
+					type: 'switch',
+					value: autoCacheLocal === true,
+					onValueChange: myTrackPlayer.toggleAutoCacheLocal,
+				},
+				{
+					id: '16',
+					title: i18n.t('settings.items.isCachedIconVisible'),
+					description: i18n.t('settings.descriptions.isCachedIconVisible'),
+					type: 'switch',
+					value: isCachedIconVisible === true,
+					onValueChange: myTrackPlayer.toggleIsCachedIconVisible,
+				},
+				{ id: '9', title: i18n.t('settings.items.clearCache'), type: 'value', value: '' },
 			],
 		},
 		{
-			title: i18n.t('settings.sections.qualitySelection'),
-			data: [{ id: '10', title: i18n.t('settings.items.currentQuality'), type: 'value' }],
+			title: i18n.t('settings.sections.sources'),
+			data: [
+				{ id: 'source-health', title: i18n.t('settings.items.sourceList'), type: 'sources' },
+				{ id: '8', title: i18n.t('settings.items.importSource'), type: 'value' },
+				{ id: '12', title: i18n.t('settings.items.deleteSource'), type: 'value', value: '' },
+			],
+		},
+		{
+			title: i18n.t('settings.sections.advanced'),
+			data: [{ id: '13', title: i18n.t('settings.items.viewLogs'), type: 'link' }],
+		},
+		{
+			title: i18n.t('settings.sections.about'),
+			data: [
+				{ id: '1', title: 'CyMusic', type: 'link', icon: appIcon },
+				{ id: '2', title: i18n.t('settings.items.version'), type: 'value', value: CURRENT_VERSION },
+				{ id: '3', title: i18n.t('settings.items.checkUpdate'), type: 'value' },
+				{ id: '5', title: i18n.t('settings.items.projectLink'), type: 'value', value: '' },
+			],
 		},
 	]
 	const importMusicSourceMenu = (
@@ -503,60 +529,6 @@ const SettingModal = () => {
 			</TouchableOpacity>
 		</MenuView>
 	)
-	const toggleAutoCacheLocalMenu = (
-		<MenuView
-			onPressAction={({ nativeEvent: { event } }) => {
-				switch (event) {
-					case 'on':
-						myTrackPlayer.toggleAutoCacheLocal(true)
-						break
-					case 'off':
-						myTrackPlayer.toggleAutoCacheLocal(false)
-						break
-				}
-			}}
-			actions={[
-				{ id: 'on', title: i18n.t('settings.actions.autoCacheLocal.yes') },
-				{ id: 'off', title: i18n.t('settings.actions.autoCacheLocal.no') },
-			]}
-		>
-			<TouchableOpacity style={styles.menuTrigger}>
-				<Text style={styles.menuTriggerText}>
-					{/* 此处加空格为了增大点击区域 */}
-					{autoCacheLocal == true
-						? '             ' + i18n.t('settings.actions.autoCacheLocal.yes')
-						: '             ' + i18n.t('settings.actions.autoCacheLocal.no')}
-				</Text>
-			</TouchableOpacity>
-		</MenuView>
-	)
-	const toggleIsCachedIconVisibleMenu = (
-		<MenuView
-			onPressAction={({ nativeEvent: { event } }) => {
-				switch (event) {
-					case 'on':
-						myTrackPlayer.toggleIsCachedIconVisible(true)
-						break
-					case 'off':
-						myTrackPlayer.toggleIsCachedIconVisible(false)
-						break
-				}
-			}}
-			actions={[
-				{ id: 'on', title: i18n.t('settings.actions.isCachedIconVisible.yes') },
-				{ id: 'off', title: i18n.t('settings.actions.isCachedIconVisible.no') },
-			]}
-		>
-			<TouchableOpacity style={styles.menuTrigger}>
-				<Text style={styles.menuTriggerText}>
-					{/* 此处加空格为了增大点击区域 */}
-					{isCachedIconVisible == true
-						? '             ' + i18n.t('settings.actions.isCachedIconVisible.yes')
-						: '             ' + i18n.t('settings.actions.isCachedIconVisible.no')}
-				</Text>
-			</TouchableOpacity>
-		</MenuView>
-	)
 	const toggleSongsNumsToLoadMenu = (
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => {
@@ -570,7 +542,7 @@ const SettingModal = () => {
 			]}
 		>
 			<TouchableOpacity style={styles.menuTrigger}>
-				<Text style={styles.menuTriggerText}>{'             ' + songsNumsToLoad}</Text>
+				<Text style={styles.menuTriggerText}>{songsNumsToLoad}</Text>
 			</TouchableOpacity>
 		</MenuView>
 	)
@@ -615,6 +587,16 @@ const SettingModal = () => {
 			)
 			console.error(error)
 		}
+	}
+	const confirmClearCache = () => {
+		Alert.alert(i18n.t('settings.actions.cache.title'), i18n.t('settings.actions.cache.message'), [
+			{ text: i18n.t('settings.actions.cache.cancel'), style: 'cancel' },
+			{
+				text: i18n.t('settings.actions.cache.confirm'),
+				style: 'destructive',
+				onPress: () => void handleClearCache(),
+			},
+		])
 	}
 	const handleSelectSource = (sourceId) => {
 		myTrackPlayer.setMusicApiAsSelectedById(sourceId, { silent: true })
@@ -775,15 +757,15 @@ const SettingModal = () => {
 					key={item.id}
 					style={itemStyle}
 					onPress={() => {
-						if (item.title === i18n.t('settings.items.viewLogs')) {
+						if (item.id === '13') {
 							router.push('/(modals)/logScreen')
 						}
-						if (item.title === i18n.t('settings.items.projectLink')) {
+						if (item.id === '5') {
 							Linking.openURL('https://github.com/gyc-12/Cymusic').catch((err) =>
 								logError("Couldn't load page", err),
 							)
 						} else if (item.type === 'link') {
-							if (item.title === i18n.t('settings.items.clearPlaylist')) {
+							if (item.id === '6') {
 								Alert.alert(
 									i18n.t('settings.actions.clearPlaylist.title'),
 									i18n.t('settings.actions.clearPlaylist.message'),
@@ -795,16 +777,13 @@ const SettingModal = () => {
 										},
 									],
 								)
-							} else if (item.title === i18n.t('settings.items.importSource')) {
-								// importMusicSourceFromFile()
-							} else if (item.title === 'CyMusic') {
+							} else if (item.id === '1') {
 								showToast('CyMusic', 'success')
 							}
-							// logInfo(`Navigate to ${item.title}`)
-						} else if (item.title === i18n.t('settings.items.checkUpdate')) {
+						} else if (item.id === '3') {
 							checkForUpdates()
-						} else if (item.title === i18n.t('settings.items.clearCache')) {
-							handleClearCache()
+						} else if (item.id === '9') {
+							confirmClearCache()
 						}
 					}}
 				>
@@ -812,22 +791,23 @@ const SettingModal = () => {
 					<View style={styles.itemContent}>
 						<Text style={styles.itemText}>{item.title}</Text>
 						{item.type === 'value' && <Text style={styles.itemValue}>{item.value}</Text>}
-						{item.title === i18n.t('settings.items.currentQuality') && (
-							<MusicQualityMenu currentQuality={currentQuality} onSelectQuality={setCurrentQuality} />
+						{item.id === '10' && (
+							<MusicQualityMenu
+								currentQuality={currentQuality}
+								onSelectQuality={setCurrentQuality}
+							/>
 						)}
-						{item.title === i18n.t('settings.items.deleteSource') && (
+						{item.id === '12' && (
 							<MusicSourceMenu isDelete={true} onSelectSource={handleDeleteSource} />
 						)}
-						{item.title === i18n.t('settings.items.importSource') && importMusicSourceMenu}
-						{(item.type === 'link' || item.title === i18n.t('settings.items.projectLink')) &&
-							!item.icon && <Text style={styles.arrowRight}>{'>'}</Text>}
-						{item.title === i18n.t('settings.items.autoCacheLocal') && toggleAutoCacheLocalMenu}
-						{item.title === i18n.t('settings.items.changeLanguage') && changeLanguageMenu}
-						{item.title === i18n.t('settings.items.theme') && themeMenu}
-						{item.title === i18n.t('settings.items.isCachedIconVisible') &&
-							toggleIsCachedIconVisibleMenu}
-						{item.title === i18n.t('settings.items.songsNumsToLoad') && toggleSongsNumsToLoadMenu}
-						{item.title === i18n.t('settings.items.homePlaylist') && toggleHomePlaylistMenu}
+						{item.id === '8' && importMusicSourceMenu}
+						{(item.type === 'link' || item.id === '5') && !item.icon && (
+							<Text style={styles.arrowRight}>{'>'}</Text>
+						)}
+						{item.id === '15' && changeLanguageMenu}
+						{item.id === '18' && themeMenu}
+						{item.id === '17' && toggleSongsNumsToLoadMenu}
+						{item.id === '19' && toggleHomePlaylistMenu}
 					</View>
 				</TouchableOpacity>
 				{index !== sectionData.length - 1 && <View style={styles.separator} />}
@@ -839,56 +819,6 @@ const SettingModal = () => {
 			<ActivityIndicator size="large" color={colors.loading} />
 		</View>
 	)
-	/*
-  1. Create the config
-*/
-	const toastConfig = {
-		/*
-	  Overwrite 'success' type,
-	  by modifying the existing `BaseToast` component
-	*/
-		success: (props) => (
-			<BaseToast
-				{...props}
-				style={{
-					borderLeftColor: colors.toastAccent,
-					backgroundColor: colors.toastBackground,
-				}}
-				contentContainerStyle={{ paddingHorizontal: 15 }}
-				text1Style={{
-					fontSize: 15,
-					fontWeight: '400',
-					color: colors.toastAccent,
-				}}
-			/>
-		),
-		/*
-	  Overwrite 'error' type,
-	  by modifying the existing `ErrorToast` component
-	*/
-		error: (props) => (
-			<ErrorToast
-				{...props}
-				style={{
-					borderLeftColor: colors.toastAccent,
-					backgroundColor: colors.toastBackground,
-				}}
-				contentContainerStyle={{ paddingHorizontal: 15 }}
-				text1Style={{
-					fontSize: 15,
-					fontWeight: '400',
-					color: colors.toastAccent,
-				}}
-			/>
-		),
-		/*
-	  Or create a completely new type - `tomatoToast`,
-	  building the layout from scratch.
-  
-	  I can consume any custom `props` I want.
-	  They will be passed when calling the `show` method (see below)
-	*/
-	}
 	return (
 		<View style={styles.container}>
 			<DismissPlayerSymbol />
@@ -902,137 +832,136 @@ const SettingModal = () => {
 				))}
 			</ScrollView>
 			{isLoading && <GlobalLoading />}
-			<Toast config={toastConfig} />
 		</View>
 	)
 }
 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: colors.background,
-	},
-	dismissSymbol: {
-		position: 'absolute',
-		left: 0,
-		right: 0,
-		flexDirection: 'row',
-		justifyContent: 'center',
-		zIndex: 1,
-	},
-	dismissBar: {
-		width: 50,
-		height: 8,
-		borderRadius: 8,
-		backgroundColor: colors.dismissBar,
-		opacity: 0.7,
-	},
-	header: {
-		fontSize: 34,
-		fontWeight: 'bold',
-		padding: 20,
-		paddingTop: 50,
-		color: colors.text,
-	},
-	scrollView: {
-		flex: 1,
-	},
-	section: {
-		marginBottom: 20,
-	},
-	sectionTitle: {
-		fontSize: 18,
-		fontWeight: '600',
-		color: colors.text,
-		marginLeft: 20,
-		marginBottom: 5,
-	},
-	item: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		padding: 16,
-		// 移除 borderBottomWidth 和 borderBottomColor
-	},
-	firstItem: {
-		borderBottomWidth: 0,
-	},
-	lastItem: {
-		borderBottomWidth: 0, // 确保最后一项没有底部边框
-	},
-	separator: {
-		left: 16,
-		right: 16,
-		height: 1,
-		backgroundColor: colors.maximumTrackTintColor,
-	},
-	sectionContent: {
-		backgroundColor: colors.surfaceElevated,
-		borderRadius: 10,
-		marginHorizontal: 16,
-		overflow: 'hidden', // 确保圆角不被分隔线覆盖
-	},
-	icon: {
-		width: 30,
-		height: 30,
-		marginRight: 10,
-		borderRadius: 6,
-	},
-	itemContent: {
-		flex: 1,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	itemText: {
-		fontSize: 16,
-		color: colors.text,
-	},
-	switchItem: {
-		flexDirection: 'column',
-		alignItems: 'stretch',
-	},
-	switchHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	switchTitle: {
-		flex: 1,
-		marginRight: 12,
-	},
-	itemDescription: {
-		marginTop: 8,
-		fontSize: 13,
-		lineHeight: 19,
-		color: colors.textMuted,
-	},
-	itemValue: {
-		fontSize: 16,
-		color: colors.textMuted,
-	},
-	arrowRight: {
-		fontSize: 18,
-		color: colors.textMuted,
-	},
-	menuTrigger: {
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	menuTriggerText: {
-		fontSize: 16,
-		color: colors.textMuted,
-	},
-	loadingOverlay: {
-		position: 'absolute',
-		left: 0,
-		right: 0,
-		top: 0,
-		bottom: 0,
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: colors.overlay,
-	},
+		container: {
+			flex: 1,
+			backgroundColor: colors.background,
+		},
+		dismissSymbol: {
+			position: 'absolute',
+			left: 0,
+			right: 0,
+			flexDirection: 'row',
+			justifyContent: 'center',
+			zIndex: 1,
+		},
+		dismissBar: {
+			width: 50,
+			height: 8,
+			borderRadius: 8,
+			backgroundColor: colors.dismissBar,
+			opacity: 0.7,
+		},
+		header: {
+			fontSize: 34,
+			fontWeight: 'bold',
+			padding: 20,
+			paddingTop: 50,
+			color: colors.text,
+		},
+		scrollView: {
+			flex: 1,
+		},
+		section: {
+			marginBottom: 20,
+		},
+		sectionTitle: {
+			fontSize: 18,
+			fontWeight: '600',
+			color: colors.text,
+			marginLeft: 20,
+			marginBottom: 5,
+		},
+		item: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			padding: 16,
+			// 移除 borderBottomWidth 和 borderBottomColor
+		},
+		firstItem: {
+			borderBottomWidth: 0,
+		},
+		lastItem: {
+			borderBottomWidth: 0, // 确保最后一项没有底部边框
+		},
+		separator: {
+			left: 16,
+			right: 16,
+			height: 1,
+			backgroundColor: colors.maximumTrackTintColor,
+		},
+		sectionContent: {
+			backgroundColor: colors.surfaceElevated,
+			borderRadius: 10,
+			marginHorizontal: 16,
+			overflow: 'hidden', // 确保圆角不被分隔线覆盖
+		},
+		icon: {
+			width: 30,
+			height: 30,
+			marginRight: 10,
+			borderRadius: 6,
+		},
+		itemContent: {
+			flex: 1,
+			flexDirection: 'row',
+			justifyContent: 'space-between',
+			alignItems: 'center',
+		},
+		itemText: {
+			fontSize: 16,
+			color: colors.text,
+		},
+		switchItem: {
+			flexDirection: 'column',
+			alignItems: 'stretch',
+		},
+		switchHeader: {
+			flexDirection: 'row',
+			justifyContent: 'space-between',
+			alignItems: 'center',
+		},
+		switchTitle: {
+			flex: 1,
+			marginRight: 12,
+		},
+		itemDescription: {
+			marginTop: 8,
+			fontSize: 13,
+			lineHeight: 19,
+			color: colors.textMuted,
+		},
+		itemValue: {
+			fontSize: 16,
+			color: colors.textMuted,
+		},
+		arrowRight: {
+			fontSize: 18,
+			color: colors.textMuted,
+		},
+		menuTrigger: {
+			flexDirection: 'row',
+			alignItems: 'center',
+		},
+		menuTriggerText: {
+			fontSize: 16,
+			color: colors.textMuted,
+		},
+		loadingOverlay: {
+			position: 'absolute',
+			left: 0,
+			right: 0,
+			top: 0,
+			bottom: 0,
+			alignItems: 'center',
+			justifyContent: 'center',
+			backgroundColor: colors.overlay,
+		},
 	})
 
 export default SettingModal
