@@ -1,5 +1,9 @@
 
+import kg from './kg'
+import kw from './kw'
+import mg from './mg'
 import tx from './tx'
+import wy from './wy'
 // import bd from './bd'
 import xm from './xm'
 import { supportQuality } from './api-source'
@@ -32,7 +36,11 @@ const sources = {
     //   id: 'bd',
     // },
   ],
+  kw,
+  kg,
   tx,
+  wy,
+  mg,
   // bd,
   xm,
 }

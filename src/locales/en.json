@@ -120,7 +120,8 @@
 	},
 	"home": {
 		"title": "Home",
-		"selectBoard": "Choose chart"
+		"selectBoard": "Choose chart",
+		"loadFailed": "Couldn't load this chart"
 	},
 	"addToPlaylist": {
 		"title": "Import Playlist",

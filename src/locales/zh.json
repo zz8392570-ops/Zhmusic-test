@@ -121,7 +121,8 @@
 	},
 	"home": {
 		"title": "首页",
-		"selectBoard": "切换榜单"
+		"selectBoard": "切换榜单",
+		"loadFailed": "榜单加载失败"
 	},
 	"addToPlaylist": {
 		"title": "导入歌单",

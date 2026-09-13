@@ -37,7 +37,9 @@ interface IPersistConfig {
 	'app.themeMode': 'system' | 'light' | 'dark'
 	'music.isCachedIconVisible': boolean
 	'music.songsNumsToLoad': number
-	'music.homeBoardId': number
+	'music.homeBoardId': string | number
+	'music.homeBoardSource': 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
+	'music.radioBoardSource': 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
 	'search.history': string[]
 	'search.type': 'songs' | 'artists' | 'playlists'
 	'search.platform': 'all' | 'tx' | 'kw' | 'kg' | 'wy' | 'mg'

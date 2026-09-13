@@ -8,6 +8,8 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native'
 type SearchPlatformSelectorProps = {
 	value: SearchPlatform
 	onChange: (platform: SearchPlatform) => void
+	includeAll?: boolean
+	inset?: number
 }
 
 const PLATFORMS: { id: SearchPlatform; label: string }[] = [
@@ -19,9 +21,15 @@ const PLATFORMS: { id: SearchPlatform; label: string }[] = [
 	{ id: 'mg', label: 'find.platformMg' },
 ]
 
-const SearchPlatformSelector = ({ value, onChange }: SearchPlatformSelectorProps) => {
+const SearchPlatformSelector = ({
+	value,
+	onChange,
+	includeAll = true,
+	inset = 16,
+}: SearchPlatformSelectorProps) => {
 	const colors = useThemeColors()
-	const styles = useMemo(() => createStyles(colors), [colors])
+	const styles = useMemo(() => createStyles(colors, inset), [colors, inset])
+	const platforms = includeAll ? PLATFORMS : PLATFORMS.filter((platform) => platform.id !== 'all')
 
 	return (
 		<ScrollView
@@ -30,7 +38,7 @@ const SearchPlatformSelector = ({ value, onChange }: SearchPlatformSelectorProps
 			contentContainerStyle={styles.content}
 			style={styles.container}
 		>
-			{PLATFORMS.map((platform) => {
+			{platforms.map((platform) => {
 				const selected = platform.id === value
 				return (
 					<Pressable
@@ -54,7 +62,7 @@ const SearchPlatformSelector = ({ value, onChange }: SearchPlatformSelectorProps
 	)
 }
 
-const createStyles = (colors: ThemeColors) =>
+const createStyles = (colors: ThemeColors, inset: number) =>
 	StyleSheet.create({
 		container: {
 			flexGrow: 0,
@@ -63,7 +71,7 @@ const createStyles = (colors: ThemeColors) =>
 			minHeight: 42,
 			alignItems: 'center',
 			gap: 8,
-			paddingHorizontal: 16,
+			paddingHorizontal: inset,
 			paddingBottom: 6,
 		},
 		chip: {

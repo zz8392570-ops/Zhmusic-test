@@ -12,7 +12,13 @@ import myTrackPlayer, {
 import { useThemeColors, useThemeMode } from '@/hooks/useAppTheme'
 import { createMusicApiFromScript, fetchScriptFromUrl } from '@/helpers/userApi/importMusicSource'
 import PersistStatus from '@/store/PersistStatus'
-import { DEFAULT_HOME_BOARD_ID, getHomeBoardName, getHomeBoards } from '@/store/library'
+import {
+	DEFAULT_HOME_BOARD_ID,
+	DEFAULT_HOME_SOURCE,
+	normalizeLeaderboardSource,
+	setHomeLeaderboard,
+} from '@/helpers/leaderboard'
+import { getHomeBoardName, getHomeBoards } from '@/store/library'
 import i18n, { changeLanguage, nowLanguage } from '@/utils/i18n'
 import { GlobalState } from '@/utils/stateMapper'
 import { showToast } from '@/utils/utils'
@@ -389,9 +395,13 @@ const SettingModal = () => {
 	const autoCacheLocal = autoCacheLocalStore.useValue()
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const songsNumsToLoad = songsNumsToLoadStore.useValue()
-	const homeBoardId =
-		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
-	const homeBoardName = getHomeBoardName(homeBoardId)
+	const homeBoardSource = normalizeLeaderboardSource(
+		PersistStatus.useValue('music.homeBoardSource', DEFAULT_HOME_SOURCE) ?? DEFAULT_HOME_SOURCE,
+	)
+	const homeBoardId = String(
+		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID,
+	)
+	const homeBoardName = getHomeBoardName(homeBoardId, homeBoardSource)
 	const preciseSeeking = PersistStatus.useValue('music.preciseSeeking', false) === true
 	const themeLabel = useMemo(() => {
 		switch (themeMode) {
@@ -567,14 +577,13 @@ const SettingModal = () => {
 	const toggleHomePlaylistMenu = (
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => {
-				const nextBoardId = parseInt(event, 10)
-				if (Number.isNaN(nextBoardId)) return
-				PersistStatus.set('music.homeBoardId', nextBoardId)
+				if (!event) return
+				setHomeLeaderboard(homeBoardSource, event)
 			}}
-			actions={getHomeBoards().map((board) => ({
-				id: String(board.bangid),
+			actions={getHomeBoards(homeBoardSource).map((board) => ({
+				id: board.bangid,
 				title: board.name,
-				state: String(board.bangid) === String(homeBoardId) ? 'on' : 'off',
+				state: board.bangid === homeBoardId ? 'on' : 'off',
 			}))}
 		>
 			<TouchableOpacity style={styles.menuTrigger}>

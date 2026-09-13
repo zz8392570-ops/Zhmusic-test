@@ -1,5 +1,16 @@
-import musicSdk from '@/components/utils/musicSdk'
 import { Artist, Playlist, TrackWithPlaylist } from '@/helpers/types'
+import {
+	DEFAULT_HOME_BOARD_ID,
+	DEFAULT_HOME_SOURCE,
+	getBoardSongs,
+	getLeaderboardBoardName,
+	getLeaderboardBoards,
+	mapLeaderboardTrack,
+	normalizeBoardId,
+	normalizeLeaderboardSource,
+	resolveBoardId,
+	type LeaderboardSource,
+} from '@/helpers/leaderboard'
 import { useEffect, useRef } from 'react'
 import type { Track } from '@/player/types'
 import { create } from 'zustand'
@@ -7,18 +18,20 @@ import { create } from 'zustand'
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import PersistStatus from '@/store/PersistStatus'
 
-export const DEFAULT_HOME_BOARD_ID = 26
+export { DEFAULT_HOME_BOARD_ID, DEFAULT_HOME_SOURCE }
 
-type HomeBoard = { id: string; name: string; bangid: string | number }
-
-export const getHomeBoards = (): HomeBoard[] => {
-	const leaderboard = musicSdk['tx'].leaderboard
-	return leaderboard.boardList ?? leaderboard.list ?? []
+export const getHomeBoards = (source?: LeaderboardSource) => {
+	const resolvedSource = normalizeLeaderboardSource(
+		source ?? PersistStatus.get('music.homeBoardSource') ?? DEFAULT_HOME_SOURCE,
+	)
+	return getLeaderboardBoards(resolvedSource)
 }
 
-export const getHomeBoardName = (id?: number | string | null) => {
-	const bangid = String(id ?? DEFAULT_HOME_BOARD_ID)
-	return getHomeBoards().find((board) => String(board.bangid) === bangid)?.name ?? '热歌榜'
+export const getHomeBoardName = (id?: number | string | null, source?: LeaderboardSource) => {
+	const resolvedSource = normalizeLeaderboardSource(
+		source ?? PersistStatus.get('music.homeBoardSource') ?? DEFAULT_HOME_SOURCE,
+	)
+	return getLeaderboardBoardName(resolvedSource, id)
 }
 
 interface LibraryState {
@@ -30,7 +43,7 @@ interface LibraryState {
 	isLoading: boolean
 	toggleTrackFavorite: (track: Track) => void
 	addToPlaylist: (track: Track, playlistName: string) => void
-	fetchTracks: (refresh?: boolean, homeBoardId?: number) => Promise<void>
+	fetchTracks: (refresh?: boolean, homeBoardId?: string | number) => Promise<void>
 	setNowLyric: (lyric: string) => void
 	setPlayList: (newPlayList?: Playlist[]) => void
 	page: number
@@ -42,32 +55,6 @@ interface LibraryState {
 }
 
 let homeBoardRequestId = 0
-
-const mapTrack = (track: {
-	songmid: any
-	url: any
-	name: any
-	singer: any
-	albumName: any
-	genre: any
-	releaseDate: any
-	img: any
-	interval: any
-	singerImg: any
-}): TrackWithPlaylist => {
-	return {
-		id: track.songmid || 'default_songmid', // 如果 songmid 为 undefined 或 null，设置默认值 'default_songmid'
-		url: track.url || 'Unknown', // 如果 url 为 undefined 或 null，设置默认值 'http://example.com/default.mp3'
-		title: track.name || 'Untitled Song', // 如果 name 为 undefined 或 null，设置默认值 'Untitled Song'
-		artist: track.singer || 'Unknown Artist', // 如果 singer 为 undefined 或 null，设置默认值 'Unknown Artist'
-		album: track.albumName || 'Unknown Album', // 如果 albumName 为 undefined 或 null，设置默认值 'Unknown Album'
-		genre: track.genre || 'Unknown Genre', // 如果 genre 为 undefined 或 null，设置默认值 'Unknown Genre'
-		date: track.releaseDate || 'Unknown Release Date', // 如果 releaseDate 为 undefined 或 null，设置默认值 'Unknown Release Date'
-		artwork: track.img || 'http://example.com/default.jpg', // 如果 img 为 undefined 或 null，设置默认值 'http://example.com/default.jpg'
-		duration: 0, // 如果 interval 为 undefined 或 null，设置默认值 0
-		singerImg: track.singerImg || 'http://example.com/default_artist.jpg',
-	}
-}
 export const useLibraryStore = create<LibraryState>((set, get) => ({
 	allTracks: [],
 	tracks: [],
@@ -122,11 +109,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 					isLoading: true,
 					...(refresh ? { allTracks: [], tracks: [], page: 1, hasMore: true } : {}),
 				})
-				const homeBoardId =
-					requestedHomeBoardId ?? PersistStatus.get('music.homeBoardId') ?? DEFAULT_HOME_BOARD_ID
-				const data = await musicSdk['tx'].leaderboard.getList(homeBoardId, 1)
+				const source = normalizeLeaderboardSource(
+					PersistStatus.get('music.homeBoardSource') ?? DEFAULT_HOME_SOURCE,
+				)
+				const homeBoardId = resolveBoardId(
+					source,
+					requestedHomeBoardId ?? PersistStatus.get('music.homeBoardId') ?? DEFAULT_HOME_BOARD_ID,
+				)
+				const data = await getBoardSongs(source, homeBoardId, 1)
 				if (requestId !== homeBoardRequestId) return
-				const mappedTracks = data.list.map(mapTrack)
+				const mappedTracks = data.list.map((track) => mapLeaderboardTrack(track, source))
 				// console.log(mappedTracks.length)
 				set({ allTracks: mappedTracks })
 			}
@@ -200,17 +192,23 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
 export const useTracks = () => {
 	const { tracks, fetchTracks } = useLibraryStore()
-	const homeBoardId =
-		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
-	const lastBoardIdRef = useRef(homeBoardId)
+	const homeBoardSource = normalizeLeaderboardSource(
+		PersistStatus.useValue('music.homeBoardSource', DEFAULT_HOME_SOURCE) ?? DEFAULT_HOME_SOURCE,
+	)
+	const homeBoardId = normalizeBoardId(
+		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID,
+		homeBoardSource,
+	)
+	const boardKey = `${homeBoardSource}:${homeBoardId}`
+	const lastBoardKeyRef = useRef(boardKey)
 	useEffect(() => {
-		if (lastBoardIdRef.current !== homeBoardId) {
-			lastBoardIdRef.current = homeBoardId
+		if (lastBoardKeyRef.current !== boardKey) {
+			lastBoardKeyRef.current = boardKey
 			fetchTracks(true, homeBoardId)
 			return
 		}
 		fetchTracks(false, homeBoardId)
-	}, [fetchTracks, homeBoardId])
+	}, [fetchTracks, boardKey, homeBoardId])
 	return tracks
 }
 export const useAllTracks = () => {

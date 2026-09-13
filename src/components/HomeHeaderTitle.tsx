@@ -4,25 +4,36 @@ import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { ThemeColors } from '@/constants/tokens'
+import {
+	DEFAULT_HOME_BOARD_ID,
+	DEFAULT_HOME_SOURCE,
+	normalizeLeaderboardSource,
+	setHomeLeaderboard,
+} from '@/helpers/leaderboard'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import PersistStatus from '@/store/PersistStatus'
-import { DEFAULT_HOME_BOARD_ID, getHomeBoardName, getHomeBoards } from '@/store/library'
+import { getHomeBoardName, getHomeBoards } from '@/store/library'
 import i18n from '@/utils/i18n'
 
 const HomeHeaderTitle = () => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
+	const homeBoardSource = normalizeLeaderboardSource(
+		PersistStatus.useValue('music.homeBoardSource', DEFAULT_HOME_SOURCE) ?? DEFAULT_HOME_SOURCE,
+	)
 	const homeBoardId =
-		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID
-	const homeBoardName = getHomeBoardName(homeBoardId)
+		String(
+			PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID,
+		)
+	const homeBoardName = getHomeBoardName(homeBoardId, homeBoardSource)
 	const actions = useMemo(
 		() =>
-			getHomeBoards().map((board) => ({
-				id: String(board.bangid),
+			getHomeBoards(homeBoardSource).map((board) => ({
+				id: board.bangid,
 				title: board.name,
-				state: String(board.bangid) === String(homeBoardId) ? ('on' as const) : ('off' as const),
+				state: board.bangid === homeBoardId ? ('on' as const) : ('off' as const),
 			})),
-		[homeBoardId],
+		[homeBoardId, homeBoardSource],
 	)
 
 	return (
@@ -30,9 +41,8 @@ const HomeHeaderTitle = () => {
 			<Text style={styles.title}>{i18n.t('home.title')}</Text>
 			<MenuView
 				onPressAction={({ nativeEvent: { event } }) => {
-					const nextBoardId = Number.parseInt(event, 10)
-					if (Number.isNaN(nextBoardId) || nextBoardId === homeBoardId) return
-					PersistStatus.set('music.homeBoardId', nextBoardId)
+					if (!event || event === homeBoardId) return
+					setHomeLeaderboard(homeBoardSource, event)
 				}}
 				actions={actions}
 			>
