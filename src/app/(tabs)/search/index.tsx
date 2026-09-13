@@ -1,166 +1,319 @@
+import SearchDiscovery from '@/components/search/SearchDiscovery'
+import SearchSuggestions from '@/components/search/SearchSuggestions'
 import { SearchList } from '@/components/SearchList'
+import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
-import { useThemeColors } from '@/hooks/useAppTheme'
+import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll from '@/helpers/searchAll'
-import { useNavigationSearch } from '@/hooks/useNavigationSearch'
-import i18n from '@/utils/i18n'
-import debounce from 'lodash/debounce'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-	Animated,
-	Dimensions,
-	Pressable,
-	StyleSheet,
-	Text,
-	View,
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useThemeColors } from '@/hooks/useAppTheme'
+import { useNavigationSearchController } from '@/hooks/useNavigationSearch'
 import type { Track } from '@/player/types'
+import PersistStatus from '@/store/PersistStatus'
+import i18n from '@/utils/i18n'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 type SearchType = 'songs' | 'artists'
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window')
-const SEGMENT_WIDTH = (SCREEN_WIDTH - 32 - 4) / 2 // 32 for padding, 4 for container padding
-
-const SearchlistsScreen = () => {
+const SearchScreen = () => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
-	// const router = useRouter()
+	const searchType = PersistStatus.useValue('search.type', 'songs') ?? 'songs'
+	const searchHistory = PersistStatus.useValue('search.history', []) ?? []
 	const [searchResults, setSearchResults] = useState<Track[]>([])
+	const [submittedQuery, setSubmittedQuery] = useState('')
+	const [searchRevision, setSearchRevision] = useState(0)
+	const [suggestions, setSuggestions] = useState<string[]>([])
+	const [hotSearches, setHotSearches] = useState<string[]>([])
 	const [page, setPage] = useState(1)
 	const [isLoading, setIsLoading] = useState(false)
-	const [hasMore, setHasMore] = useState(true)
+	const [isSuggestionLoading, setIsSuggestionLoading] = useState(false)
+	const [isHotLoading, setIsHotLoading] = useState(true)
+	const [hasMore, setHasMore] = useState(false)
+	const [hasSearchError, setHasSearchError] = useState(false)
+	const [hasHotError, setHasHotError] = useState(false)
+	const [isEditing, setIsEditing] = useState(false)
 	const searchRequestRef = useRef(0)
-	const [searchType, setSearchType] = useState<SearchType>('songs')
-	const slideAnim = useRef(new Animated.Value(0)).current
-	const search = useNavigationSearch({
-		searchBarOptions: {
-			placeholder: i18n.t('find.inSearch'),
-			cancelButtonText: i18n.t('find.cancel'),
-		},
-	})
+	const suggestionRequestRef = useRef(0)
+	const hotSearchRequestRef = useRef(0)
+	const cancelSearchRequest = useCallback(() => {
+		searchRequestRef.current++
+	}, [])
+	const cancelSuggestionRequest = useCallback(() => {
+		suggestionRequestRef.current++
+	}, [])
+	const cancelHotSearchRequest = useCallback(() => {
+		hotSearchRequestRef.current++
+	}, [])
 
-	const fetchSearchResults = useCallback(
-		async (currentPage: number) => {
-			if (!search) {
+	const resetResults = useCallback(() => {
+		cancelSearchRequest()
+		setSubmittedQuery('')
+		setSearchResults([])
+		setPage(1)
+		setHasMore(false)
+		setHasSearchError(false)
+		setIsLoading(false)
+	}, [cancelSearchRequest])
+
+	const submitSearch = useCallback(
+		(value: string) => {
+			const keyword = value.trim()
+			if (!keyword) {
+				resetResults()
 				return
 			}
 
+			const history = PersistStatus.get('search.history') ?? []
+			PersistStatus.set('search.history', addSearchHistory(history, keyword))
+			setSubmittedQuery(keyword)
+			setSearchRevision((revision) => revision + 1)
+			setSuggestions([])
+			setHasSearchError(false)
+			setIsLoading(true)
+			setIsEditing(false)
+		},
+		[resetResults],
+	)
+
+	const handleCancelSearch = useCallback(() => {
+		cancelSuggestionRequest()
+		setSuggestions([])
+		setIsSuggestionLoading(false)
+		setIsEditing(false)
+		resetResults()
+	}, [cancelSuggestionRequest, resetResults])
+
+	const searchBarOptions = useMemo(
+		() => ({
+			placeholder: i18n.t('find.inSearch'),
+			cancelButtonText: i18n.t('find.cancel'),
+			autoCapitalize: 'none' as const,
+			obscureBackground: false,
+		}),
+		[],
+	)
+	const handleFocusSearch = useCallback(() => setIsEditing(true), [])
+	const {
+		search: draftQuery,
+		setSearchText,
+		blur: blurSearch,
+	} = useNavigationSearchController({
+		searchBarOptions,
+		debounceMs: 0,
+		onFocus: handleFocusSearch,
+		onCancel: handleCancelSearch,
+		onSubmit: submitSearch,
+	})
+
+	const loadHotSearches = useCallback(async () => {
+		const requestId = ++hotSearchRequestRef.current
+		setIsHotLoading(true)
+		setHasHotError(false)
+
+		try {
+			const result = await musicSdk['tx'].hotSearch.getList()
+			if (requestId !== hotSearchRequestRef.current) return
+			setHotSearches(result.list.filter(Boolean))
+		} catch (error) {
+			if (requestId !== hotSearchRequestRef.current) return
+			console.error('Failed to fetch hot searches:', error)
+			setHasHotError(true)
+		} finally {
+			if (requestId === hotSearchRequestRef.current) {
+				setIsHotLoading(false)
+			}
+		}
+	}, [])
+
+	useEffect(() => {
+		void loadHotSearches()
+		return cancelHotSearchRequest
+	}, [cancelHotSearchRequest, loadHotSearches])
+
+	useEffect(() => {
+		const keyword = draftQuery.trim()
+		if (!isEditing || !keyword) {
+			cancelSuggestionRequest()
+			setSuggestions([])
+			setIsSuggestionLoading(false)
+			return
+		}
+
+		const requestId = ++suggestionRequestRef.current
+		setIsSuggestionLoading(true)
+		const timer = setTimeout(() => {
+			musicSdk['tx'].tipSearch
+				.search(keyword)
+				.then((result) => {
+					if (requestId === suggestionRequestRef.current) {
+						setSuggestions(result.filter(Boolean))
+					}
+				})
+				.catch(() => {
+					if (requestId === suggestionRequestRef.current) {
+						setSuggestions([])
+					}
+				})
+				.finally(() => {
+					if (requestId === suggestionRequestRef.current) {
+						setIsSuggestionLoading(false)
+					}
+				})
+		}, 220)
+
+		return () => {
+			clearTimeout(timer)
+			cancelSuggestionRequest()
+			musicSdk['tx'].tipSearch.cancelTipSearch()
+		}
+	}, [cancelSuggestionRequest, draftQuery, isEditing])
+
+	const fetchSearchResults = useCallback(
+		async (query: string, type: SearchType, currentPage: number) => {
 			const requestId = ++searchRequestRef.current
 			setIsLoading(true)
+			setHasSearchError(false)
 
 			try {
-				const { data, hasMore: moreResults } = await searchAll(search, currentPage, searchType)
+				const { data, hasMore: moreResults } = await searchAll(query, currentPage, type)
+				if (requestId !== searchRequestRef.current) return
 
-				if (requestId === searchRequestRef.current) {
-					setHasMore(moreResults)
-					setSearchResults((prevResults) => {
-						const newResults = currentPage === 1 ? data : [...prevResults, ...data]
-
-						return newResults
-					})
-
-					setPage(currentPage)
-				}
+				setSearchResults((currentResults) =>
+					currentPage === 1 ? data : [...currentResults, ...data],
+				)
+				setHasMore(moreResults)
+				setPage(currentPage)
 			} catch (error) {
+				if (requestId !== searchRequestRef.current) return
 				console.error('Error fetching search results:', error)
+				setHasSearchError(true)
 			} finally {
 				if (requestId === searchRequestRef.current) {
 					setIsLoading(false)
 				}
 			}
 		},
-		[search, searchType],
+		[],
 	)
-	const debouncedFetchSearchResults = useRef(
-		debounce((currentPage: number) => {
-			fetchSearchResults(currentPage)
-		}, 300),
-	).current
 
 	useEffect(() => {
-		debouncedFetchSearchResults.cancel()
-	}, [search])
-	useEffect(() => {
-		setPage(1)
-		setHasMore(true)
+		cancelSearchRequest()
 		setSearchResults([])
-		searchRequestRef.current++
+		setPage(1)
+		setHasMore(false)
+		setHasSearchError(false)
 
-		if (search === '') {
-			setIsLoading(false)
-			setHasMore(false)
-			setSearchResults([])
-		} else if (search) {
-			fetchSearchResults(1)
+		if (submittedQuery) {
+			void fetchSearchResults(submittedQuery, searchType, 1)
 		}
 
-		return () => {
-			searchRequestRef.current++
-		}
-	}, [search, searchType, fetchSearchResults])
+		return cancelSearchRequest
+	}, [cancelSearchRequest, fetchSearchResults, searchRevision, searchType, submittedQuery])
+
+	const handleKeywordSearch = useCallback(
+		(keyword: string) => {
+			setSearchText(keyword)
+			submitSearch(keyword)
+			blurSearch()
+		},
+		[blurSearch, setSearchText, submitSearch],
+	)
+
+	const handleSearchTypeChange = useCallback((type: SearchType) => {
+		PersistStatus.set('search.type', type)
+	}, [])
 
 	const handleLoadMore = useCallback(() => {
-		if (!isLoading && hasMore && search) {
-			fetchSearchResults(page + 1)
+		if (!isLoading && !hasSearchError && hasMore && submittedQuery) {
+			void fetchSearchResults(submittedQuery, searchType, page + 1)
 		}
-	}, [isLoading, hasMore, page, fetchSearchResults, search])
+	}, [fetchSearchResults, hasMore, hasSearchError, isLoading, page, searchType, submittedQuery])
 
-	const handleSearchTypeChange = (type: SearchType) => {
-		const toValue = type === 'songs' ? 0 : SEGMENT_WIDTH
-		Animated.spring(slideAnim, {
-			toValue,
-			useNativeDriver: true,
-			tension: 100,
-			friction: 10,
-		}).start()
-		setSearchType(type)
-	}
+	const handleRetrySearch = useCallback(() => {
+		if (!submittedQuery || isLoading) return
+		const retryPage = searchResults.length > 0 ? page + 1 : 1
+		void fetchSearchResults(submittedQuery, searchType, retryPage)
+	}, [fetchSearchResults, isLoading, page, searchResults.length, searchType, submittedQuery])
+
+	const handleRemoveHistory = useCallback((keyword: string) => {
+		const history = PersistStatus.get('search.history') ?? []
+		PersistStatus.set('search.history', removeSearchHistory(history, keyword))
+	}, [])
+
+	const trimmedDraftQuery = draftQuery.trim()
+	const showSuggestions = isEditing && trimmedDraftQuery.length > 0
+	const showDiscovery = isEditing ? trimmedDraftQuery.length === 0 : submittedQuery.length === 0
+	const showResults = !isEditing && submittedQuery.length > 0
 
 	return (
 		<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
 			<View style={styles.contentContainer}>
-				<View style={styles.segmentedControlContainer}>
-					<View style={styles.segmentedControl}>
-						<Animated.View
-							style={[
-								styles.activeSegment,
-								{
-									position: 'absolute',
-									width: SEGMENT_WIDTH,
-									transform: [{ translateX: slideAnim }],
-								},
-							]}
-						/>
-						<Pressable
-							style={[styles.segment, { borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }]}
-							onPress={() => handleSearchTypeChange('songs')}
+				<View style={styles.segmentedControl}>
+					<Pressable
+						accessibilityRole="tab"
+						accessibilityState={{ selected: searchType === 'songs' }}
+						onPress={() => handleSearchTypeChange('songs')}
+						style={({ pressed }) => [
+							styles.segment,
+							searchType === 'songs' && styles.activeSegment,
+							pressed && styles.pressed,
+						]}
+					>
+						<Text style={[styles.segmentText, searchType === 'songs' && styles.activeSegmentText]}>
+							{i18n.t('find.songs')}
+						</Text>
+					</Pressable>
+					<Pressable
+						accessibilityRole="tab"
+						accessibilityState={{ selected: searchType === 'artists' }}
+						onPress={() => handleSearchTypeChange('artists')}
+						style={({ pressed }) => [
+							styles.segment,
+							searchType === 'artists' && styles.activeSegment,
+							pressed && styles.pressed,
+						]}
+					>
+						<Text
+							style={[styles.segmentText, searchType === 'artists' && styles.activeSegmentText]}
 						>
-							<Text
-								style={[styles.segmentText, searchType === 'songs' && styles.activeSegmentText]}
-							>
-								{i18n.t('find.songs')}
-							</Text>
-						</Pressable>
-						<Pressable
-							style={[styles.segment, { borderTopRightRadius: 8, borderBottomRightRadius: 8 }]}
-							onPress={() => handleSearchTypeChange('artists')}
-						>
-							<Text
-								style={[styles.segmentText, searchType === 'artists' && styles.activeSegmentText]}
-							>
-								{i18n.t('find.artists')}
-							</Text>
-						</Pressable>
-					</View>
+							{i18n.t('find.artists')}
+						</Text>
+					</Pressable>
 				</View>
-				<SearchList
-					tracks={searchResults}
-					id={'search'}
-					onLoadMore={handleLoadMore}
-					hasMore={hasMore}
-					isLoading={isLoading}
-				/>
+
+				{showSuggestions ? (
+					<SearchSuggestions
+						query={trimmedDraftQuery}
+						suggestions={suggestions}
+						isLoading={isSuggestionLoading}
+						onSearch={handleKeywordSearch}
+					/>
+				) : null}
+				{showDiscovery ? (
+					<SearchDiscovery
+						history={searchHistory}
+						hotSearches={hotSearches}
+						isHotLoading={isHotLoading}
+						hasHotError={hasHotError}
+						onSearch={handleKeywordSearch}
+						onRemoveHistory={handleRemoveHistory}
+						onClearHistory={() => PersistStatus.set('search.history', [])}
+						onRetryHotSearch={() => void loadHotSearches()}
+					/>
+				) : null}
+				{showResults ? (
+					<SearchList
+						tracks={searchResults}
+						query={submittedQuery}
+						onLoadMore={handleLoadMore}
+						onRetry={handleRetrySearch}
+						hasMore={hasMore}
+						hasError={hasSearchError}
+						isLoading={isLoading}
+					/>
+				) : null}
 			</View>
 		</SafeAreaView>
 	)
@@ -168,62 +321,50 @@ const SearchlistsScreen = () => {
 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: colors.background,
-	},
-	safeArea: {
-		flex: 1,
-		backgroundColor: colors.background,
-	},
-	contentContainer: {
-		flex: 1,
-		backgroundColor: colors.background,
-		paddingTop: 8,
-	},
-	segmentedControlContainer: {
-		paddingHorizontal: 16,
-		marginTop: 0,
-		paddingBottom: 4,
-	},
-	segmentedControl: {
-		flexDirection: 'row',
-		backgroundColor: colors.surfaceMuted,
-		borderRadius: 8,
-		padding: 2,
-		position: 'relative',
-	},
-	segment: {
-		flex: 1,
-		paddingVertical: 6,
-		alignItems: 'center',
-		justifyContent: 'center',
-		zIndex: 1,
-	},
-	activeSegment: {
-		backgroundColor: colors.surfaceElevated,
-		borderRadius: 6,
-		shadowColor: colors.shadow,
-		shadowOffset: {
-			width: 0,
-			height: 1,
+		safeArea: {
+			flex: 1,
+			backgroundColor: colors.background,
 		},
-		shadowOpacity: 0.15,
-		shadowRadius: 2,
-		elevation: 2,
-		position: 'absolute',
-		top: 2,
-		bottom: 2,
-		zIndex: 0,
-	},
-	segmentText: {
-		fontSize: 15,
-		color: colors.textMuted,
-	},
-	activeSegmentText: {
-		color: colors.primary,
-		fontWeight: '500',
-	},
+		contentContainer: {
+			flex: 1,
+			backgroundColor: colors.background,
+			paddingTop: 8,
+		},
+		segmentedControl: {
+			height: 36,
+			flexDirection: 'row',
+			marginHorizontal: 16,
+			marginBottom: 6,
+			padding: 2,
+			borderRadius: 10,
+			backgroundColor: colors.surfaceMuted,
+		},
+		segment: {
+			flex: 1,
+			alignItems: 'center',
+			justifyContent: 'center',
+			borderRadius: 8,
+		},
+		activeSegment: {
+			backgroundColor: colors.surfaceElevated,
+			shadowColor: colors.shadow,
+			shadowOffset: { width: 0, height: 1 },
+			shadowOpacity: 0.12,
+			shadowRadius: 2,
+			elevation: 2,
+		},
+		segmentText: {
+			color: colors.textMuted,
+			fontSize: 14,
+			fontWeight: '500',
+		},
+		activeSegmentText: {
+			color: colors.primary,
+			fontWeight: '600',
+		},
+		pressed: {
+			opacity: 0.6,
+		},
 	})
 
-export default SearchlistsScreen
+export default SearchScreen

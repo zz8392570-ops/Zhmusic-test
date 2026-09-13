@@ -12,31 +12,25 @@ const searchAll = async (
 	page: number = 1,
 	type: SearchType = 'songs',
 ): Promise<{ data: Track[]; hasMore: boolean }> => {
-	console.log('search text+++', searchText, 'page:', page, 'type:', type)
-
 	let result
 	if (type === 'songs') {
-		console.log('search song')
 		result = await searchMusic(searchText, page, PAGE_SIZE)
 	} else {
-		console.log('search artist')
 		result = await searchArtist(searchText, page)
-		// console.log('search result', result)
-		// Transform artist results to Track format
 		result.data = result.data.map((artist) => ({
-			id: artist.id,
+			id: artist.singerMID || artist.id,
 			title: artist.name,
 			artist: artist.name,
 			artwork: artist.avatar,
+			singerMID: artist.singerMID,
+			worksNum: artist.worksNum,
 			isArtist: true,
 		})) as Track[]
 	}
 
-	const hasMore = result.data.length === PAGE_SIZE
-
 	return {
 		data: result.data as Track[],
-		hasMore,
+		hasMore: !result.isEnd,
 	}
 }
 

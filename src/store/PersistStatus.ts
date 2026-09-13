@@ -38,6 +38,8 @@ interface IPersistConfig {
 	'music.isCachedIconVisible': boolean
 	'music.songsNumsToLoad': number
 	'music.homeBoardId': number
+	'search.history': string[]
+	'search.type': 'songs' | 'artists'
 	'music.bundledSourcesVersion': number
 	'music.removedBuiltinSources': string[]
 }
