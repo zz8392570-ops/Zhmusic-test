@@ -1,34 +1,21 @@
 import { TracksList } from '@/components/TracksList'
 import { screenPadding } from '@/constants/tokens'
-import { trackTitleFilter } from '@/helpers/filter'
 import { generateTracksListId } from '@/helpers/miscellaneous'
 import { songsNumsToLoadStore } from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
-import { useNavigationSearch } from '@/hooks/useNavigationSearch'
 import { useLibraryStore, useTracks, useTracksLoading } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 
 const SongsScreen = () => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
-	const search = useNavigationSearch({
-		searchBarOptions: {
-			placeholder: i18n.t('find.inSongs'),
-			cancelButtonText: i18n.t('find.cancel'),
-		},
-	})
-
 	const tracks = useTracks()
 	const songsNumsToLoad = songsNumsToLoadStore.useValue()
 	const isLoading = useTracksLoading()
 	const { fetchTracks } = useLibraryStore()
-	const filteredTracks = useMemo(() => {
-		if (!search) return tracks
-		return tracks.filter(trackTitleFilter(search))
-	}, [search, tracks])
 
 	const handleLoadMore = useCallback(() => {
 		fetchTracks()
@@ -70,8 +57,8 @@ const SongsScreen = () => {
 				scrollEventThrottle={400}
 			>
 				<TracksList
-					id={generateTracksListId('songs', search)}
-					tracks={filteredTracks}
+					id={generateTracksListId('songs')}
+					tracks={tracks}
 					scrollEnabled={false}
 					numsToPlay={songsNumsToLoad}
 				/>
