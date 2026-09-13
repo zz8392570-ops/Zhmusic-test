@@ -126,8 +126,11 @@
 	},
 	"addToPlaylist": {
 		"title": "导入歌单",
-		"placeholder": "请输入歌单链接",
-		"import": "导入"
+		"placeholder": "粘贴 QQ、酷我、酷狗、网易云或咪咕歌单链接",
+		"import": "导入",
+		"hint": "支持各平台歌单链接，也可以先选平台再粘贴歌单 ID",
+		"invalidLink": "无法识别链接，请换一个平台或补全链接",
+		"failed": "导入失败，请检查链接是否正确"
 	},
 	"find": {
 		"inRadio": "在广播中搜索",

@@ -1,10 +1,13 @@
+import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors, screenPadding } from '@/constants/tokens'
+import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
+import { importPlaylistByLink, parsePlaylistInput } from '@/helpers/importPlaylist'
 import { logError } from '@/helpers/logger'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
-import { getPlayListFromQ } from '@/helpers/userApi/getMusicSource'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
+import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
 import { useHeaderHeight } from 'expo-router/react-navigation'
 import * as ImagePicker from 'expo-image-picker'
@@ -34,6 +37,7 @@ const ImportPlayList = () => {
 	const [error, setError] = useState(null)
 	const [customName, setCustomName] = useState('')
 	const [coverImage, setCoverImage] = useState(null)
+	const [importSource, setImportSource] = useState<MusicPlatform>('tx')
 
 	const nameInputRef = useRef(null)
 	const urlInputRef = useRef(null)
@@ -83,27 +87,29 @@ const ImportPlayList = () => {
 		}
 	}
 
+	const handlePlaylistUrlChange = (value: string) => {
+		setPlaylistUrl(value)
+		const parsed = parsePlaylistInput(value)
+		if (parsed) setImportSource(parsed.source)
+	}
+
 	const handleImport = async () => {
 		setIsLoading(true)
 		setError(null)
 		try {
-			if (!playlistUrl.includes('id=')) throw new Error('链接格式不正确')
-			if (!playlistUrl) throw new Error('链接不能为空')
-			// 发起实际的网络请求
-			const match = playlistUrl.match(/[?&]id=(\d+)/)
-			const response = await getPlayListFromQ(match ? match[1] : null)
-			// 设置数据
-			// console.log(JSON.stringify(response) + '12312312')
-			const processedResponse: any = {
-				...response,
-				title: response.title || response.name || '未知歌单', // 如果 title 为空，使用 name
-			}
-			setPlaylistData(processedResponse)
-			myTrackPlayer.addPlayLists(processedResponse as IMusic.PlayList)
+			if (!playlistUrl.trim()) throw new Error('empty')
+			const playlist = await importPlaylistByLink(playlistUrl, importSource)
+			if (!playlist?.songs?.length) throw new Error('empty playlist')
+			setPlaylistData(playlist)
+			myTrackPlayer.addPlayLists(playlist)
 			router.dismiss()
 		} catch (err) {
-			setError('导入失败，请检查链接是否正确')
-			// myTrackPlayer.deletePlayLists('7570659434')
+			const message = err instanceof Error ? err.message : ''
+			setError(
+				message === 'unrecognized playlist link'
+					? i18n.t('addToPlaylist.invalidLink')
+					: i18n.t('addToPlaylist.failed'),
+			)
 			logError('导入错误:', err)
 		} finally {
 			setIsLoading(false)
@@ -191,14 +197,23 @@ const ImportPlayList = () => {
 
 					<View style={styles.section}>
 						<Text style={styles.sectionTitle}>导入已有歌单</Text>
+						<Text style={styles.hint}>{i18n.t('addToPlaylist.hint')}</Text>
+						<View style={styles.platformSelector}>
+							<SearchPlatformSelector
+								includeAll={false}
+								inset={0}
+								value={importSource}
+								onChange={(platform) => setImportSource(platform as MusicPlatform)}
+							/>
+						</View>
 						<View style={styles.createPlaylistCard}>
 							<View style={styles.importContainer}>
 								<TextInput
 									ref={urlInputRef}
 									style={styles.input}
 									value={playlistUrl}
-									onChangeText={setPlaylistUrl}
-									placeholder='🔗输入企鹅音乐歌单链接要有"id="字样'
+									onChangeText={handlePlaylistUrlChange}
+									placeholder={i18n.t('addToPlaylist.placeholder')}
 									placeholderTextColor={colors.placeholder}
 									autoCapitalize="none"
 									autoCorrect={false}
@@ -256,6 +271,15 @@ const createStyles = (
 		fontWeight: '600',
 		color: colors.text,
 		marginBottom: 16,
+	},
+	hint: {
+		fontSize: 13,
+		color: colors.textMuted,
+		marginTop: -8,
+		marginBottom: 12,
+	},
+	platformSelector: {
+		marginBottom: 12,
 	},
 	divider: {
 		height: 1,

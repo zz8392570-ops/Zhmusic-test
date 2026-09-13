@@ -125,8 +125,11 @@
 	},
 	"addToPlaylist": {
 		"title": "Import Playlist",
-		"placeholder": "Please enter playlist link",
-		"import": "Import"
+		"placeholder": "Paste a QQ, Kuwo, Kugou, NetEase, or Migu playlist link",
+		"import": "Import",
+		"hint": "Playlist links from each platform work. You can also pick a platform and paste the playlist ID.",
+		"invalidLink": "Couldn't recognize this link. Try another platform or a full URL.",
+		"failed": "Import failed. Check the playlist link."
 	},
 	"find": {
 		"inRadio": "Find in Radio",
