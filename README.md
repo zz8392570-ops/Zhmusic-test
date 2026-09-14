@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/gyc-12/Cymusic/actions/workflows/build-ios.yml"><img src="https://github.com/gyc-12/Cymusic/actions/workflows/build-ios.yml/badge.svg?branch=main" alt="iOS 构建状态" /></a>
+  <a href="https://github.com/zz8392570-ops/Zhmusic/actions/workflows/build-ios.yml"><img src="https://github.com/zz8392570-ops/Zhmusic/actions/workflows/build-ios.yml/badge.svg?branch=main" alt="iOS 构建状态" /></a>
   <img src="https://img.shields.io/badge/iOS-16.4%2B-111111?logo=apple&logoColor=white" alt="iOS 16.4 及以上" />
   <img src="https://img.shields.io/badge/Expo-57-000020?logo=expo&logoColor=white" alt="Expo 57" />
   <img src="https://img.shields.io/badge/React_Native-0.86-61DAFB?logo=react&logoColor=111111" alt="React Native 0.86" />
@@ -21,7 +21,7 @@
   <a href="#应用预览">应用预览</a> ·
   <a href="#开始使用">开始使用</a> ·
   <a href="#开发指南">开发指南</a> ·
-  <a href="https://github.com/gyc-12/Cymusic/issues">反馈问题</a>
+  <a href="https://github.com/zz8392570-ops/Zhmusic/issues">反馈问题</a>
 </p>
 
 ZhMusic 将音乐浏览、播放、歌词和个人歌单放在一起，支持深色、浅色与跟随系统的外观。
@@ -72,8 +72,8 @@ ZhMusic 将音乐浏览、播放、歌词和个人歌单放在一起，支持深
 
 | 渠道 | 用途 |
 | --- | --- |
-| [GitHub Releases](https://github.com/gyc-12/Cymusic/releases) | 获取已发布版本与对应说明。 |
-| [main 分支构建](https://github.com/gyc-12/Cymusic/actions/workflows/build-ios.yml?query=branch%3Amain) | 获取当前源码的 IPA；打开最近一次成功运行，在 **Artifacts** 下载 `ZhMusic-unsigned-ipa`。 |
+| [GitHub Releases](https://github.com/zz8392570-ops/Zhmusic/releases) | 获取已发布版本与对应说明。 |
+| [main 分支构建](https://github.com/zz8392570-ops/Zhmusic/actions/workflows/build-ios.yml?query=branch%3Amain) | 获取当前源码的 IPA；打开最近一次成功运行，在 **Artifacts** 下载 `ZhMusic-unsigned-ipa`。 |
 
 本 README 介绍 `main` 分支。Releases 与 `main` 可能处于不同版本；如需 Expo 57 / RNTP v5 版本，请选择对应的 `main` 构建。
 Actions 产物是**未签名 IPA**，安装到真机前需要自己的有效签名和 App Group 配置。
@@ -92,8 +92,8 @@ Actions 产物是**未签名 IPA**，安装到真机前需要自己的有效签�
 当前使用的工具链：**Node 24.19.0 · Yarn 1.22.22 · CocoaPods 1.16.2 · Xcode 26.6**。
 
 ```bash
-git clone https://github.com/gyc-12/Cymusic.git
-cd Cymusic
+git clone https://github.com/zz8392570-ops/Zhmusic.git
+cd Zhmusic
 
 yarn install --frozen-lockfile --non-interactive
 cd ios
@@ -122,7 +122,7 @@ npx expo run:ios --no-install
 
 ## 参与贡献
 
-欢迎通过 [Issues](https://github.com/gyc-12/Cymusic/issues) 报告问题或提出建议，反馈时请附 App 版本、设备系统和复现步骤。
+欢迎通过 [Issues](https://github.com/zz8392570-ops/Zhmusic/issues) 报告问题或提出建议，反馈时请附 App 版本、设备系统和复现步骤。
 提交 PR 时请说明改动目的、影响范围与验证结果；涉及原生依赖时同步检查锁文件、补丁和 iOS 构建。
 当前构建方式、专项检查和已知验证边界见[开发指南](docs/development.md)。
 
@@ -148,6 +148,6 @@ npx expo run:ios --no-install
 <details>
   <summary>Star History</summary>
 
-[![Star History](https://api.star-history.com/svg?repos=gyc-12/Cymusic&type=Date)](https://www.star-history.com/#gyc-12/Cymusic&Date)
+[![Star History](https://api.star-history.com/svg?repos=zz8392570-ops/Zhmusic&type=Date)](https://www.star-history.com/#zz8392570-ops/Zhmusic&Date)
 
 </details>

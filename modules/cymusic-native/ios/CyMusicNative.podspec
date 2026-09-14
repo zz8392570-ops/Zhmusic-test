@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.homepage = package['homepage']
   s.platforms = { :ios => '16.4' }
   s.swift_version = '5.9'
-  s.source = { :git => 'https://github.com/gyc-12/Cymusic.git' }
+  s.source = { :git => 'https://github.com/zz8392570-ops/Zhmusic.git' }
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'

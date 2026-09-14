@@ -678,7 +678,7 @@ const SettingModal = () => {
 		)
 		try {
 			const result = await Promise.race([
-				fetch('https://api.github.com/repos/gyc-12/Cymusic/releases/latest'),
+				fetch('https://api.github.com/repos/zz8392570-ops/Zhmusic/releases/latest'),
 				timeoutPromise,
 			])
 			if (!(result instanceof Response)) {
@@ -775,7 +775,7 @@ const SettingModal = () => {
 							router.push('/(modals)/logScreen')
 						}
 						if (item.id === '5') {
-							Linking.openURL('https://github.com/gyc-12/Cymusic').catch((err) =>
+							Linking.openURL('https://github.com/zz8392570-ops/Zhmusic').catch((err) =>
 								logError("Couldn't load page", err),
 							)
 						} else if (item.type === 'link') {
