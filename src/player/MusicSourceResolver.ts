@@ -16,6 +16,10 @@ import {
 import PersistStatus from '@/store/PersistStatus'
 import { showToast } from '@/utils/utils'
 import {
+	showAutomaticSourceSwitchNotice,
+	type AutomaticSourceSwitchReason,
+} from '@/utils/sourceSwitchNotice'
+import {
 	inferAudioQualityFromPath,
 	normalizeAudioQuality,
 	type AudioQuality,
@@ -151,6 +155,7 @@ export const resolveSource = async (
 		const failedIds = getFailedApiIds(failureKey)
 		const qualityOrder: IMusic.IQualityKey[] = ['flac', '320k', '128k']
 		const apisToTry: IMusic.MusicApi[] = []
+		let selectedSourceFailureReason: AutomaticSourceSwitchReason = 'noPlayableUrl'
 		if (!failedIds.has(nowMusicApi.id)) apisToTry.push(nowMusicApi)
 		if (isCurrentSourceRequest(requestType)) {
 			for (const api of getFailoverCandidates(
@@ -170,6 +175,7 @@ export const resolveSource = async (
 				if (currentQualityIndex < 0) currentQualityIndex = qualityOrder.length - 1
 				let resp_url: string | null = null
 				let resolvedQuality: AudioQuality = null
+				let apiFailureReason: AutomaticSourceSwitchReason = 'noPlayableUrl'
 
 				while (currentQualityIndex < qualityOrder.length && !resp_url) {
 					const currentQuality = qualityOrder[currentQualityIndex]
@@ -194,11 +200,12 @@ export const resolveSource = async (
 						}
 						logInfo(`${logPrefix} ${api.name} 成功获取${currentQuality}音质的音乐URL:`, resp_url)
 					} catch (error) {
+						const errMsg = error instanceof Error ? error.message : String(error)
+						apiFailureReason = /timeout|timed out|超时/i.test(errMsg) ? 'timeout' : 'requestFailed'
 						if (isCurrentSourceRequest(requestType)) {
 							logInfo(
 								`${logPrefix} ${api.name} ${currentQuality}音质无可用链接(catch),尝试下一个音质`,
 							)
-							const errMsg = error instanceof Error ? error.message : String(error)
 							logError(`${logPrefix} (catch error): ${errMsg}`)
 						}
 						currentQualityIndex++
@@ -207,7 +214,18 @@ export const resolveSource = async (
 
 				if (resp_url) {
 					if (isCurrentSourceRequest(requestType) && api.id !== nowMusicApi.id) {
-						await setMusicApiAsSelectedById(api.id, { silent: true })
+						const switchedSource = await setMusicApiAsSelectedById(api.id, {
+							silent: true,
+							notify: false,
+						})
+						if (switchedSource) {
+							showAutomaticSourceSwitchNotice({
+								fromSource: nowMusicApi.name,
+								toSource: api.name,
+								reason: selectedSourceFailureReason,
+								songTitle: musicItem.title,
+							})
+						}
 					}
 					if (isCurrentSourceRequest(requestType)) {
 						nowApiState.setValue('正常')
@@ -218,6 +236,7 @@ export const resolveSource = async (
 
 				if (isCurrentSourceRequest(requestType)) {
 					rememberFailedApi(failureKey, api.id)
+					if (api.id === nowMusicApi.id) selectedSourceFailureReason = apiFailureReason
 				}
 			}
 

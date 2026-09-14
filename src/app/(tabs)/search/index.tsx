@@ -12,6 +12,8 @@ import {
 	type SearchPlatform,
 } from '@/helpers/crossPlatformSearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
+import { cacheRevisionStore } from '@/helpers/trackPlayerIndex'
+import { getCachedQuality } from '@/player/CacheManager'
 import { useNavigationSearchController } from '@/hooks/useNavigationSearch'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
@@ -25,6 +27,15 @@ const SEARCH_TABS: { type: SearchType; label: string }[] = [
 	{ type: 'artists', label: 'find.artists' },
 	{ type: 'playlists', label: 'find.playlists' },
 ]
+type SongFilter = 'all' | 'lossless' | 'cached' | 'multiSource'
+const SONG_FILTERS: { type: SongFilter; label: string }[] = [
+	{ type: 'all', label: 'find.filters.all' },
+	{ type: 'lossless', label: 'find.filters.lossless' },
+	{ type: 'cached', label: 'find.filters.cached' },
+	{ type: 'multiSource', label: 'find.filters.multiSource' },
+]
+
+const trackKey = (track: Track) => `${track.platform ?? 'unknown'}:${track.id}`
 
 const SearchScreen = () => {
 	const colors = useThemeColors()
@@ -46,6 +57,9 @@ const SearchScreen = () => {
 	const [hasHotError, setHasHotError] = useState(false)
 	const [unavailablePlatforms, setUnavailablePlatforms] = useState<MusicPlatform[]>([])
 	const [isEditing, setIsEditing] = useState(false)
+	const [songFilter, setSongFilter] = useState<SongFilter>('all')
+	const [cachedResultKeys, setCachedResultKeys] = useState<Set<string>>(new Set())
+	const cacheRevision = cacheRevisionStore.useValue()
 	const searchRequestRef = useRef(0)
 	const suggestionRequestRef = useRef(0)
 	const hotSearchRequestRef = useRef(0)
@@ -300,6 +314,40 @@ const SearchScreen = () => {
 	const showDiscovery = isEditing ? trimmedDraftQuery.length === 0 : submittedQuery.length === 0
 	const showResults = !isEditing && submittedQuery.length > 0
 
+	useEffect(() => {
+		let cancelled = false
+		if (searchType !== 'songs' || !searchResults.length) {
+			setCachedResultKeys(new Set())
+			return
+		}
+		void Promise.all(
+			searchResults.map(async (track) => {
+				const candidates = [track, ...(track.sourceAlternatives ?? [])]
+				const qualities = await Promise.all(
+					candidates.map((candidate) => getCachedQuality(candidate as IMusic.IMusicItem)),
+				)
+				return qualities.some(Boolean) ? trackKey(track) : null
+			}),
+		).then((keys) => {
+			if (!cancelled) setCachedResultKeys(new Set(keys.filter((key): key is string => !!key)))
+		})
+		return () => {
+			cancelled = true
+		}
+	}, [cacheRevision, searchResults, searchType])
+
+	const visibleSearchResults = useMemo(() => {
+		if (searchType !== 'songs' || songFilter === 'all') return searchResults
+		return searchResults.filter((track) => {
+			if (songFilter === 'cached') return cachedResultKeys.has(trackKey(track))
+			if (songFilter === 'multiSource') {
+				return new Set(track.availablePlatforms ?? [track.platform]).size > 1
+			}
+			const quality = track.qualities as Record<string, unknown> | undefined
+			return Boolean(quality?.flac || quality?.flac24bit || track.source?.flac)
+		})
+	}, [cachedResultKeys, searchResults, searchType, songFilter])
+
 	return (
 		<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
 			<View style={styles.contentContainer}>
@@ -327,6 +375,29 @@ const SearchScreen = () => {
 				</View>
 				{searchType === 'songs' ? (
 					<SearchPlatformSelector value={searchPlatform} onChange={handleSearchPlatformChange} />
+				) : (
+					<View style={styles.providerNotice}>
+						<Text style={styles.providerNoticeText}>{i18n.t('find.qqOnlyNotice')}</Text>
+					</View>
+				)}
+				{showResults && searchType === 'songs' ? (
+					<View style={styles.filterRow}>
+						{SONG_FILTERS.map((filter) => (
+							<Pressable
+								key={filter.type}
+								accessibilityRole="button"
+								accessibilityState={{ selected: songFilter === filter.type }}
+								onPress={() => setSongFilter(filter.type)}
+								style={[styles.filterChip, songFilter === filter.type && styles.filterChipActive]}
+							>
+								<Text
+									style={[styles.filterText, songFilter === filter.type && styles.filterTextActive]}
+								>
+									{i18n.t(filter.label)}
+								</Text>
+							</Pressable>
+						))}
+					</View>
 				) : null}
 
 				{showSuggestions ? (
@@ -351,7 +422,7 @@ const SearchScreen = () => {
 				) : null}
 				{showResults ? (
 					<SearchList
-						tracks={searchResults}
+						tracks={visibleSearchResults}
 						query={submittedQuery}
 						onLoadMore={handleLoadMore}
 						onRetry={handleRetrySearch}
@@ -412,6 +483,25 @@ const createStyles = (colors: ThemeColors) =>
 		pressed: {
 			opacity: 0.6,
 		},
+		providerNotice: {
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 9,
+			marginBottom: 6,
+			marginHorizontal: 16,
+			paddingHorizontal: 12,
+			paddingVertical: 8,
+		},
+		providerNoticeText: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
+		filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
+		filterChip: {
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 14,
+			paddingHorizontal: 11,
+			paddingVertical: 6,
+		},
+		filterChipActive: { backgroundColor: colors.primary },
+		filterText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+		filterTextActive: { color: '#fff' },
 	})
 
 export default SearchScreen

@@ -4,8 +4,8 @@ import Config from '@/store/config'
 import delay from '@/utils/delay'
 import { isSameMediaItem, mergeProps, sortByTimestampAndIndex } from '@/utils/mediaItem'
 import * as FileSystem from 'expo-file-system/legacy'
-import { Paths } from 'expo-file-system'
 import { produce } from 'immer'
+import * as Network from 'expo-network'
 import shuffle from 'lodash.shuffle'
 import FileSystemNative from '../../modules/cymusic-native'
 import ReactNativeTrackPlayer, {
@@ -20,6 +20,7 @@ import type { Track } from '@/player/types'
 import { getNativeTrackIdentity, toMediaItem } from '@/player/mediaItem'
 
 import { MusicRepeatMode } from '@/helpers/types'
+import type { AudioQuality } from '@/helpers/audioQuality'
 import PersistStatus from '@/store/PersistStatus'
 import {
 	getMusicIndex,
@@ -31,21 +32,27 @@ import {
 	usePlayList,
 } from '@/store/playList'
 import { createMediaIndexMap } from '@/utils/mediaIndexMap'
-import { Alert, AppState, Image } from 'react-native'
+import { Alert, Image } from 'react-native'
 
 import { myGetLyric } from '@/helpers/userApi/getMusicSource'
 
 import { fakeAudioMp3Uri } from '@/constants/images'
-import { nowLanguage } from '@/utils/i18n'
+import i18n, { nowLanguage } from '@/utils/i18n'
 import { showToast } from '@/utils/utils'
+import {
+	getPlaybackSourceSwitchReason,
+	showAutomaticSourceSwitchNotice,
+	showSourceExhaustedNotice,
+} from '@/utils/sourceSwitchNotice'
 import { resolveLocalFile } from './localFile'
-import { downloadFile } from './fileDownload'
+import { cancelDownload } from './fileDownload'
 import { logError, logInfo } from './logger'
 import {
 	addMusicApi,
 	clearFailedApis,
 	deleteMusicApiById,
 	ensureApiRuntime,
+	getFailedApiIds,
 	getPlaybackFailoverApis,
 	getMusicFailureKey,
 	rememberFailedApi,
@@ -67,9 +74,13 @@ import {
 	nowApiState,
 	musicApiTestingStore,
 	autoCacheLocalStore,
+	autoCacheWifiOnlyStore,
+	cacheDownloadTasksStore,
+	type CacheDownloadTask,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,
 	importedLocalMusicStore,
+	recentlyPlayedStore,
 	nowLyricState,
 	trackSkipLoadingStore,
 	trackSourceLoadingStore,
@@ -82,12 +93,9 @@ import {
 import {
 	isCached,
 	downloadToCache,
-	clearCache,
-	getLocalFilePath,
+	clearCache as clearCacheFiles,
 	getCacheFileUri,
-	ensureCacheDirExists,
 	ensureDirExists,
-	setCachedQuality,
 } from '@/player/CacheManager'
 
 import { resolveSource, preloadSource } from '@/player/MusicSourceResolver'
@@ -107,9 +115,12 @@ export {
 	nowApiState,
 	musicApiTestingStore,
 	autoCacheLocalStore,
+	autoCacheWifiOnlyStore,
+	cacheDownloadTasksStore,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,
 	importedLocalMusicStore,
+	recentlyPlayedStore,
 	nowLyricState,
 	trackSkipLoadingStore,
 	trackSourceLoadingStore,
@@ -237,14 +248,14 @@ async function setupTrackPlayer() {
 	const musicQueue = PersistStatus.get('music.play-list')
 	const legacyMusicQueue = PersistStatus.get('music.playList')
 	const repeatMode = PersistStatus.get('music.repeatMode')
-	const progress = PersistStatus.get('music.progress')
-	const track = PersistStatus.get('music.musicItem')
 	const quality = PersistStatus.get('music.quality') || '128k'
 	const playLists = PersistStatus.get('music.playLists')
 	const musicApiLists = PersistStatus.get('music.musicApi')
 	const selectedMusicApi = PersistStatus.get('music.selectedMusicApi')
 	const importedLocalMusic = PersistStatus.get('music.importedLocalMusic')
+	const recentlyPlayed = PersistStatus.get('music.recentlyPlayed') ?? []
 	const autoCacheLocal = PersistStatus.get('music.autoCacheLocal') ?? true
+	const autoCacheWifiOnly = PersistStatus.get('music.autoCacheWifiOnly') ?? true
 	const language = PersistStatus.get('app.language') ?? 'zh'
 	const isCachedIconVisible = PersistStatus.get('music.isCachedIconVisible') ?? true
 	const songsNumsToLoad = PersistStatus.get('music.songsNumsToLoad') ?? 100
@@ -301,12 +312,14 @@ async function setupTrackPlayer() {
 	if (importedLocalMusic) {
 		importedLocalMusicStore.setValue(importedLocalMusic)
 	}
+	recentlyPlayedStore.setValue(recentlyPlayed)
 	if (restoredQueue && Array.isArray(restoredQueue)) {
 		addAll(restoredQueue, undefined, repeatMode === MusicRepeatMode.SHUFFLE)
 	}
 	if (autoCacheLocal == true || autoCacheLocal == false) {
 		autoCacheLocalStore.setValue(autoCacheLocal)
 	}
+	autoCacheWifiOnlyStore.setValue(autoCacheWifiOnly)
 	if (isCachedIconVisible == true || isCachedIconVisible == false) {
 		isCachedIconVisibleStore.setValue(isCachedIconVisible)
 	}
@@ -330,7 +343,7 @@ async function setupTrackPlayer() {
 				)
 					return
 				logInfo('播放出错', { message: error.message, code: error.code })
-				void failToPlay().catch((failure) => logError('播放错误恢复失败', failure))
+				void failToPlay(error).catch((failure) => logError('播放错误恢复失败', failure))
 			}),
 		)
 		logInfo('播放器初始化完成')
@@ -358,7 +371,7 @@ const getFakeNextTrack = (): Track => {
 let failoverInProgress = false
 
 /** 播放失败时的情况 */
-async function failToPlay() {
+async function failToPlay(failure?: { code?: string; message?: string }) {
 	if (failoverInProgress) return
 	failoverInProgress = true
 	try {
@@ -384,17 +397,49 @@ async function failToPlay() {
 			return
 		const selected = musicApiSelectedStore.getValue()
 		if (failedMusic && selected?.id) {
-			rememberFailedApi(getMusicFailureKey(failedMusic), selected.id)
+			const failureKey = getMusicFailureKey(failedMusic)
+			rememberFailedApi(failureKey, selected.id)
 			const backup = getPlaybackFailoverApis(failedMusic).find((api) => api.id !== selected.id)
 			if (backup) {
 				logInfo(`播放失败，切换备用音源: ${backup.name}`)
 				nativeQueue = null
-				await setMusicApiAsSelectedById(backup.id, { silent: true })
+				const switchedSource = await setMusicApiAsSelectedById(backup.id, {
+					silent: true,
+					notify: false,
+				})
+				if (switchedSource) {
+					showAutomaticSourceSwitchNotice({
+						fromSource: selected.name,
+						toSource: backup.name,
+						reason: getPlaybackSourceSwitchReason(failure?.code, failure?.message),
+						songTitle: failedMusic.title,
+					})
+				}
 				await play(failedMusic, true)
 				return
 			}
+
+			const nextMusic = getPlayList()
+				.map((_, offset) => getPlayListMusicAt(currentIndex + offset + 1))
+				.find((item) => item && !isSameMediaItem(item, failedMusic))
+			const willSkip = nextMusic != null
+			const recoveryAction = await showSourceExhaustedNotice({
+				songTitle: failedMusic.title,
+				triedCount: getFailedApiIds(failureKey).size,
+				willSkip,
+			})
+			clearFailedApis(failureKey)
+			if (recoveryAction === 'retry') {
+				await play(failedMusic, true)
+				return
+			}
+			if (recoveryAction === 'next' && nextMusic) {
+				await play(nextMusic, true)
+				return
+			}
+			setPlaybackIntent('stop')
+			return
 		}
-		if (failedMusic) clearFailedApis(getMusicFailureKey(failedMusic))
 		await skipToNext()
 	} finally {
 		failoverInProgress = false
@@ -528,6 +573,25 @@ const remove = async (musicItem: IMusic.IMusicItem) => {
 	}
 }
 
+const moveQueueTrack = (fromIndex: number, toIndex: number) => {
+	const playList = getPlayList()
+	if (
+		fromIndex === toIndex ||
+		fromIndex < 0 ||
+		toIndex < 0 ||
+		fromIndex >= playList.length ||
+		toIndex >= playList.length
+	)
+		return false
+	const next = [...playList]
+	const [item] = next.splice(fromIndex, 1)
+	next.splice(toIndex, 0, item)
+	setPlayList(next)
+	currentIndex = getMusicIndex(currentMusicStore.getValue())
+	updateNextMetadata()
+	return true
+}
+
 function updateNextMetadata() {
 	if (!nativeQueue || ReactNativeTrackPlayer.getQueue().length < 2) return
 	const next = getFakeNextTrack()
@@ -610,6 +674,7 @@ const stop = () => {
 
 /** 设置音源 */
 const setTrackSource = (track: Track) => {
+	const requestedTrack = currentMusicStore.getValue()
 	currentIndex = getMusicIndex(track as IMusic.IMusicItem)
 	const token = createTrackSourceLoadingToken(track as IMusic.IMusicItem)
 	// Snapshot after source resolution. A preference change never reloads the active item.
@@ -621,6 +686,16 @@ const setTrackSource = (track: Track) => {
 	// Keep the complete resolved source in JS. v5 getter projections lose headers.
 	nativeQueue = { token, track, startedAt: Date.now(), handoffConsumed: false }
 	ReactNativeTrackPlayer.setMediaItems(items)
+	const recentTrack =
+		requestedTrack && isSameMediaItem(requestedTrack, track as IMusic.IMusicItem)
+			? requestedTrack
+			: (track as IMusic.IMusicItem)
+	const recent = recentlyPlayedStore
+		.getValue()
+		.filter((item) => !isSameMediaItem(item, recentTrack))
+	const nextRecent = [{ ...recentTrack, lastPlayedAt: Date.now() }, ...recent].slice(0, 100)
+	recentlyPlayedStore.setValue(nextRecent)
+	PersistStatus.set('music.recentlyPlayed', nextRecent)
 	setCurrentMusic(track as IMusic.IMusicItem)
 	PersistStatus.set('music.musicItem', track as IMusic.IMusicItem)
 	PersistStatus.set('music.progress', 0)
@@ -659,22 +734,17 @@ const setQuality = (quality: IMusic.IQualityKey) => {
 const addSongToStoredPlayList = (playlist: IMusic.PlayList, track: IMusic.IMusicItem) => {
 	try {
 		const nowPlayLists = playListsStore.getValue() || []
+		const target = nowPlayLists.find((item) => item.id === playlist.id)
+		if (!target) return 'not-found' as const
+		if (target.songs.some((song) => isSameMediaItem(song, track))) {
+			logInfo('歌曲已存在')
+			return 'duplicate' as const
+		}
 		const updatedPlayLists = nowPlayLists.map((existingPlaylist) => {
 			if (existingPlaylist.id === playlist.id) {
-				// 检查歌曲是否已经存在于播放列表中
-				// console.log('track', JSON.stringify(track))
-				// console.log('existingPlaylist.songs', JSON.stringify(existingPlaylist.songs))
-				const songExists = existingPlaylist.songs.some((song) => song.id == track.id)
-				// console.log('songExists', songExists)
-
-				if (!songExists) {
-					// 只有当歌曲不存在时才添加
-					return {
-						...existingPlaylist,
-						songs: [...existingPlaylist.songs, track],
-					}
-				} else {
-					logInfo('歌曲已存在')
+				return {
+					...existingPlaylist,
+					songs: [...existingPlaylist.songs, track],
 				}
 			}
 			return existingPlaylist
@@ -683,9 +753,10 @@ const addSongToStoredPlayList = (playlist: IMusic.PlayList, track: IMusic.IMusic
 		playListsStore.setValue(updatedPlayLists)
 		PersistStatus.set('music.playLists', updatedPlayLists)
 		logInfo('歌曲成功添加到歌单')
+		return 'success' as const
 	} catch (error) {
 		logError('添加歌曲到歌单时出错:', error)
-		// 可以在这里添加一些错误处理逻辑，比如显示一个错误提示给用户
+		return 'error' as const
 	}
 }
 //从歌单删除指定歌曲
@@ -730,7 +801,7 @@ const addPlayLists = (playlist: IMusic.PlayList) => {
 
 		if (playlistExists) {
 			// logInfo(`Playlist already exists, not adding duplicate. Current playlists: ${JSON.stringify(nowPlayLists, null, 2)}`);
-			return // 如果播放列表已存在，直接返回，不进行任何操作
+			return 'duplicate' as const
 		}
 
 		// 如果播放列表不存在，则添加它
@@ -738,17 +809,40 @@ const addPlayLists = (playlist: IMusic.PlayList) => {
 		playListsStore.setValue(updatedPlayLists)
 		PersistStatus.set('music.playLists', updatedPlayLists)
 		logInfo('Playlist added successfully')
+		return 'success' as const
 	} catch (error) {
 		logError('Error adding playlist:', error)
-		// 可以在这里添加一些错误处理逻辑，比如显示一个错误提示给用户
+		return 'error' as const
+	}
+}
+const updateStoredPlaylist = (
+	playlistId: string,
+	patch: { name?: string; title?: string; artwork?: string; coverImg?: string },
+) => {
+	try {
+		if (playlistId === 'favorites' || playlistId === 'local' || playlistId === 'recent') {
+			return 'protected' as const
+		}
+		const nowPlayLists = playListsStore.getValue() || []
+		if (!nowPlayLists.some((playlist) => playlist.id === playlistId)) return 'not-found' as const
+		const updated = nowPlayLists.map((playlist) =>
+			playlist.id === playlistId ? { ...playlist, ...patch } : playlist,
+		)
+		playListsStore.setValue(updated)
+		PersistStatus.set('music.playLists', updated)
+		return 'success' as const
+	} catch (error) {
+		logError('Error updating playlist:', error)
+		return 'error' as const
 	}
 }
 const deletePlayLists = (playlistId: string) => {
 	try {
-		if (playlistId === 'favorites' || playlistId === 'local') {
+		if (playlistId === 'favorites' || playlistId === 'local' || playlistId === 'recent') {
 			return 'protected'
 		}
 		const nowPlayLists = playListsStore.getValue() || []
+		if (!nowPlayLists.some((playlist) => playlist.id === playlistId)) return 'not-found' as const
 
 		// 检查播放列表是否已存在
 		const playlistFiltered = nowPlayLists.filter(
@@ -810,6 +904,9 @@ const play = async (
 		}
 		if (!musicItem) {
 			throw new Error(PlayFailReason.PLAY_LIST_IS_EMPTY)
+		}
+		if (!isCurrentMusic(musicItem)) {
+			clearFailedApis(getMusicFailureKey(musicItem))
 		}
 		setPlaybackIntent('play')
 
@@ -881,9 +978,6 @@ const play = async (
 		}) as IMusic.IMusicItem
 		logInfo('获取音源成功：', track)
 		setTrackSource(track)
-		if (musicItem && sourceUrl !== fakeAudioMp3Uri && !sourceUrl.includes('fake')) {
-			clearFailedApis(getMusicFailureKey(musicItem))
-		}
 		const appliedToken = nativeQueue.token
 
 		// 7. Fetch lyrics in background (non-blocking)
@@ -903,20 +997,20 @@ const play = async (
 			autoCacheLocalStore.getValue() &&
 			!sourceUrl.startsWith('file://')
 		) {
-			setTimeout(() => {
-				downloadToCache(track, playbackQuality ?? qualityStore.getValue())
-					.then((localUri) => {
-						logInfo('音乐已缓存到本地:', localUri)
-						const newTrack = {
-							...track,
-							url: localUri,
-							cachedQuality: playbackQuality ?? qualityStore.getValue(),
-						}
-						addImportedLocalMusic([newTrack], false)
-					})
-					.catch((error) => {
-						logError('缓存音乐时出错:', error)
-					})
+			setTimeout(async () => {
+				if (autoCacheWifiOnlyStore.getValue()) {
+					try {
+						const state = await Network.getNetworkStateAsync()
+						if (state.type !== Network.NetworkStateType.WIFI) return
+					} catch (error) {
+						logError('检查自动缓存网络状态失败:', error)
+						return
+					}
+				}
+				void cacheAndImportMusic(track, {
+					quality: playbackQuality ?? qualityStore.getValue(),
+					silent: true,
+				})
 			}, 5000)
 		}
 
@@ -939,7 +1033,7 @@ const play = async (
 			logInfo('移动网络')
 		} else if (message === PlayFailReason.INVALID_SOURCE) {
 			logError('音源为空，播放失败')
-			await failToPlay()
+			await failToPlay({ code: 'source', message })
 		} else if (message === PlayFailReason.PLAY_LIST_IS_EMPTY) {
 			// empty queue
 		} else {
@@ -951,36 +1045,84 @@ const play = async (
 		}
 	}
 }
-const cacheAndImportMusic = async (track: IMusic.IMusicItem) => {
-	try {
-		await ensureCacheDirExists()
-		const cachedQuality = playbackQualityStore.getValue() ?? qualityStore.getValue()
-		const localPath = getLocalFilePath(track, cachedQuality)
-		console.log('localPath:', localPath)
-		const fileUri = getCacheFileUri(localPath)
-		const isCacheExist = Paths.info(fileUri).exists
-		if (isCacheExist) {
-			setCachedQuality(localPath, cachedQuality)
-			logInfo('音乐已缓存到本地:', localPath)
-			const newTrack = { ...track, url: localPath, cachedQuality }
-			await addImportedLocalMusic([newTrack], false)
-		} else {
-			logInfo('开始下载音乐:', track.url)
-			await downloadFile(track.url, fileUri, (res) => {
-				const progress = res.bytesWritten / res.contentLength
-				logInfo(`下载进度: ${(progress * 100).toFixed(2)}%`)
-			})
-			setCachedQuality(localPath, cachedQuality)
-			logInfo('音乐已缓存到本地:', `${localPath}`)
-			const newTrack = { ...track, url: `${localPath}`, cachedQuality }
-			await addImportedLocalMusic([newTrack], false)
-		}
+const updateCacheDownloadTask = (task: CacheDownloadTask) => {
+	const tasks = cacheDownloadTasksStore.getValue() || []
+	cacheDownloadTasksStore.setValue(
+		[task, ...tasks.filter((item) => item.id !== task.id)].slice(0, 30),
+	)
+}
 
-		Alert.alert('成功', '音乐已缓存到本地', [{ text: '确定', onPress: () => {} }])
+const cacheAndImportMusic = async (
+	track: IMusic.IMusicItem,
+	options: { quality?: AudioQuality; silent?: boolean } = {},
+) => {
+	const cachedQuality =
+		options.quality ?? playbackQualityStore.getValue() ?? qualityStore.getValue()
+	const taskId = `${track.platform || 'unknown'}:${track.id}:${cachedQuality}`
+	const existingTask = cacheDownloadTasksStore
+		.getValue()
+		.find((task) => task.id === taskId && task.status === 'downloading')
+	if (existingTask) {
+		if (!options.silent) showToast(i18n.t('cacheCenter.alreadyDownloading'), undefined, 'info')
+		return
+	}
+	const task: CacheDownloadTask = {
+		id: taskId,
+		track,
+		quality: cachedQuality,
+		progress: 0,
+		status: 'downloading',
+	}
+	updateCacheDownloadTask(task)
+	try {
+		const localPath = await downloadToCache(
+			track,
+			cachedQuality,
+			(progress) => {
+				const currentTask = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
+				if (currentTask?.status !== 'cancelled') {
+					updateCacheDownloadTask({ ...task, progress, status: 'downloading' })
+				}
+			},
+			taskId,
+		)
+		await addImportedLocalMusic([{ ...track, url: localPath, cachedQuality }], false)
+		updateCacheDownloadTask({ ...task, progress: 1, status: 'completed' })
+		if (!options.silent) showToast(i18n.t('cacheCenter.downloaded'), track.title)
 	} catch (error) {
 		logError('缓存音乐时出错:', error)
-		// await addImportedLocalMusic([track], false)
+		const cancelled = cacheDownloadTasksStore
+			.getValue()
+			.some((item) => item.id === taskId && item.status === 'cancelled')
+		if (!cancelled) {
+			updateCacheDownloadTask({
+				...task,
+				status: 'failed',
+				error: error instanceof Error ? error.message : String(error),
+			})
+			if (!options.silent) showToast(i18n.t('cacheCenter.downloadFailed'), track.title, 'error')
+		}
 	}
+}
+
+const cancelCacheDownload = async (taskId: string) => {
+	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
+	if (!task || task.status !== 'downloading') return
+	await cancelDownload(taskId)
+	updateCacheDownloadTask({ ...task, status: 'cancelled' })
+}
+
+const clearCache = async () => {
+	const downloading = cacheDownloadTasksStore
+		.getValue()
+		.filter((task) => task.status === 'downloading')
+	await Promise.all(downloading.map((task) => cancelDownload(task.id)))
+	cacheDownloadTasksStore.setValue(
+		cacheDownloadTasksStore
+			.getValue()
+			.map((task) => (task.status === 'downloading' ? { ...task, status: 'cancelled' } : task)),
+	)
+	await clearCacheFiles()
 }
 
 /**
@@ -1209,16 +1351,13 @@ const toggleAutoCacheLocal = (bool: boolean) => {
 	PersistStatus.set('music.autoCacheLocal', bool)
 	autoCacheLocalStore.setValue(bool)
 }
+const toggleAutoCacheWifiOnly = (bool: boolean) => {
+	PersistStatus.set('music.autoCacheWifiOnly', bool)
+	autoCacheWifiOnlyStore.setValue(bool)
+}
 const toggleIsCachedIconVisible = (bool: boolean) => {
 	PersistStatus.set('music.isCachedIconVisible', bool)
 	isCachedIconVisibleStore.setValue(bool)
-}
-const showErrorMessage = (message: string) => {
-	// 只在应用在前台时显示 Alert
-	if (AppState.currentState === 'active') {
-		showToast('错误', message, 'error')
-		// Alert.alert('错误', message, [{ text: '确定', onPress: () => {} }])
-	}
 }
 const myTrackPlayer = {
 	setupTrackPlayer,
@@ -1235,6 +1374,7 @@ const myTrackPlayer = {
 	stop,
 	observeNativeTransport,
 	remove,
+	moveQueueTrack,
 	clear,
 	clearToBePlayed,
 	useCurrentMusic: currentMusicStore.useValue,
@@ -1252,6 +1392,7 @@ const myTrackPlayer = {
 	isCurrentProgressEvent,
 	changeQuality,
 	addPlayLists,
+	updateStoredPlaylist,
 	deletePlayLists,
 	getPlayListById,
 	addMusicApi,
@@ -1274,7 +1415,9 @@ const myTrackPlayer = {
 	getNextMusic,
 	clearCache,
 	toggleAutoCacheLocal,
+	toggleAutoCacheWifiOnly,
 	cacheAndImportMusic,
+	cancelCacheDownload,
 	isCached,
 	toggleIsCachedIconVisible,
 	reloadMusicApi,

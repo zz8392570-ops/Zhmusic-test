@@ -7,6 +7,7 @@ import i18n from '@/utils/i18n'
 import { useMemo } from 'react'
 import { Alert, FlatList, FlatListProps, Text, View } from 'react-native'
 import { Image } from 'expo-image'
+import * as ImagePicker from 'expo-image-picker'
 type PlaylistsListProps = {
 	playlists: Playlist[]
 	onPlaylistPress: (playlist: Playlist) => void
@@ -46,7 +47,7 @@ export const PlaylistsList = ({
 	)
 
 	const showDeleteAlert = (playlist: Playlist) => {
-		if (playlist.id === 'favorites' || playlist.id === 'local') return
+		if (playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent') return
 
 		Alert.alert(
 			i18n.t('library.deleteTitle'),
@@ -59,7 +60,21 @@ export const PlaylistsList = ({
 					onPress: async () => {
 						try {
 							const result = await myTrackPlayer.deletePlayLists(playlist.id)
-							if (result !== 'success') Alert.alert(i18n.t('library.deleteFailed'))
+							if (result !== 'success') {
+								Alert.alert(i18n.t('library.deleteFailed'))
+								return
+							}
+							Alert.alert(
+								i18n.t('library.deletedTitle'),
+								i18n.t('library.deletedMessage', { name: playlist.title || playlist.name }),
+								[
+									{ text: i18n.t('library.done'), style: 'cancel' },
+									{
+										text: i18n.t('library.undo'),
+										onPress: () => myTrackPlayer.addPlayLists(playlist as IMusic.PlayList),
+									},
+								],
+							)
 						} catch {
 							Alert.alert(i18n.t('library.deleteFailed'))
 						}
@@ -67,6 +82,44 @@ export const PlaylistsList = ({
 				},
 			],
 		)
+	}
+
+	const editPlaylist = (playlist: Playlist) => {
+		const rename = () => {
+			Alert.prompt(
+				i18n.t('library.renameTitle'),
+				i18n.t('library.renameMessage'),
+				(name) => {
+					const title = name?.trim()
+					if (title) myTrackPlayer.updateStoredPlaylist(playlist.id, { name: title, title })
+				},
+				'plain-text',
+				playlist.title || playlist.name,
+			)
+		}
+		const changeCover = async () => {
+			try {
+				const result = await ImagePicker.launchImageLibraryAsync({
+					mediaTypes: ['images'],
+					allowsEditing: true,
+					aspect: [1, 1],
+					quality: 0.85,
+				})
+				if (!result.canceled) {
+					myTrackPlayer.updateStoredPlaylist(playlist.id, {
+						artwork: result.assets[0].uri,
+						coverImg: result.assets[0].uri,
+					})
+				}
+			} catch {
+				Alert.alert(i18n.t('library.editFailed'))
+			}
+		}
+		Alert.alert(i18n.t('library.editTitle'), playlist.title || playlist.name, [
+			{ text: i18n.t('library.rename'), onPress: rename },
+			{ text: i18n.t('library.changeCover'), onPress: () => void changeCover() },
+			{ text: i18n.t('find.cancel'), style: 'cancel' },
+		])
 	}
 	return (
 		<FlatList
@@ -80,14 +133,19 @@ export const PlaylistsList = ({
 					playlist={playlist}
 					onPress={() => handlePlaylistPress(playlist)}
 					onLongPress={
-						playlist.id === 'favorites' || playlist.id === 'local'
+						playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent'
 							? undefined
 							: () => showDeleteAlert(playlist)
 					}
 					onDeletePress={
-						playlist.id === 'favorites' || playlist.id === 'local'
+						playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent'
 							? undefined
 							: () => showDeleteAlert(playlist)
+					}
+					onEditPress={
+						playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent'
+							? undefined
+							: () => editPlaylist(playlist)
 					}
 				/>
 			)}

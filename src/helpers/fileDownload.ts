@@ -4,13 +4,26 @@ import { logError } from './logger'
 
 type DownloadProgress = { bytesWritten: number; contentLength: number }
 let nextDownloadId = 0
+const activeDownloads = new Map<string, ReturnType<typeof createDownloadResumable>>()
+const pendingCancellations = new Set<string>()
+
+export async function cancelDownload(taskId: string): Promise<boolean> {
+	pendingCancellations.add(taskId)
+	const task = activeDownloads.get(taskId)
+	if (!task) return true
+	await task.cancelAsync()
+	return true
+}
 
 /** Download into an isolated file and commit only an actual HTTP 200 response. */
 export async function downloadFile(
 	url: string,
 	destinationUri: string,
 	onProgress?: (progress: DownloadProgress) => void,
+	taskId?: string,
 ): Promise<void> {
+	if (taskId && pendingCancellations.delete(taskId)) throw new Error('下载已取消')
+	if (taskId && activeDownloads.has(taskId)) throw new Error('下载任务已在进行中')
 	// Keep this string: File.move changes the source File object's URI to the destination.
 	const temporaryUri = new File(
 		Paths.cache,
@@ -26,12 +39,17 @@ export async function downloadFile(
 			}
 		},
 	)
+	if (taskId) {
+		activeDownloads.set(taskId, task)
+	}
 	try {
 		const result = await task.downloadAsync()
 		if (!result) throw new Error('下载已取消或未返回结果')
 		if (result.status !== 200) throw new Error(`下载失败，状态码: ${result.status}`)
 		await new File(temporaryUri).move(new File(destinationUri), { overwrite: true })
 	} finally {
+		if (taskId && activeDownloads.get(taskId) === task) activeDownloads.delete(taskId)
+		if (taskId) pendingCancellations.delete(taskId)
 		// downloadAsync leaves its progress subscription installed, including after success.
 		try {
 			await task.cancelAsync()

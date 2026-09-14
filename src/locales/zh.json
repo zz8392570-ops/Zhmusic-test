@@ -14,6 +14,8 @@
 			"checkUpdate": "检查更新",
 			"projectLink": "项目链接",
 			"clearCache": "清空缓存",
+			"manageCache": "管理下载与缓存",
+			"autoCacheWifiOnly": "仅 Wi-Fi 自动缓存",
 			"viewLogs": "查看日志",
 			"clearPlaylist": "清空待播清单",
 			"autoCacheLocal": "自动缓存播放歌曲",
@@ -39,6 +41,7 @@
 		"descriptions": {
 			"preciseSeeking": "改善部分 FLAC 快进后的音频与歌词不同步。开启后可能需要加载完整音频，播放前等待更久。切换歌曲后生效。",
 			"autoCacheLocal": "播放在线歌曲后自动保存，方便下次快速播放。",
+			"autoCacheWifiOnly": "避免自动缓存消耗移动数据；手动下载不受此开关影响。",
 			"isCachedIconVisible": "在歌曲列表中显示已缓存状态和对应格式。"
 		},
 		"actions": {
@@ -105,6 +108,58 @@
 			"empty": "还没有音源，导入或等待内嵌音源加载"
 		}
 	},
+	"cacheCenter": {
+		"title": "下载与缓存",
+		"summary": "已缓存 %{count} 首歌曲",
+		"tasks": "本次下载",
+		"cachedSongs": "已缓存歌曲",
+		"empty": "还没有缓存歌曲",
+		"downloading": "下载中 %{progress}%",
+		"downloaded": "已缓存到本地",
+		"downloadFailed": "缓存失败",
+		"alreadyDownloading": "这首歌正在下载",
+		"cancel": "取消",
+		"retry": "重试",
+		"deleteTitle": "删除缓存",
+		"deleteMessage": "确定删除“%{name}”的缓存文件吗？",
+		"status": {
+			"completed": "已完成",
+			"failed": "失败",
+			"cancelled": "已取消"
+		}
+	},
+	"queue": {
+		"title": "播放队列 · %{count}",
+		"empty": "队列里还没有歌曲",
+		"edit": "排序",
+		"done": "完成",
+		"save": "保存",
+		"clear": "清空",
+		"moveUp": "上移",
+		"moveDown": "下移",
+		"remove": "从队列移除",
+		"saveTitle": "保存为歌单",
+		"saveMessage": "给这个播放队列起个名字",
+		"savedFromQueue": "来自播放队列",
+		"saved": "队列已保存为歌单",
+		"saveFailed": "保存歌单失败",
+		"clearTitle": "清空待播歌曲",
+		"clearMessage": "保留当前歌曲，并移除其余待播歌曲？"
+	},
+	"playlistManager": {
+		"title": "管理歌单",
+		"create": "新建",
+		"import": "导入",
+		"createTitle": "创建空白歌单",
+		"importTitle": "从其他平台导入",
+		"chooseCover": "选择封面",
+		"namePlaceholder": "输入歌单名称",
+		"nameRequired": "请输入歌单名称",
+		"createButton": "创建歌单",
+		"importButton": "导入歌单",
+		"createFailed": "创建失败，请重试",
+		"imported": "已导入歌单：%{name}"
+	},
 	"logScreen": {
 		"title": "应用日志",
 		"actions": {
@@ -125,7 +180,8 @@
 		"radio": "榜单",
 		"favorites": "我的",
 		"favoritesSongs": "喜欢的歌曲",
-		"localOrCachedSongs": "本地/缓存的歌曲"
+		"localOrCachedSongs": "本地/缓存的歌曲",
+		"recentlyPlayed": "最近播放"
 	},
 	"library": {
 		"songCount": "%{count} 首歌曲",
@@ -135,12 +191,25 @@
 		"deleteTitle": "删除歌单",
 		"deleteMessage": "确定要删除“%{name}”吗？此操作不会删除歌曲缓存。",
 		"delete": "删除",
-		"deleteFailed": "删除歌单失败，请稍后重试"
+		"deleteFailed": "删除歌单失败，请稍后重试",
+		"editTitle": "编辑歌单",
+		"rename": "重命名",
+		"renameTitle": "重命名歌单",
+		"renameMessage": "输入新的歌单名称",
+		"changeCover": "更换封面",
+		"editFailed": "歌单修改失败，请稍后重试",
+		"deletedTitle": "歌单已删除",
+		"deletedMessage": "已删除“%{name}”，需要撤销吗？",
+		"undo": "撤销",
+		"done": "完成",
+		"filters": { "all": "全部", "offline": "离线" },
+		"sort": { "recent": "最近", "title": "歌名", "artist": "歌手" }
 	},
 	"localMusic": {
 		"notice": "提示",
 		"unknownAlbum": "未知专辑",
 		"preparingImport": "正在准备导入…",
+		"preparingExport": "正在准备导出…",
 		"importing": "正在导入 %{current}/%{total}",
 		"importLimit": "一次最多导入 50 首歌曲",
 		"nothingNewTitle": "没有新歌曲",
@@ -154,20 +223,38 @@
 		"delete": "删除",
 		"selectBeforeExport": "请先选择要导出的歌曲",
 		"fileLocation": "文件位于 CyMusic/importedLocalMusic 文件夹",
-		"exportFailed": "导出失败，请稍后重试"
+		"exportUnavailableTitle": "部分文件不可用",
+		"exportUnavailableMessage": "有 %{count} 个文件已被移动或删除，请重新导入后再试。",
+		"exportFailed": "导出失败，请稍后重试",
+		"filters": { "all": "全部", "imported": "导入", "cached": "缓存" }
 	},
 	"home": {
 		"title": "首页",
 		"selectBoard": "切换榜单",
-		"loadFailed": "榜单加载失败"
+		"loadFailed": "榜单加载失败",
+		"retry": "重新加载",
+		"refreshFailed": "刷新失败，点此重试"
+	},
+	"startup": {
+		"preparing": "正在准备播放器…",
+		"failedTitle": "播放器启动失败",
+		"failedMessage": "可能是音频服务暂时异常。你可以重试，无需退出应用。",
+		"retry": "重新启动"
 	},
 	"addToPlaylist": {
-		"title": "导入歌单",
+		"title": "添加到歌单",
 		"placeholder": "粘贴 QQ、酷我、酷狗、网易云或咪咕歌单链接",
 		"import": "导入",
 		"hint": "支持各平台歌单链接，也可以先选平台再粘贴歌单 ID",
 		"invalidLink": "无法识别链接，请换一个平台或补全链接",
-		"failed": "导入失败，请检查链接是否正确"
+		"failed": "导入失败，请检查链接是否正确",
+		"createTitle": "新建歌单",
+		"createMessage": "输入歌单名称，这首歌会直接加入其中",
+		"createdLocally": "本地创建",
+		"createdAndAdded": "已创建歌单并加入歌曲",
+		"added": "已加入歌单",
+		"duplicate": "歌曲已在这个歌单中",
+		"addFailed": "加入歌单失败"
 	},
 	"find": {
 		"inRadio": "在广播中搜索",
@@ -188,6 +275,13 @@
 		"platformWy": "网易云",
 		"platformMg": "咪咕",
 		"partialResults": "%{platforms} 暂时不可用，已显示其他平台结果",
+		"qqOnlyNotice": "歌手与歌单结果目前由 QQ 音乐提供；歌曲搜索支持全平台。",
+		"filters": {
+			"all": "全部",
+			"lossless": "无损",
+			"cached": "已缓存",
+			"multiSource": "多音源"
+		},
 		"history": "最近搜索",
 		"clear": "清空",
 		"clearHistory": "清空搜索历史",
@@ -269,6 +363,30 @@
 		"cancelTimer": "取消定时关闭",
 		"timerCancelled": "已取消定时关闭",
 		"timerFailed": "定时关闭设置失败，请重试",
+		"sourceSwitch": {
+			"title": "已自动切换音源",
+			"songMessage": "《%{song}》使用“%{from}”播放失败。\n\n原因：%{reason}\n已切换至“%{to}”继续播放。",
+			"generalMessage": "“%{from}”当前不可用。\n\n原因：%{reason}\n已自动切换至“%{to}”。",
+			"confirm": "知道了",
+			"allFailedTitle": "暂时无法播放",
+			"allFailedSkipMessage": "《%{song}》已尝试 %{count} 个可用音源，仍无法播放，将继续播放下一首。",
+			"allFailedStopMessage": "《%{song}》已尝试 %{count} 个可用音源，仍无法播放。为避免反复换源，已停止自动重试。",
+			"allFailedMessage": "《%{song}》已尝试 %{count} 个可用音源，仍无法播放。你可以重试、检查音源，或播放下一首。",
+			"retrySong": "重试本曲",
+			"sourceSettings": "音源设置",
+			"nextSong": "下一首",
+			"stop": "停止",
+			"reasons": {
+				"timeout": "请求音源超时",
+				"noPlayableUrl": "该音源没有返回这首歌的可播放链接",
+				"requestFailed": "获取播放链接失败",
+				"network": "网络连接异常或播放链接已失效",
+				"source": "播放链接无效、受限或已失效",
+				"renderer": "当前音频格式或解码方式不受支持",
+				"healthCheckFailed": "后台检测发现当前音源已失效",
+				"unknown": "该音源返回的链接无法正常播放"
+			}
+		},
 		"repeatMode": {
 			"title": "播放模式",
 			"shuffle": "随机播放",

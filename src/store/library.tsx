@@ -42,11 +42,13 @@ interface LibraryState {
 	nowLyric: string
 	playlists: Playlist[]
 	isLoading: boolean
+	isRefreshing: boolean
+	error: string | null
 	toggleTrackFavorite: (track: Track) => void
 	addToPlaylist: (track: Track, playlistName: string) => void
 	fetchTracks: (refresh?: boolean, homeBoardId?: string | number) => Promise<void>
 	setNowLyric: (lyric: string) => void
-	setPlayList: (newPlayList?: Playlist[]) => void
+	setPlayList: () => void
 	page: number
 	hasMore: boolean
 	// getMusicIndex: (musicItem?: IMusic.IMusicItem | null) => number
@@ -60,6 +62,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 	allTracks: [],
 	tracks: [],
 	isLoading: false,
+	isRefreshing: false,
+	error: null,
 	page: 1,
 	hasMore: true,
 	favorites: PersistStatus.get('music.favorites') || [],
@@ -110,7 +114,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 				// 只在刷新或首次加载时请求数据
 				set({
 					isLoading: true,
-					...(refresh ? { allTracks: [], tracks: [], page: 1, hasMore: true } : {}),
+					isRefreshing: refresh,
+					error: null,
+					...(refresh ? { page: 1, hasMore: true } : {}),
 				})
 				const source = normalizeLeaderboardSource(
 					PersistStatus.get('music.homeBoardSource') ?? DEFAULT_HOME_SOURCE,
@@ -140,18 +146,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 				page: currentPage + 1,
 				hasMore: end < get().allTracks.length,
 				isLoading: false,
+				isRefreshing: false,
+				error: null,
 			}))
 		} catch (error) {
 			console.error('Failed to fetch tracks:', error)
 			if (requestId === homeBoardRequestId) {
-				set({ isLoading: false })
+				set({ isLoading: false, isRefreshing: false, error: 'load-failed' })
 			}
 		}
 	},
 	setNowLyric: (nowLyric: string) => {
 		set({ nowLyric: nowLyric })
 	},
-	setPlayList: async (newPlayList?) => {
+	setPlayList: async () => {
 		try {
 			const playlists = await getTopLists()
 			const combinedData = playlists.flatMap((group) =>
@@ -270,3 +278,7 @@ export const usePlaylists = () => {
 export const useTracksLoading = () => {
 	return useLibraryStore((state) => state.isLoading)
 }
+
+export const useTracksRefreshing = () => useLibraryStore((state) => state.isRefreshing)
+
+export const useTracksError = () => useLibraryStore((state) => state.error)

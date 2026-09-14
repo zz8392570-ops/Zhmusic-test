@@ -12,7 +12,7 @@ export function compareVer(currentVer: string, targetVer: string): -1 | 0 | 1 {
 
   const currentVerArr: Array<string | number> = ('' + currentVer).replace(/[^0-9.]/g, fix).split('.')
   const targetVerArr: Array<string | number> = ('' + targetVer).replace(/[^0-9.]/g, fix).split('.')
-  let c = Math.max(currentVerArr.length, targetVerArr.length)
+  const c = Math.max(currentVerArr.length, targetVerArr.length)
   for (let i = 0; i < c; i++) {
     // convert to integer the most efficient way
     currentVerArr[i] = ~~currentVerArr[i]
@@ -126,15 +126,14 @@ export const toOldMusicInfo = (minfo: LX.Music.MusicInfo): any => {
 export const fixNewMusicInfoQuality = (musicInfo: LX.Music.MusicInfo) => {
   if (musicInfo.source == 'local') return musicInfo
 
-  // @ts-expect-error
+  // @ts-expect-error -- legacy data may contain the removed flac32bit key
   if (musicInfo.meta._qualitys.flac32bit && !musicInfo.meta._qualitys.flac24bit) {
-    // @ts-expect-error
+    // @ts-expect-error -- migrate the legacy quality into the supported key
     musicInfo.meta._qualitys.flac24bit = musicInfo.meta._qualitys.flac32bit
-    // @ts-expect-error
+    // @ts-expect-error -- remove the unsupported legacy key after migration
     delete musicInfo.meta._qualitys.flac32bit
 
     musicInfo.meta.qualitys = musicInfo.meta.qualitys.map(quality => {
-      // @ts-expect-error
       if (quality.type == 'flac32bit') quality.type = 'flac24bit'
       return quality
     })
@@ -169,7 +168,7 @@ export const deduplicationList = <T extends LX.Music.MusicInfo>(list: T[]): T[] 
  * 时间格式化
  */
 export const dateFormat2 = (time: number): string => {
-  let differ = Math.trunc((Date.now() - time) / 1000)
+  const differ = Math.trunc((Date.now() - time) / 1000)
   if (differ < 60) {
     return global.i18n.t('date_format_second', { num: differ })
   } else if (differ < 3600) {

@@ -11,8 +11,8 @@ import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { Redirect, useLocalSearchParams } from 'expo-router'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import type { Track } from '@/player/types'
 
 const RadioListScreen = () => {
@@ -24,8 +24,13 @@ const RadioListScreen = () => {
 	const [tracks, setTracks] = useState<Track[]>([])
 	const [loading, setLoading] = useState(true)
 	const [failed, setFailed] = useState(false)
+	const requestRef = useRef(0)
+	const cancelRequest = useCallback(() => {
+		requestRef.current += 1
+	}, [])
 
 	const loadBoard = useCallback(async () => {
+		const requestId = ++requestRef.current
 		if (!parsedBoard) {
 			setLoading(false)
 			setFailed(false)
@@ -35,25 +40,26 @@ const RadioListScreen = () => {
 		setFailed(false)
 		try {
 			const detail = await getBoardSongs(parsedBoard.source, parsedBoard.bangid, 1)
+			if (requestId !== requestRef.current) return
 			setTracks((detail.list ?? []).map((track) => mapLeaderboardTrack(track, parsedBoard.source)))
 		} catch (error) {
 			console.error('Failed to fetch leaderboard:', error)
-			setTracks([])
 			setFailed(true)
 		} finally {
-			setLoading(false)
+			if (requestId === requestRef.current) setLoading(false)
 		}
 	}, [parsedBoard])
 
 	useEffect(() => {
-		loadBoard()
-	}, [loadBoard])
+		void loadBoard()
+		return cancelRequest
+	}, [cancelRequest, loadBoard])
 
 	if (!parsedBoard) {
 		return <Redirect href={'/(tabs)/radio'} />
 	}
 
-	if (loading) {
+	if (loading && !tracks.length) {
 		return (
 			<View
 				style={{
@@ -68,7 +74,7 @@ const RadioListScreen = () => {
 		)
 	}
 
-	if (failed) {
+	if (failed && !tracks.length) {
 		return (
 			<View
 				style={[
@@ -79,7 +85,7 @@ const RadioListScreen = () => {
 				<Text style={{ color: colors.textMuted, fontSize: 16, marginBottom: 12 }}>
 					{i18n.t('home.loadFailed')}
 				</Text>
-				<Pressable onPress={loadBoard}>
+				<Pressable accessibilityRole="button" onPress={loadBoard}>
 					<Text style={{ color: colors.primary, fontSize: 15, fontWeight: '600' }}>
 						{i18n.t('find.tapToRetry')}
 					</Text>
@@ -109,7 +115,24 @@ const RadioListScreen = () => {
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
 				style={{ paddingHorizontal: screenPadding.horizontal }}
+				refreshControl={
+					<RefreshControl refreshing={loading} onRefresh={loadBoard} tintColor={colors.primary} />
+				}
 			>
+				{failed ? (
+					<Pressable accessibilityRole="button" onPress={loadBoard}>
+						<Text
+							style={{
+								color: colors.primary,
+								fontSize: 13,
+								paddingVertical: 10,
+								textAlign: 'center',
+							}}
+						>
+							{i18n.t('home.refreshFailed')}
+						</Text>
+					</Pressable>
+				) : null}
 				<PlaylistTracksList playlist={playlist} tracks={tracks} />
 			</ScrollView>
 		</View>

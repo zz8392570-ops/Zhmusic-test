@@ -4,6 +4,7 @@ import { ThemeColors } from '@/constants/tokens'
 import { logError, logInfo } from '@/helpers/logger'
 import myTrackPlayer, {
 	autoCacheLocalStore,
+	autoCacheWifiOnlyStore,
 	isCachedIconVisibleStore,
 	musicApiSelectedStore,
 	musicApiStore,
@@ -399,6 +400,7 @@ const SettingModal = () => {
 	const [isLoading, setIsLoading] = useState(false)
 	const language = nowLanguage.useValue()
 	const autoCacheLocal = autoCacheLocalStore.useValue()
+	const autoCacheWifiOnly = autoCacheWifiOnlyStore.useValue()
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const songsNumsToLoad = songsNumsToLoadStore.useValue()
 	const homeBoardSource = normalizeLeaderboardSource(
@@ -466,6 +468,7 @@ const SettingModal = () => {
 		{
 			title: i18n.t('settings.sections.downloadsCache'),
 			data: [
+				{ id: 'cache-manager', title: i18n.t('settings.items.manageCache'), type: 'link' },
 				{
 					id: '14',
 					title: i18n.t('settings.items.autoCacheLocal'),
@@ -473,6 +476,14 @@ const SettingModal = () => {
 					type: 'switch',
 					value: autoCacheLocal === true,
 					onValueChange: myTrackPlayer.toggleAutoCacheLocal,
+				},
+				{
+					id: 'auto-cache-wifi',
+					title: i18n.t('settings.items.autoCacheWifiOnly'),
+					description: i18n.t('settings.descriptions.autoCacheWifiOnly'),
+					type: 'switch',
+					value: autoCacheWifiOnly === true,
+					onValueChange: myTrackPlayer.toggleAutoCacheWifiOnly,
 				},
 				{
 					id: '16',
@@ -757,6 +768,9 @@ const SettingModal = () => {
 					key={item.id}
 					style={itemStyle}
 					onPress={() => {
+						if (item.id === 'cache-manager') {
+							router.push('/(modals)/cacheManager')
+						}
 						if (item.id === '13') {
 							router.push('/(modals)/logScreen')
 						}

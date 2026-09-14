@@ -3,15 +3,26 @@ import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors, screenPadding } from '@/constants/tokens'
 import { logError, logInfo } from '@/helpers/logger'
+import { resolveLocalFile } from '@/helpers/localFile'
 import myTrackPlayer, { importedLocalMusicStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import MusicInfo from '@/utils/musicInfo'
+import { shareLocalFiles } from '../../../../modules/cymusic-native/sharing'
 import * as DocumentPicker from 'expo-document-picker'
 import React, { useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+	ActivityIndicator,
+	Alert,
+	Image,
+	Pressable,
+	ScrollView,
+	StyleSheet,
+	Text,
+	View,
+} from 'react-native'
 import type { Track } from '@/player/types'
 
 type ImportProgress = {
@@ -23,8 +34,10 @@ const LocalMusicScreen = () => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors), [colors])
-	const localTracks = importedLocalMusicStore.useValue() || []
+	const localTracksValue = importedLocalMusicStore.useValue()
+	const localTracks = useMemo(() => localTracksValue || [], [localTracksValue])
 	const [isLoading, setIsLoading] = useState(false)
+	const [loadingOperation, setLoadingOperation] = useState<'import' | 'export' | null>(null)
 	const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
 	const playListItem = {
 		name: 'Local',
@@ -36,6 +49,18 @@ const LocalMusicScreen = () => {
 	}
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 	const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set())
+	const [filter, setFilter] = useState<'all' | 'imported' | 'cached'>('all')
+	const [sort, setSort] = useState<'recent' | 'title' | 'artist'>('recent')
+	const visibleTracks = useMemo(() => {
+		const filtered = localTracks.filter((track) => {
+			const cached = String(track.url || '').includes('/musicCache/')
+			return filter === 'all' || (filter === 'cached' ? cached : !cached)
+		})
+		if (sort === 'recent') return filtered
+		return [...filtered].sort((a, b) =>
+			String(a[sort] || '').localeCompare(String(b[sort] || ''), i18n.locale),
+		)
+	}, [filter, localTracks, sort])
 
 	const toggleMultiSelectMode = () => {
 		setIsMultiSelectMode(!isMultiSelectMode)
@@ -68,12 +93,12 @@ const LocalMusicScreen = () => {
 			// 如果 localTracks 未定义或不是数组，直接返回
 			return
 		}
-		if (selectedTracks.size === localTracks.length) {
+		if (selectedTracks.size === visibleTracks.length) {
 			// 如果当前所有曲目都被选中，则取消全选
 			setSelectedTracks(new Set())
 		} else {
 			// 否则，选择所有曲目
-			const allTrackIds = new Set(localTracks.map((track) => track.id))
+			const allTrackIds = new Set(visibleTracks.map((track) => track.id))
 			setSelectedTracks(allTrackIds)
 		}
 	}
@@ -95,15 +120,41 @@ const LocalMusicScreen = () => {
 			return
 		}
 		try {
-			Alert.alert(i18n.t('localMusic.fileLocation'))
+			setIsLoading(true)
+			setLoadingOperation('export')
+			const selected = localTracks.filter((track) => selectedTracks.has(track.id))
+			const resolvedFiles = await Promise.all(
+				selected.map((track) => resolveLocalFile(track.url, { requireOwnedMedia: true })),
+			)
+			const filePaths = resolvedFiles.flatMap((result) =>
+				result.status === 'resolved' ? [result.filePath] : [],
+			)
+			if (filePaths.length !== selected.length) {
+				Alert.alert(
+					i18n.t('localMusic.exportUnavailableTitle'),
+					i18n.t('localMusic.exportUnavailableMessage', {
+						count: selected.length - filePaths.length,
+					}),
+				)
+				return
+			}
+			const completed = await shareLocalFiles(filePaths)
+			if (completed) {
+				setSelectedTracks(new Set())
+				setIsMultiSelectMode(false)
+			}
 		} catch (error) {
-			console.error('导出过程中出错:', error)
+			logError('导出本地音乐时出错:', error)
 			Alert.alert(i18n.t('localMusic.exportFailed'))
+		} finally {
+			setIsLoading(false)
+			setLoadingOperation(null)
 		}
 	}
 	const importLocalMusic = async () => {
 		try {
 			setIsLoading(true)
+			setLoadingOperation('import')
 			const result = await DocumentPicker.getDocumentAsync({
 				type: 'audio/*',
 				multiple: true,
@@ -180,6 +231,7 @@ const LocalMusicScreen = () => {
 		} finally {
 			setImportProgress(null)
 			setIsLoading(false)
+			setLoadingOperation(null)
 		}
 	}
 
@@ -216,14 +268,24 @@ const LocalMusicScreen = () => {
 										max: importProgress.total,
 										text: i18n.t('localMusic.importing', importProgress),
 									}
-								: { text: i18n.t('localMusic.preparingImport') }
+								: {
+										text: i18n.t(
+											loadingOperation === 'export'
+												? 'localMusic.preparingExport'
+												: 'localMusic.preparingImport',
+										),
+									}
 						}
 					>
 						<ActivityIndicator size="large" color={colors.loading} />
 						<Text style={styles.loadingText}>
 							{importProgress
 								? i18n.t('localMusic.importing', importProgress)
-								: i18n.t('localMusic.preparingImport')}
+								: i18n.t(
+										loadingOperation === 'export'
+											? 'localMusic.preparingExport'
+											: 'localMusic.preparingImport',
+									)}
 						</Text>
 						{importProgress ? (
 							<View style={styles.progressTrack}>
@@ -245,9 +307,41 @@ const LocalMusicScreen = () => {
 				contentInsetAdjustmentBehavior="automatic"
 				style={{ paddingHorizontal: screenPadding.horizontal }}
 			>
+				<View style={styles.libraryControls}>
+					{(['all', 'imported', 'cached'] as const).map((item) => (
+						<Pressable
+							key={item}
+							accessibilityRole="button"
+							accessibilityState={{ selected: filter === item }}
+							onPress={() => {
+								setFilter(item)
+								setSelectedTracks(new Set())
+							}}
+							style={[styles.chip, filter === item && styles.activeChip]}
+						>
+							<Text style={[styles.chipText, filter === item && styles.activeChipText]}>
+								{i18n.t(`localMusic.filters.${item}`)}
+							</Text>
+						</Pressable>
+					))}
+					<View style={{ flex: 1 }} />
+					{(['recent', 'title', 'artist'] as const).map((item) => (
+						<Pressable
+							key={item}
+							accessibilityRole="button"
+							accessibilityState={{ selected: sort === item }}
+							onPress={() => setSort(item)}
+							style={[styles.chip, sort === item && styles.activeChip]}
+						>
+							<Text style={[styles.chipText, sort === item && styles.activeChipText]}>
+								{i18n.t(`library.sort.${item}`)}
+							</Text>
+						</Pressable>
+					))}
+				</View>
 				<PlaylistTracksList
 					playlist={playListItem as Playlist}
-					tracks={localTracks as Track[]}
+					tracks={visibleTracks as Track[]}
 					showImportMenu={true}
 					onImportTrack={importLocalMusic}
 					allowDelete={true}
@@ -303,6 +397,23 @@ const createStyles = (colors: ThemeColors) =>
 			borderRadius: 2,
 			backgroundColor: colors.loading,
 		},
+		libraryControls: {
+			alignItems: 'center',
+			flexDirection: 'row',
+			flexWrap: 'wrap',
+			gap: 6,
+			marginBottom: 8,
+			paddingTop: 8,
+		},
+		chip: {
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 13,
+			paddingHorizontal: 8,
+			paddingVertical: 6,
+		},
+		activeChip: { backgroundColor: colors.primary },
+		chipText: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+		activeChipText: { color: '#fff' },
 		header: {
 			flexDirection: 'row',
 			justifyContent: 'space-between',

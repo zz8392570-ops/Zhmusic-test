@@ -35,7 +35,8 @@ let initialization: Promise<void> | undefined
 
 const initializePlayer = () => {
 	if (!initialization) {
-		initialization = Promise.resolve().then(setupPlayer)
+		initialization = Promise.resolve()
+			.then(setupPlayer)
 			.then(() => myTrackPlayer.setupTrackPlayer())
 			.catch((error) => {
 				initialization = undefined
@@ -45,7 +46,15 @@ const initializePlayer = () => {
 	return initialization
 }
 
-export const useSetupTrackPlayer = ({ onLoad }: { onLoad?: () => void }) => {
+export const useSetupTrackPlayer = ({
+	onLoad,
+	onError,
+	retryKey = 0,
+}: {
+	onLoad?: () => void
+	onError?: (error: unknown) => void
+	retryKey?: number
+}) => {
 	useEffect(() => {
 		let mounted = true
 
@@ -55,10 +64,11 @@ export const useSetupTrackPlayer = ({ onLoad }: { onLoad?: () => void }) => {
 			})
 			.catch((error) => {
 				console.error(error)
+				if (mounted) onError?.(error)
 			})
 
 		return () => {
 			mounted = false
 		}
-	}, [onLoad])
+	}, [onError, onLoad, retryKey])
 }

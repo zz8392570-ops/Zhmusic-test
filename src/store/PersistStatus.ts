@@ -32,7 +32,9 @@ interface IPersistConfig {
 	'music.selectedMusicApi': IMusic.MusicApi
 	//已导入的本地音乐
 	'music.importedLocalMusic': IMusic.IMusicItem[]
+	'music.recentlyPlayed': IMusic.IMusicItem[]
 	'music.autoCacheLocal': boolean
+	'music.autoCacheWifiOnly': boolean
 	'app.language': string
 	'app.themeMode': 'system' | 'light' | 'dark'
 	'music.isCachedIconVisible': boolean

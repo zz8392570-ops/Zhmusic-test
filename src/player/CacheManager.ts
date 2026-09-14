@@ -118,14 +118,28 @@ export const isCached = async (musicItem: IMusic.IMusicItem): Promise<boolean> =
 export const downloadToCache = async (
 	musicItem: IMusic.IMusicItem,
 	quality: AudioQuality = qualityStore.getValue(),
+	onProgress?: (progress: number) => void,
+	taskId?: string,
 ): Promise<string> => {
 	try {
 		await ensureCacheDirExists()
 		const localPath = getLocalFilePath(musicItem, quality)
-		await downloadFile(musicItem.url, getCacheFileUri(localPath), (res) => {
-			const progress = res.bytesWritten / res.contentLength
-			logInfo(`下载进度: ${(progress * 100).toFixed(2)}%`)
-		})
+		const existing = await FileSystem.getInfoAsync(getCacheFileUri(localPath))
+		if (existing.exists) {
+			setCachedQuality(localPath, quality)
+			onProgress?.(1)
+			return localPath
+		}
+		await downloadFile(
+			musicItem.url,
+			getCacheFileUri(localPath),
+			(res) => {
+				const progress = res.bytesWritten / res.contentLength
+				onProgress?.(progress)
+				logInfo(`下载进度: ${(progress * 100).toFixed(2)}%`)
+			},
+			taskId,
+		)
 		setCachedQuality(localPath, quality)
 		logInfo('音频文件已缓存到本地:', localPath)
 		return localPath
@@ -135,16 +149,27 @@ export const downloadToCache = async (
 	}
 }
 
+export const getCacheSize = async () => {
+	const dirInfo = await FileSystem.getInfoAsync(cacheDir)
+	if (!dirInfo.exists) return 0
+	const entries = await FileSystem.readDirectoryAsync(cacheDir)
+	const files = await Promise.all(
+		entries.map((entry) => FileSystem.getInfoAsync(`${cacheDir}${encodeURIComponent(entry)}`)),
+	)
+	return files.reduce(
+		(total, info) => total + (info.exists && !info.isDirectory ? info.size ?? 0 : 0),
+		0,
+	)
+}
+
 export const clearCache = async () => {
 	const dirInfo = await FileSystem.getInfoAsync(cacheDir)
 	if (dirInfo.exists) {
 		await FileSystem.deleteAsync(cacheDir, { idempotent: true })
 		const importedLocalMusic = importedLocalMusicStore.getValue() || []
-		const updatedImportedLocalMusic = importedLocalMusic.filter((item: IMusic.IMusicItem) => {
-			const url = item.url || ''
-			const normalizedUrl = url.replace(/^file:\/\//, '')
-			return !normalizedUrl.startsWith(cacheDir)
-		})
+		const updatedImportedLocalMusic = importedLocalMusic.filter(
+			(item: IMusic.IMusicItem) => !String(item.url || '').includes('/musicCache/'),
+		)
 		importedLocalMusicStore.setValue(updatedImportedLocalMusic)
 		PersistStatus.set('music.importedLocalMusic', updatedImportedLocalMusic)
 		logInfo('缓存已清理')

@@ -38,6 +38,7 @@ const ImportPlayList = () => {
 	const [customName, setCustomName] = useState('')
 	const [coverImage, setCoverImage] = useState(null)
 	const [importSource, setImportSource] = useState<MusicPlatform>('tx')
+	const [mode, setMode] = useState<'create' | 'import'>('create')
 
 	const nameInputRef = useRef(null)
 	const urlInputRef = useRef(null)
@@ -60,7 +61,7 @@ const ImportPlayList = () => {
 
 	const handleCreatePlaylist = async () => {
 		if (!customName.trim()) {
-			setError('请输入歌单名称')
+			setError(i18n.t('playlistManager.nameRequired'))
 			return
 		}
 		setIsLoading(true)
@@ -77,10 +78,11 @@ const ImportPlayList = () => {
 				artwork: coverImage || unknownTrackImageUri,
 				tracks: [],
 			}
-			await myTrackPlayer.addPlayLists(newPlaylist as IMusic.PlayList)
+			const result = await myTrackPlayer.addPlayLists(newPlaylist as IMusic.PlayList)
+			if (result !== 'success') throw new Error(result)
 			router.dismiss()
 		} catch (err) {
-			setError('创建失败，请重试')
+			setError(i18n.t('playlistManager.createFailed'))
 			logError('创建错误:', err)
 		} finally {
 			setIsLoading(false)
@@ -101,7 +103,9 @@ const ImportPlayList = () => {
 			const playlist = await importPlaylistByLink(playlistUrl, importSource)
 			if (!playlist?.songs?.length) throw new Error('empty playlist')
 			setPlaylistData(playlist)
-			myTrackPlayer.addPlayLists(playlist)
+			const result = myTrackPlayer.addPlayLists(playlist)
+			if (result === 'duplicate') throw new Error('duplicate playlist')
+			if (result !== 'success') throw new Error('save playlist failed')
 			router.dismiss()
 		} catch (err) {
 			const message = err instanceof Error ? err.message : ''
@@ -134,119 +138,145 @@ const ImportPlayList = () => {
 					contentContainerStyle={{ flexGrow: 1 }}
 					keyboardShouldPersistTaps="handled"
 				>
-					<Text style={styles.header}>导入/创建歌单</Text>
+					<Text style={styles.header}>{i18n.t('playlistManager.title')}</Text>
+					<View style={styles.modeTabs}>
+						{(['create', 'import'] as const).map((item) => (
+							<TouchableOpacity
+								key={item}
+								accessibilityRole="tab"
+								accessibilityState={{ selected: mode === item }}
+								onPress={() => {
+									setMode(item)
+									setError(null)
+								}}
+								style={[styles.modeTab, mode === item && styles.modeTabActive]}
+							>
+								<Text style={[styles.modeTabText, mode === item && styles.modeTabTextActive]}>
+									{i18n.t(`playlistManager.${item}`)}
+								</Text>
+							</TouchableOpacity>
+						))}
+					</View>
 
-					<View style={styles.section}>
-						<Text style={styles.sectionTitle}>创建新歌单</Text>
-						<View style={styles.createPlaylistCard}>
-							<View style={styles.createPlaylistContainer}>
-								<View style={styles.coverContainer}>
-									<TouchableOpacity onPress={pickImage} style={styles.coverPicker}>
-										{coverImage ? (
-											<Image source={{ uri: coverImage }} style={styles.coverImage} />
-										) : (
-											<View style={styles.coverPlaceholder}>
-												<Ionicons name="image-outline" size={24} color={colors.primary} />
-												<Text style={styles.coverText}>选择封面</Text>
-											</View>
-										)}
-									</TouchableOpacity>
-								</View>
+					{mode === 'create' ? (
+						<View style={styles.section}>
+							<Text style={styles.sectionTitle}>{i18n.t('playlistManager.createTitle')}</Text>
+							<View style={styles.createPlaylistCard}>
+								<View style={styles.createPlaylistContainer}>
+									<View style={styles.coverContainer}>
+										<TouchableOpacity onPress={pickImage} style={styles.coverPicker}>
+											{coverImage ? (
+												<Image source={{ uri: coverImage }} style={styles.coverImage} />
+											) : (
+												<View style={styles.coverPlaceholder}>
+													<Ionicons name="image-outline" size={24} color={colors.primary} />
+													<Text style={styles.coverText}>
+														{i18n.t('playlistManager.chooseCover')}
+													</Text>
+												</View>
+											)}
+										</TouchableOpacity>
+									</View>
 
-								<View style={styles.playlistInfoContainer}>
-									<View style={[styles.inputContainer, { marginBottom: 0 }]}>
-										<TextInput
-											ref={nameInputRef}
-											style={styles.input}
-											value={customName}
-											onChangeText={setCustomName}
-											placeholder="输入歌单名称"
-											placeholderTextColor={colors.placeholder}
-											autoCapitalize="none"
-											autoCorrect={false}
-											keyboardType="default"
-											returnKeyType="done"
-											blurOnSubmit={true}
-											onSubmitEditing={() => nameInputRef.current?.blur()}
-											enablesReturnKeyAutomatically={true}
-											clearButtonMode="while-editing"
-										/>
+									<View style={styles.playlistInfoContainer}>
+										<View style={[styles.inputContainer, { marginBottom: 0 }]}>
+											<TextInput
+												ref={nameInputRef}
+												style={styles.input}
+												value={customName}
+												onChangeText={setCustomName}
+												placeholder={i18n.t('playlistManager.namePlaceholder')}
+												placeholderTextColor={colors.placeholder}
+												autoCapitalize="none"
+												autoCorrect={false}
+												keyboardType="default"
+												returnKeyType="done"
+												blurOnSubmit={true}
+												onSubmitEditing={() => nameInputRef.current?.blur()}
+												enablesReturnKeyAutomatically={true}
+												clearButtonMode="while-editing"
+											/>
+										</View>
 									</View>
 								</View>
+
+								<TouchableOpacity
+									onPress={handleCreatePlaylist}
+									activeOpacity={0.8}
+									style={styles.button}
+									disabled={isLoading}
+								>
+									{isLoading ? (
+										<ActivityIndicator color={colors.loading} />
+									) : (
+										<>
+											<Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+											<Text style={styles.buttonText}>
+												{i18n.t('playlistManager.createButton')}
+											</Text>
+										</>
+									)}
+								</TouchableOpacity>
 							</View>
-
-							<TouchableOpacity
-								onPress={handleCreatePlaylist}
-								activeOpacity={0.8}
-								style={styles.button}
-								disabled={isLoading}
-							>
-								{isLoading ? (
-									<ActivityIndicator color={colors.loading} />
-								) : (
-									<>
-										<Ionicons name="add-circle-outline" size={24} color={colors.primary} />
-										<Text style={styles.buttonText}>创建歌单</Text>
-									</>
-								)}
-							</TouchableOpacity>
 						</View>
-					</View>
-
-					<View style={styles.divider} />
-
-					<View style={styles.section}>
-						<Text style={styles.sectionTitle}>导入已有歌单</Text>
-						<Text style={styles.hint}>{i18n.t('addToPlaylist.hint')}</Text>
-						<View style={styles.platformSelector}>
-							<SearchPlatformSelector
-								includeAll={false}
-								inset={0}
-								value={importSource}
-								onChange={(platform) => setImportSource(platform as MusicPlatform)}
-							/>
-						</View>
-						<View style={styles.createPlaylistCard}>
-							<View style={styles.importContainer}>
-								<TextInput
-									ref={urlInputRef}
-									style={styles.input}
-									value={playlistUrl}
-									onChangeText={handlePlaylistUrlChange}
-									placeholder={i18n.t('addToPlaylist.placeholder')}
-									placeholderTextColor={colors.placeholder}
-									autoCapitalize="none"
-									autoCorrect={false}
-									keyboardType="url"
-									returnKeyType="done"
-									blurOnSubmit={true}
-									onSubmitEditing={() => urlInputRef.current?.blur()}
-									enablesReturnKeyAutomatically={true}
-									clearButtonMode="while-editing"
+					) : (
+						<View style={styles.section}>
+							<Text style={styles.sectionTitle}>{i18n.t('playlistManager.importTitle')}</Text>
+							<Text style={styles.hint}>{i18n.t('addToPlaylist.hint')}</Text>
+							<View style={styles.platformSelector}>
+								<SearchPlatformSelector
+									includeAll={false}
+									inset={0}
+									value={importSource}
+									onChange={(platform) => setImportSource(platform as MusicPlatform)}
 								/>
 							</View>
+							<View style={styles.createPlaylistCard}>
+								<View style={styles.importContainer}>
+									<TextInput
+										ref={urlInputRef}
+										style={styles.input}
+										value={playlistUrl}
+										onChangeText={handlePlaylistUrlChange}
+										placeholder={i18n.t('addToPlaylist.placeholder')}
+										placeholderTextColor={colors.placeholder}
+										autoCapitalize="none"
+										autoCorrect={false}
+										keyboardType="url"
+										returnKeyType="done"
+										blurOnSubmit={true}
+										onSubmitEditing={() => urlInputRef.current?.blur()}
+										enablesReturnKeyAutomatically={true}
+										clearButtonMode="while-editing"
+									/>
+								</View>
 
-							<TouchableOpacity
-								onPress={handleImport}
-								activeOpacity={0.8}
-								style={styles.button}
-								disabled={isLoading}
-							>
-								{isLoading ? (
-									<ActivityIndicator color={colors.loading} />
-								) : (
-									<>
-										<Ionicons name="cloud-download-outline" size={24} color={colors.primary} />
-										<Text style={styles.buttonText}>导入歌单</Text>
-									</>
-								)}
-							</TouchableOpacity>
+								<TouchableOpacity
+									onPress={handleImport}
+									activeOpacity={0.8}
+									style={styles.button}
+									disabled={isLoading}
+								>
+									{isLoading ? (
+										<ActivityIndicator color={colors.loading} />
+									) : (
+										<>
+											<Ionicons name="cloud-download-outline" size={24} color={colors.primary} />
+											<Text style={styles.buttonText}>
+												{i18n.t('playlistManager.importButton')}
+											</Text>
+										</>
+									)}
+								</TouchableOpacity>
+							</View>
 						</View>
-					</View>
+					)}
 
 					{error && <Text style={styles.error}>{error}</Text>}
 					{playlistData && (
-						<Text style={styles.successText}>导入成功! 歌单名称: {playlistData.name}</Text>
+						<Text style={styles.successText}>
+							{i18n.t('playlistManager.imported', { name: playlistData.name })}
+						</Text>
 					)}
 				</ScrollView>
 			</KeyboardAvoidingView>
@@ -254,153 +284,174 @@ const ImportPlayList = () => {
 	)
 }
 
-const createStyles = (
-	colors: ThemeColors,
-	defaultStyles: ReturnType<typeof useDefaultStyles>,
-) =>
+const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	modalContainer: {
-		...defaultStyles.container,
-		paddingHorizontal: screenPadding.horizontal,
-	},
-	section: {
-		marginBottom: 24,
-	},
-	sectionTitle: {
-		fontSize: 20,
-		fontWeight: '600',
-		color: colors.text,
-		marginBottom: 16,
-	},
-	hint: {
-		fontSize: 13,
-		color: colors.textMuted,
-		marginTop: -8,
-		marginBottom: 12,
-	},
-	platformSelector: {
-		marginBottom: 12,
-	},
-	divider: {
-		height: 1,
-		backgroundColor: colors.separator,
-		marginVertical: 24,
-	},
-	buttonContainer: {
-		marginTop: 0,
-	},
-	dismissSymbol: {
-		position: 'absolute',
-		left: 0,
-		right: 0,
-		flexDirection: 'row',
-		justifyContent: 'center',
-		zIndex: 1,
-	},
-	dismissBar: {
-		width: 50,
-		height: 5,
-		borderRadius: 2.5,
-		backgroundColor: colors.dismissBar,
-	},
-	inputContainer: {
-		width: '100%',
-	},
-	inputLabel: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: colors.text,
-		marginBottom: 8,
-	},
-	header: {
-		fontSize: 31,
-		fontWeight: 'bold',
-		padding: 0,
-		paddingTop: 5,
-		marginBottom: 24,
-		color: colors.text,
-	},
-	input: {
-		height: 44,
-		backgroundColor: colors.surfaceMuted,
-		borderRadius: 8,
-		paddingHorizontal: 16,
-		fontSize: 16,
-		color: colors.text,
-		width: '100%',
-	},
-	coverContainer: {
-		width: 100,
-	},
-	coverPicker: {
-		width: 100,
-		height: 100,
-		borderRadius: 8,
-		overflow: 'hidden',
-		backgroundColor: colors.surfaceMuted,
-		justifyContent: 'center',
-		alignItems: 'center',
-	},
-	coverImage: {
-		width: '100%',
-		height: '100%',
-		resizeMode: 'cover',
-	},
-	coverPlaceholder: {
-		width: '100%',
-		height: '100%',
-		justifyContent: 'center',
-		alignItems: 'center',
-	},
-	coverText: {
-		color: colors.primary,
-		marginTop: 8,
-		fontSize: 14,
-	},
-	error: {
-		color: colors.error,
-		marginTop: 10,
-	},
-	successText: {
-		color: colors.success,
-		marginTop: 10,
-	},
-	button: {
-		padding: 12,
-		backgroundColor: colors.surfaceMuted,
-		borderRadius: 8,
-		flexDirection: 'row',
-		justifyContent: 'center',
-		alignItems: 'center',
-		columnGap: 8,
-		width: '100%',
-	},
-	buttonText: {
-		...defaultStyles.text,
-		color: colors.primary,
-		fontWeight: '600',
-		fontSize: 18,
-		textAlign: 'center',
-	},
-	createPlaylistCard: {
-		backgroundColor: colors.surface,
-		borderRadius: 12,
-		padding: 16,
-		gap: 16,
-	},
-	createPlaylistContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		columnGap: 16,
-	},
-	playlistInfoContainer: {
-		flex: 1,
-		height: 100,
-		justifyContent: 'center',
-	},
-	importContainer: {
-		width: '100%',
-	},
+		modalContainer: {
+			...defaultStyles.container,
+			paddingHorizontal: screenPadding.horizontal,
+		},
+		section: {
+			marginBottom: 24,
+		},
+		modeTabs: {
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 12,
+			flexDirection: 'row',
+			marginBottom: 24,
+			padding: 3,
+		},
+		modeTab: {
+			alignItems: 'center',
+			borderRadius: 9,
+			flex: 1,
+			paddingVertical: 9,
+		},
+		modeTabActive: {
+			backgroundColor: colors.surfaceElevated,
+		},
+		modeTabText: {
+			color: colors.textMuted,
+			fontSize: 15,
+			fontWeight: '600',
+		},
+		modeTabTextActive: {
+			color: colors.text,
+		},
+		sectionTitle: {
+			fontSize: 20,
+			fontWeight: '600',
+			color: colors.text,
+			marginBottom: 16,
+		},
+		hint: {
+			fontSize: 13,
+			color: colors.textMuted,
+			marginTop: -8,
+			marginBottom: 12,
+		},
+		platformSelector: {
+			marginBottom: 12,
+		},
+		divider: {
+			height: 1,
+			backgroundColor: colors.separator,
+			marginVertical: 24,
+		},
+		buttonContainer: {
+			marginTop: 0,
+		},
+		dismissSymbol: {
+			position: 'absolute',
+			left: 0,
+			right: 0,
+			flexDirection: 'row',
+			justifyContent: 'center',
+			zIndex: 1,
+		},
+		dismissBar: {
+			width: 50,
+			height: 5,
+			borderRadius: 2.5,
+			backgroundColor: colors.dismissBar,
+		},
+		inputContainer: {
+			width: '100%',
+		},
+		inputLabel: {
+			fontSize: 16,
+			fontWeight: '600',
+			color: colors.text,
+			marginBottom: 8,
+		},
+		header: {
+			fontSize: 31,
+			fontWeight: 'bold',
+			padding: 0,
+			paddingTop: 5,
+			marginBottom: 24,
+			color: colors.text,
+		},
+		input: {
+			height: 44,
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 8,
+			paddingHorizontal: 16,
+			fontSize: 16,
+			color: colors.text,
+			width: '100%',
+		},
+		coverContainer: {
+			width: 100,
+		},
+		coverPicker: {
+			width: 100,
+			height: 100,
+			borderRadius: 8,
+			overflow: 'hidden',
+			backgroundColor: colors.surfaceMuted,
+			justifyContent: 'center',
+			alignItems: 'center',
+		},
+		coverImage: {
+			width: '100%',
+			height: '100%',
+			resizeMode: 'cover',
+		},
+		coverPlaceholder: {
+			width: '100%',
+			height: '100%',
+			justifyContent: 'center',
+			alignItems: 'center',
+		},
+		coverText: {
+			color: colors.primary,
+			marginTop: 8,
+			fontSize: 14,
+		},
+		error: {
+			color: colors.error,
+			marginTop: 10,
+		},
+		successText: {
+			color: colors.success,
+			marginTop: 10,
+		},
+		button: {
+			padding: 12,
+			backgroundColor: colors.surfaceMuted,
+			borderRadius: 8,
+			flexDirection: 'row',
+			justifyContent: 'center',
+			alignItems: 'center',
+			columnGap: 8,
+			width: '100%',
+		},
+		buttonText: {
+			...defaultStyles.text,
+			color: colors.primary,
+			fontWeight: '600',
+			fontSize: 18,
+			textAlign: 'center',
+		},
+		createPlaylistCard: {
+			backgroundColor: colors.surface,
+			borderRadius: 12,
+			padding: 16,
+			gap: 16,
+		},
+		createPlaylistContainer: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			columnGap: 16,
+		},
+		playlistInfoContainer: {
+			flex: 1,
+			height: 100,
+			justifyContent: 'center',
+		},
+		importContainer: {
+			width: '100%',
+		},
 	})
 
 export default ImportPlayList

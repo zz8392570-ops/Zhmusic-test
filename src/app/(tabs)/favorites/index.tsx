@@ -1,7 +1,11 @@
 import localImage from '@/assets/local.png'
 import { PlaylistsList } from '@/components/PlaylistsList'
 import { screenPadding } from '@/constants/tokens'
-import { importedLocalMusicStore, playListsStore } from '@/helpers/trackPlayerIndex'
+import {
+	importedLocalMusicStore,
+	playListsStore,
+	recentlyPlayedStore,
+} from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { useNavigationSearch } from '@/hooks/useNavigationSearch'
 import { useFavorites } from '@/store/library'
@@ -22,9 +26,18 @@ const FavoritesScreen = () => {
 
 	const storedPlayLists = playListsStore.useValue()
 	const localTracks = importedLocalMusicStore.useValue()
+	const recentlyPlayed = recentlyPlayedStore.useValue()
 	const { favorites } = useFavorites()
 	const playLists = useMemo(
 		() => [
+			{
+				name: 'Recent',
+				id: 'recent',
+				tracks: recentlyPlayed,
+				title: i18n.t('appTab.recentlyPlayed'),
+				coverImg: recentlyPlayed[0]?.artwork || Image.resolveAssetSource(localImage).uri,
+				description: i18n.t('appTab.recentlyPlayed'),
+			},
 			{
 				name: 'Favorites',
 				id: 'favorites',
@@ -43,7 +56,7 @@ const FavoritesScreen = () => {
 			},
 			...(storedPlayLists ?? []),
 		],
-		[storedPlayLists, favorites, localTracks],
+		[storedPlayLists, favorites, localTracks, recentlyPlayed],
 	)
 
 	const filteredPlayLists = useMemo(() => {
@@ -61,6 +74,8 @@ const FavoritesScreen = () => {
 	const handlePlaylistPress = (playlist: Playlist) => {
 		if (playlist.id === 'favorites') {
 			router.push(`/(tabs)/favorites/favoriteMusic`)
+		} else if (playlist.id === 'recent') {
+			router.push(`/(tabs)/favorites/recentMusic`)
 		} else if (playlist.id === 'local') {
 			router.push(`/(tabs)/favorites/localMusic`)
 		} else {

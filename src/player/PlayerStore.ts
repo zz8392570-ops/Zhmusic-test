@@ -26,12 +26,26 @@ export const nowApiState = new GlobalState<string>('正常')
 export const musicApiTestingStore = new GlobalState<boolean>(false)
 /** 是否自动缓存本地 */
 export const autoCacheLocalStore = new GlobalState<boolean>(true)
+/** 自动缓存是否仅允许 Wi-Fi */
+export const autoCacheWifiOnlyStore = new GlobalState<boolean>(true)
+export type CacheDownloadTask = {
+	id: string
+	track: IMusic.IMusicItem
+	quality: AudioQuality
+	progress: number
+	status: 'downloading' | 'completed' | 'failed' | 'cancelled'
+	error?: string
+}
+/** 当前会话的缓存下载任务 */
+export const cacheDownloadTasksStore = new GlobalState<CacheDownloadTask[]>([])
 /** 是否显示已缓存图标 */
 export const isCachedIconVisibleStore = new GlobalState<boolean>(true)
 /** 首页加载歌曲数量 */
 export const songsNumsToLoadStore = new GlobalState<number>(100)
 /** 已导入的本地音乐 */
 export const importedLocalMusicStore = new GlobalState<IMusic.IMusicItem[] | []>(null)
+/** 最近成功开始播放的歌曲 */
+export const recentlyPlayedStore = new GlobalState<IMusic.IMusicItem[]>([])
 /** 当前歌词 */
 export const nowLyricState = new GlobalState<ILyric.ILyricSource | null>(null)
 /** 切歌中的按钮方向 */

@@ -19,11 +19,13 @@ import { hapticLight, hapticWarning } from '@/utils/haptics'
 type PlaylistListItemProps = {
 	playlist: Playlist
 	onDeletePress?: () => void
+	onEditPress?: () => void
 } & TouchableHighlightProps
 
 export const PlaylistListItem = ({
 	playlist,
 	onDeletePress,
+	onEditPress,
 	onPress,
 	onLongPress,
 	...props
@@ -79,6 +81,19 @@ export const PlaylistListItem = ({
 					<AntDesign name="right" size={16} color={colors.icon} style={{ opacity: 0.5 }} />
 				</View>
 			</TouchableHighlight>
+			{onEditPress ? (
+				<TouchableOpacity
+					accessibilityLabel={i18n.t('library.editTitle')}
+					accessibilityRole="button"
+					onPress={() => {
+						hapticLight()
+						onEditPress()
+					}}
+					style={styles.deleteAction}
+				>
+					<Ionicons name="pencil-outline" size={20} color={colors.textMuted} />
+				</TouchableOpacity>
+			) : null}
 			{onDeletePress ? (
 				<TouchableOpacity
 					accessibilityLabel={i18n.t('library.deleteTitle')}

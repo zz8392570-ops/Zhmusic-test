@@ -3,6 +3,7 @@
 	"apple": {
 		"modules": [
 			"CyMusicFileSystemModule",
+			"CyMusicFileSharingModule",
 			"CyMusicSourceModule",
 			"CyMusicVolumeModule",
 			"CyMusicRequestTasksModule",

@@ -14,6 +14,8 @@
 			"checkUpdate": "Check for Updates",
 			"projectLink": "Project Link",
 			"clearCache": "Clear Cache",
+			"manageCache": "Manage Downloads & Cache",
+			"autoCacheWifiOnly": "Auto-cache on Wi-Fi Only",
 			"viewLogs": "View Logs",
 			"clearPlaylist": "Clear Playlist",
 			"autoCacheLocal": "Auto-cache Played Songs",
@@ -39,6 +41,7 @@
 		"descriptions": {
 			"preciseSeeking": "Helps keep audio and lyrics aligned after seeking in some FLAC files. Playback may wait for the full audio file to load. Applies after changing tracks.",
 			"autoCacheLocal": "Automatically save streamed songs for faster playback next time.",
+			"autoCacheWifiOnly": "Prevents automatic caching from using cellular data. Manual downloads are unaffected.",
 			"isCachedIconVisible": "Show cached status and audio format in song lists."
 		},
 		"actions": {
@@ -104,6 +107,58 @@
 			"empty": "No sources yet"
 		}
 	},
+	"cacheCenter": {
+		"title": "Downloads & Cache",
+		"summary": "%{count} cached song(s)",
+		"tasks": "Recent Downloads",
+		"cachedSongs": "Cached Songs",
+		"empty": "No cached songs yet",
+		"downloading": "Downloading %{progress}%",
+		"downloaded": "Saved for offline playback",
+		"downloadFailed": "Download failed",
+		"alreadyDownloading": "This song is already downloading",
+		"cancel": "Cancel",
+		"retry": "Retry",
+		"deleteTitle": "Delete Cache",
+		"deleteMessage": "Delete the cached file for “%{name}”?",
+		"status": {
+			"completed": "Completed",
+			"failed": "Failed",
+			"cancelled": "Cancelled"
+		}
+	},
+	"queue": {
+		"title": "Queue · %{count}",
+		"empty": "No songs in the queue",
+		"edit": "Reorder",
+		"done": "Done",
+		"save": "Save",
+		"clear": "Clear",
+		"moveUp": "Move up",
+		"moveDown": "Move down",
+		"remove": "Remove from queue",
+		"saveTitle": "Save as Playlist",
+		"saveMessage": "Name this playback queue",
+		"savedFromQueue": "From playback queue",
+		"saved": "Queue saved as a playlist",
+		"saveFailed": "Couldn't save the playlist",
+		"clearTitle": "Clear Up Next",
+		"clearMessage": "Keep the current song and remove the rest?"
+	},
+	"playlistManager": {
+		"title": "Manage Playlists",
+		"create": "Create",
+		"import": "Import",
+		"createTitle": "Create a Blank Playlist",
+		"importTitle": "Import from Another Service",
+		"chooseCover": "Choose Cover",
+		"namePlaceholder": "Playlist name",
+		"nameRequired": "Enter a playlist name",
+		"createButton": "Create Playlist",
+		"importButton": "Import Playlist",
+		"createFailed": "Couldn't create the playlist. Try again.",
+		"imported": "Imported playlist: %{name}"
+	},
 	"logScreen": {
 		"title": "Application Logs",
 		"actions": {
@@ -124,7 +179,8 @@
 		"radio": "Charts",
 		"favorites": "Library",
 		"favoritesSongs": "Favorite Songs",
-		"localOrCachedSongs": "Local/Cached Songs"
+		"localOrCachedSongs": "Local/Cached Songs",
+		"recentlyPlayed": "Recently Played"
 	},
 	"library": {
 		"songCount": "%{count} songs",
@@ -134,12 +190,25 @@
 		"deleteTitle": "Delete Playlist",
 		"deleteMessage": "Delete “%{name}”? Cached songs won't be removed.",
 		"delete": "Delete",
-		"deleteFailed": "Couldn't delete the playlist. Try again later."
+		"deleteFailed": "Couldn't delete the playlist. Try again later.",
+		"editTitle": "Edit Playlist",
+		"rename": "Rename",
+		"renameTitle": "Rename Playlist",
+		"renameMessage": "Enter a new playlist name",
+		"changeCover": "Change Cover",
+		"editFailed": "Couldn't update the playlist. Try again later.",
+		"deletedTitle": "Playlist Deleted",
+		"deletedMessage": "Deleted “%{name}”. Undo?",
+		"undo": "Undo",
+		"done": "Done",
+		"filters": { "all": "All", "offline": "Offline" },
+		"sort": { "recent": "Recent", "title": "Title", "artist": "Artist" }
 	},
 	"localMusic": {
 		"notice": "Notice",
 		"unknownAlbum": "Unknown album",
 		"preparingImport": "Preparing import…",
+		"preparingExport": "Preparing export…",
 		"importing": "Importing %{current}/%{total}",
 		"importLimit": "You can import up to 50 songs at a time.",
 		"nothingNewTitle": "No New Songs",
@@ -153,20 +222,38 @@
 		"delete": "Delete",
 		"selectBeforeExport": "Select songs to export first.",
 		"fileLocation": "Files are stored in the CyMusic/importedLocalMusic folder.",
-		"exportFailed": "Export failed. Try again later."
+		"exportUnavailableTitle": "Some Files Are Unavailable",
+		"exportUnavailableMessage": "%{count} file(s) were moved or deleted. Import them again and retry.",
+		"exportFailed": "Export failed. Try again later.",
+		"filters": { "all": "All", "imported": "Imported", "cached": "Cached" }
 	},
 	"home": {
 		"title": "Home",
 		"selectBoard": "Choose chart",
-		"loadFailed": "Couldn't load this chart"
+		"loadFailed": "Couldn't load this chart",
+		"retry": "Try Again",
+		"refreshFailed": "Refresh failed. Tap to retry"
+	},
+	"startup": {
+		"preparing": "Preparing the player…",
+		"failedTitle": "Player Couldn't Start",
+		"failedMessage": "The audio service may be temporarily unavailable. Retry without leaving the app.",
+		"retry": "Try Again"
 	},
 	"addToPlaylist": {
-		"title": "Import Playlist",
+		"title": "Add to Playlist",
 		"placeholder": "Paste a QQ, Kuwo, Kugou, NetEase, or Migu playlist link",
 		"import": "Import",
 		"hint": "Playlist links from each platform work. You can also pick a platform and paste the playlist ID.",
 		"invalidLink": "Couldn't recognize this link. Try another platform or a full URL.",
-		"failed": "Import failed. Check the playlist link."
+		"failed": "Import failed. Check the playlist link.",
+		"createTitle": "New Playlist",
+		"createMessage": "Name the playlist and this song will be added to it",
+		"createdLocally": "Created locally",
+		"createdAndAdded": "Playlist created and song added",
+		"added": "Added to playlist",
+		"duplicate": "This song is already in that playlist",
+		"addFailed": "Couldn't add the song"
 	},
 	"find": {
 		"inRadio": "Find in Radio",
@@ -187,6 +274,13 @@
 		"platformWy": "NetEase",
 		"platformMg": "Migu",
 		"partialResults": "%{platforms} unavailable; showing results from other platforms",
+		"qqOnlyNotice": "Artist and playlist results currently come from QQ Music. Song search supports all platforms.",
+		"filters": {
+			"all": "All",
+			"lossless": "Lossless",
+			"cached": "Cached",
+			"multiSource": "Multi-source"
+		},
 		"history": "Recent Searches",
 		"clear": "Clear",
 		"clearHistory": "Clear search history",
@@ -268,6 +362,30 @@
 		"cancelTimer": "Cancel Sleep Timer",
 		"timerCancelled": "Sleep timer cancelled",
 		"timerFailed": "Couldn't set the sleep timer. Try again.",
+		"sourceSwitch": {
+			"title": "Playback source switched",
+			"songMessage": "“%{from}” couldn't play “%{song}”.\n\nReason: %{reason}\nSwitched to “%{to}” to continue playback.",
+			"generalMessage": "“%{from}” is currently unavailable.\n\nReason: %{reason}\nAutomatically switched to “%{to}”.",
+			"confirm": "Got it",
+			"allFailedTitle": "Unable to play",
+			"allFailedSkipMessage": "Tried %{count} available sources for “%{song}”, but none could play it. Moving to the next track.",
+			"allFailedStopMessage": "Tried %{count} available sources for “%{song}”, but none could play it. Automatic retry was stopped to prevent repeated switching.",
+			"allFailedMessage": "Tried %{count} available sources for “%{song}”, but none could play it. Retry, check sources, or play the next song.",
+			"retrySong": "Retry Song",
+			"sourceSettings": "Source Settings",
+			"nextSong": "Next Song",
+			"stop": "Stop",
+			"reasons": {
+				"timeout": "the source request timed out",
+				"noPlayableUrl": "the source did not return a playable link for this song",
+				"requestFailed": "the playback link request failed",
+				"network": "the network connection failed or the playback link expired",
+				"source": "the playback link is invalid, restricted, or expired",
+				"renderer": "the audio format or decoder is not supported",
+				"healthCheckFailed": "a background check found that the current source is unavailable",
+				"unknown": "the link returned by this source could not be played"
+			}
+		},
 		"repeatMode": {
 			"title": "Playback mode",
 			"shuffle": "Shuffle",

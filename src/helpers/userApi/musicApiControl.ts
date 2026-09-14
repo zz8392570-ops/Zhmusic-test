@@ -6,6 +6,7 @@ import {
 	nowApiState,
 } from '@/player/PlayerStore'
 import { showToast } from '@/utils/utils'
+import { showAutomaticSourceSwitchNotice } from '@/utils/sourceSwitchNotice'
 import { Alert } from 'react-native'
 import { logError, logInfo } from '../logger'
 import { BUNDLED_SOURCES_VERSION, loadBundledMusicApiStubs } from './builtinMusicSources'
@@ -221,8 +222,14 @@ const maybeSwitchFromDeadSelected = async () => {
 			(api.health?.status === 'normal' || api.health?.status === 'partial'),
 	)
 	if (!best) return
-	await setMusicApiAsSelectedById(best.id, { silent: true, notify: false })
-	showToast('当前音源失效，已切换至 ' + best.name, '', 'info')
+	const switchedSource = await setMusicApiAsSelectedById(best.id, { silent: true, notify: false })
+	if (switchedSource) {
+		showAutomaticSourceSwitchNotice({
+			fromSource: selected.name,
+			toSource: best.name,
+			reason: 'healthCheckFailed',
+		})
+	}
 }
 
 const testMusicApiInternal = async (apiId: string) => {

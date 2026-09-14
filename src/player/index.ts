@@ -8,9 +8,12 @@ export {
 	nowApiState,
 	musicApiTestingStore,
 	autoCacheLocalStore,
+	autoCacheWifiOnlyStore,
+	cacheDownloadTasksStore,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,
 	importedLocalMusicStore,
+	recentlyPlayedStore,
 	nowLyricState,
 } from './PlayerStore'
 
@@ -24,10 +27,6 @@ export {
 	cacheDir,
 } from './CacheManager'
 
-export {
-	resolveSource,
-	preloadSource,
-	getPreloadedUrl,
-} from './MusicSourceResolver'
+export { resolveSource, preloadSource, getPreloadedUrl } from './MusicSourceResolver'
 
 export type { SourceResult } from './MusicSourceResolver'
