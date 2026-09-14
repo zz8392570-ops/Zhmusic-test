@@ -1,4 +1,5 @@
 import i18n from '@/utils/i18n'
+import { showToast } from '@/utils/utils'
 import { router } from 'expo-router'
 import { Alert, AppState } from 'react-native'
 
@@ -52,27 +53,19 @@ export const showAutomaticSourceSwitchNotice = ({
 	fromSource,
 	toSource,
 	reason,
-	songTitle,
 }: SourceSwitchNotice) => {
 	if (AppState.currentState !== 'active') return
 
 	const reasonText = i18n.t(reasonKeys[reason])
-	const message = songTitle?.trim()
-		? i18n.t('player.sourceSwitch.songMessage', {
-				song: songTitle.trim(),
-				from: fromSource,
-				to: toSource,
-				reason: reasonText,
-			})
-		: i18n.t('player.sourceSwitch.generalMessage', {
-				from: fromSource,
-				to: toSource,
-				reason: reasonText,
-			})
-
-	Alert.alert(i18n.t('player.sourceSwitch.title'), message, [
-		{ text: i18n.t('player.sourceSwitch.confirm') },
-	])
+	showToast(
+		i18n.t('player.sourceSwitch.title'),
+		i18n.t('player.sourceSwitch.toastMessage', {
+			from: fromSource,
+			to: toSource,
+			reason: reasonText,
+		}),
+		'info',
+	)
 }
 
 export const showSourceExhaustedNotice = ({

@@ -1,3 +1,4 @@
+import LeaderboardCover from '@/components/LeaderboardCover'
 import { ThemeColors } from '@/constants/tokens'
 import { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
@@ -5,7 +6,6 @@ import { useDefaultStyles } from '@/styles'
 import { AntDesign } from '@expo/vector-icons'
 import { useMemo } from 'react'
 import { StyleSheet, Text, TouchableHighlight, TouchableHighlightProps, View } from 'react-native'
-import { Image } from 'expo-image'
 
 type PlaylistListItemProps = {
 	playlist: Playlist
@@ -19,18 +19,11 @@ export const RadioListItem = ({ playlist, ...props }: PlaylistListItemProps) => 
 	return (
 		<TouchableHighlight activeOpacity={0.8} underlayColor={colors.surfaceMuted} {...props}>
 			<View style={styles.playlistItemContainer}>
-				<View>
-					<Image
-						contentFit="cover"
-						cachePolicy="memory-disk"
-						priority="normal"
-						recyclingKey={playlist.coverImg ?? 'missing-artwork'}
-						source={{
-							uri: playlist.coverImg,
-						}}
-						style={styles.playlistArtworkImage}
-					/>
-				</View>
+				<LeaderboardCover
+					boardId={playlist.id}
+					platform={playlist.platform}
+					title={playlist.title}
+				/>
 
 				<View
 					style={{
@@ -51,26 +44,18 @@ export const RadioListItem = ({ playlist, ...props }: PlaylistListItemProps) => 
 	)
 }
 
-const createStyles = (
-	colors: ThemeColors,
-	defaultStyles: ReturnType<typeof useDefaultStyles>,
-) =>
+const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	playlistItemContainer: {
-		flexDirection: 'row',
-		columnGap: 14,
-		alignItems: 'center',
-		paddingRight: 90,
-	},
-	playlistArtworkImage: {
-		borderRadius: 8,
-		width: 70,
-		height: 70,
-	},
-	playlistNameText: {
-		...defaultStyles.text,
-		fontSize: 17,
-		fontWeight: '600',
-		maxWidth: '80%',
-	},
+		playlistItemContainer: {
+			flexDirection: 'row',
+			columnGap: 14,
+			alignItems: 'center',
+			paddingRight: 90,
+		},
+		playlistNameText: {
+			...defaultStyles.text,
+			fontSize: 17,
+			fontWeight: '600',
+			maxWidth: '80%',
+		},
 	})

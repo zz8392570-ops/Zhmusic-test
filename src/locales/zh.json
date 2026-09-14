@@ -367,6 +367,7 @@
 		"timerFailed": "定时关闭设置失败，请重试",
 		"sourceSwitch": {
 			"title": "已自动切换音源",
+			"toastMessage": "%{reason} · %{from} → %{to}",
 			"songMessage": "《%{song}》使用“%{from}”播放失败。\n\n原因：%{reason}\n已切换至“%{to}”继续播放。",
 			"generalMessage": "“%{from}”当前不可用。\n\n原因：%{reason}\n已自动切换至“%{to}”。",
 			"confirm": "知道了",

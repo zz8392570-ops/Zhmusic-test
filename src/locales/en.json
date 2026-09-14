@@ -366,6 +366,7 @@
 		"timerFailed": "Couldn't set the sleep timer. Try again.",
 		"sourceSwitch": {
 			"title": "Playback source switched",
+			"toastMessage": "%{reason} · %{from} → %{to}",
 			"songMessage": "“%{from}” couldn't play “%{song}”.\n\nReason: %{reason}\nSwitched to “%{to}” to continue playback.",
 			"generalMessage": "“%{from}” is currently unavailable.\n\nReason: %{reason}\nAutomatically switched to “%{to}”.",
 			"confirm": "Got it",
