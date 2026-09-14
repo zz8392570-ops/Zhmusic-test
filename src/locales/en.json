@@ -286,6 +286,8 @@
 		"clearHistory": "Clear search history",
 		"removeHistory": "Remove search history item",
 		"hotSearch": "Trending Searches",
+		"platformHotSearch": "Trending on %{platform}",
+		"changeBatch": "Show more",
 		"loadingHotSearch": "Loading trending searches…",
 		"hotSearchFailed": "Couldn't load trending searches",
 		"tapToRetry": "Tap to retry",

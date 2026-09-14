@@ -6,6 +6,8 @@ import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll, { type SearchType } from '@/helpers/searchAll'
+import { getHotSearches } from '@/helpers/hotSearch'
+import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import {
 	deduplicateCrossPlatformTracks,
 	type MusicPlatform,
@@ -34,6 +36,7 @@ const SONG_FILTERS: { type: SongFilter; label: string }[] = [
 	{ type: 'cached', label: 'find.filters.cached' },
 	{ type: 'multiSource', label: 'find.filters.multiSource' },
 ]
+const HOT_SEARCH_BATCH_SIZE = 10
 
 const trackKey = (track: Track) => `${track.platform ?? 'unknown'}:${track.id}`
 
@@ -48,6 +51,7 @@ const SearchScreen = () => {
 	const [searchRevision, setSearchRevision] = useState(0)
 	const [suggestions, setSuggestions] = useState<string[]>([])
 	const [hotSearches, setHotSearches] = useState<string[]>([])
+	const [hotSearchBatch, setHotSearchBatch] = useState(0)
 	const [page, setPage] = useState(1)
 	const [isLoading, setIsLoading] = useState(false)
 	const [isSuggestionLoading, setIsSuggestionLoading] = useState(false)
@@ -134,15 +138,19 @@ const SearchScreen = () => {
 		onSubmit: submitSearch,
 	})
 
-	const loadHotSearches = useCallback(async () => {
+	const hotSearchPlatform: SearchPlatform = searchType === 'songs' ? searchPlatform : 'tx'
+
+	const loadHotSearches = useCallback(async (platform: SearchPlatform, forceRefresh = false) => {
 		const requestId = ++hotSearchRequestRef.current
 		setIsHotLoading(true)
 		setHasHotError(false)
+		setHotSearches([])
+		setHotSearchBatch(0)
 
 		try {
-			const result = await musicSdk['tx'].hotSearch.getList()
+			const result = await getHotSearches(platform, forceRefresh)
 			if (requestId !== hotSearchRequestRef.current) return
-			setHotSearches(result.list.filter(Boolean))
+			setHotSearches(result)
 		} catch (error) {
 			if (requestId !== hotSearchRequestRef.current) return
 			console.error('Failed to fetch hot searches:', error)
@@ -155,9 +163,9 @@ const SearchScreen = () => {
 	}, [])
 
 	useEffect(() => {
-		void loadHotSearches()
+		void loadHotSearches(hotSearchPlatform)
 		return cancelHotSearchRequest
-	}, [cancelHotSearchRequest, loadHotSearches])
+	}, [cancelHotSearchRequest, hotSearchPlatform, loadHotSearches])
 
 	useEffect(() => {
 		const keyword = draftQuery.trim()
@@ -313,6 +321,23 @@ const SearchScreen = () => {
 	const showSuggestions = isEditing && trimmedDraftQuery.length > 0
 	const showDiscovery = isEditing ? trimmedDraftQuery.length === 0 : submittedQuery.length === 0
 	const showResults = !isEditing && submittedQuery.length > 0
+	const hotSearchBatchCount = Math.ceil(hotSearches.length / HOT_SEARCH_BATCH_SIZE)
+	const visibleHotSearches = useMemo(() => {
+		const start = hotSearchBatch * HOT_SEARCH_BATCH_SIZE
+		return hotSearches.slice(start, start + HOT_SEARCH_BATCH_SIZE)
+	}, [hotSearchBatch, hotSearches])
+	const hotSearchTitle = i18n.t('find.platformHotSearch', {
+		platform: i18n.t(
+			hotSearchPlatform === 'all'
+				? 'find.platformAll'
+				: getMusicPlatformLabelKey(hotSearchPlatform),
+		),
+	})
+	const handleChangeHotSearch = useCallback(() => {
+		setHotSearchBatch((currentBatch) =>
+			hotSearchBatchCount > 1 ? (currentBatch + 1) % hotSearchBatchCount : 0,
+		)
+	}, [hotSearchBatchCount])
 
 	useEffect(() => {
 		let cancelled = false
@@ -411,13 +436,17 @@ const SearchScreen = () => {
 				{showDiscovery ? (
 					<SearchDiscovery
 						history={searchHistory}
-						hotSearches={hotSearches}
+						hotSearches={visibleHotSearches}
+						hotSearchTitle={hotSearchTitle}
+						hotRankOffset={hotSearchBatch * HOT_SEARCH_BATCH_SIZE}
+						canChangeHotSearch={hotSearchBatchCount > 1}
 						isHotLoading={isHotLoading}
 						hasHotError={hasHotError}
 						onSearch={handleKeywordSearch}
 						onRemoveHistory={handleRemoveHistory}
 						onClearHistory={() => PersistStatus.set('search.history', [])}
-						onRetryHotSearch={() => void loadHotSearches()}
+						onRetryHotSearch={() => void loadHotSearches(hotSearchPlatform, true)}
+						onChangeHotSearch={handleChangeHotSearch}
 					/>
 				) : null}
 				{showResults ? (

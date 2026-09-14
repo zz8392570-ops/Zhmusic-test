@@ -287,6 +287,8 @@
 		"clearHistory": "清空搜索历史",
 		"removeHistory": "删除搜索记录",
 		"hotSearch": "热门搜索",
+		"platformHotSearch": "%{platform}热门搜索",
+		"changeBatch": "换一批",
 		"loadingHotSearch": "正在获取热门搜索…",
 		"hotSearchFailed": "热门搜索加载失败",
 		"tapToRetry": "点击重试",

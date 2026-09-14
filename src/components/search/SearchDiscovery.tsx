@@ -3,29 +3,38 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { ThemeColors } from '@/constants/tokens'
 import { useThemeColors } from '@/hooks/useAppTheme'
+import { hapticSelection } from '@/utils/haptics'
 import i18n from '@/utils/i18n'
 import { useMemo } from 'react'
 
 type SearchDiscoveryProps = {
 	history: string[]
 	hotSearches: string[]
+	hotSearchTitle: string
+	hotRankOffset: number
+	canChangeHotSearch: boolean
 	isHotLoading: boolean
 	hasHotError: boolean
 	onSearch: (keyword: string) => void
 	onRemoveHistory: (keyword: string) => void
 	onClearHistory: () => void
 	onRetryHotSearch: () => void
+	onChangeHotSearch: () => void
 }
 
 const SearchDiscovery = ({
 	history,
 	hotSearches,
+	hotSearchTitle,
+	hotRankOffset,
+	canChangeHotSearch,
 	isHotLoading,
 	hasHotError,
 	onSearch,
 	onRemoveHistory,
 	onClearHistory,
 	onRetryHotSearch,
+	onChangeHotSearch,
 }: SearchDiscoveryProps) => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
@@ -79,7 +88,24 @@ const SearchDiscovery = ({
 			) : null}
 
 			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>{i18n.t('find.hotSearch')}</Text>
+				<View style={styles.sectionHeader}>
+					<Text style={styles.sectionTitle}>{hotSearchTitle}</Text>
+					{!isHotLoading && !hasHotError && canChangeHotSearch ? (
+						<Pressable
+							accessibilityRole="button"
+							accessibilityLabel={i18n.t('find.changeBatch')}
+							hitSlop={8}
+							onPress={() => {
+								hapticSelection()
+								onChangeHotSearch()
+							}}
+							style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
+						>
+							<MaterialCommunityIcons name="refresh" size={16} color={colors.primary} />
+							<Text style={styles.clearText}>{i18n.t('find.changeBatch')}</Text>
+						</Pressable>
+					) : null}
+				</View>
 				{isHotLoading ? (
 					<View style={styles.statusRow}>
 						<ActivityIndicator size="small" color={colors.loading} />
@@ -99,14 +125,16 @@ const SearchDiscovery = ({
 					</Pressable>
 				) : (
 					<View style={styles.hotList}>
-						{hotSearches.slice(0, 10).map((keyword, index) => (
+						{hotSearches.map((keyword, index) => (
 							<Pressable
 								key={`${keyword}-${index}`}
 								accessibilityRole="button"
 								onPress={() => onSearch(keyword)}
 								style={({ pressed }) => [styles.hotItem, pressed && styles.pressed]}
 							>
-								<Text style={[styles.rank, index < 3 && styles.topRank]}>{index + 1}</Text>
+								<Text style={[styles.rank, hotRankOffset + index < 3 && styles.topRank]}>
+									{hotRankOffset + index + 1}
+								</Text>
 								<Text style={styles.hotKeyword} numberOfLines={1}>
 									{keyword}
 								</Text>
@@ -148,6 +176,12 @@ const createStyles = (colors: ThemeColors) =>
 			color: colors.primary,
 			fontSize: 14,
 			marginBottom: 10,
+		},
+		sectionAction: {
+			minHeight: 32,
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 4,
 		},
 		chipList: {
 			flexDirection: 'row',
