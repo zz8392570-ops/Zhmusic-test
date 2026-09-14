@@ -1,8 +1,8 @@
 # lx-music 兼容格式
 
-Cymusic 通过 `src/helpers/userApi/lxMusicSourceAdapter.ts` 适配了 lx-music 的脚本格式，让用户可以直接用 lx-music 生态的源。
+Zhmusic 通过 `src/helpers/userApi/lxMusicSourceAdapter.ts` 适配了 lx-music 的脚本格式，让用户可以直接用 lx-music 生态的源。
 
-**重要**：除非用户明确要用/改造 lx-music 脚本，**默认应该用 Cymusic 原生格式**。原生格式简单一倍。
+**重要**：除非用户明确要用/改造 lx-music 脚本，**默认应该用 Zhmusic 原生格式**。原生格式简单一倍。
 
 ## 何时使用 lx-music 格式
 
@@ -18,8 +18,8 @@ Cymusic 通过 `src/helpers/userApi/lxMusicSourceAdapter.ts` 适配了 lx-music 
 function isLxMusicScript(script: string): boolean {
   const hasHeader = /^\/\*[\s\S]+?\*\//.test(script.trim())  // 顶部块注释
   const hasLxApi  = /\bEVENT_NAMES\b|lx\s*\.\s*(on|send)|globalThis\s*\.\s*lx/.test(script)
-  const isCymusic = /module\s*\.\s*exports\s*\.\s*getMusicUrl/.test(script)
-  return hasHeader && hasLxApi && !isCymusic
+  const isZhmusic = /module\s*\.\s*exports\s*\.\s*getMusicUrl/.test(script)
+  return hasHeader && hasLxApi && !isZhmusic
 }
 ```
 
@@ -41,7 +41,7 @@ function isLxMusicScript(script: string): boolean {
 
 ## 事件机制（核心）
 
-lx-music 脚本运行在 **QuickJS 原生引擎** 中（不是 Cymusic 的 JS 沙箱），通过事件和 JS-land 通信：
+lx-music 脚本运行在 **QuickJS 原生引擎** 中（不是 Zhmusic 的 JS 沙箱），通过事件和 JS-land 通信：
 
 ```javascript
 // 监听请求
@@ -59,11 +59,11 @@ lx.on(EVENT_NAMES.request, (data, sendResponse) => {
 })
 ```
 
-Cymusic 的适配器（`adaptLxMusicScript`）会：
+Zhmusic 的适配器（`adaptLxMusicScript`）会：
 
 1. 把脚本加载到 QuickJS（`loadScript`）
 2. 监听脚本内的 HTTP 请求事件，由 JS-land 的 fetch 代理执行（脚本本身不能直接 fetch）
-3. 把 Cymusic 的 `getMusicUrl(title, artist, songmid, quality)` 调用转成 `request` 事件给脚本
+3. 把 Zhmusic 的 `getMusicUrl(title, artist, songmid, quality)` 调用转成 `request` 事件给脚本
 4. 拿到脚本的 `response` 事件后取 `result.data.url` 返回给主程序
 
 ## 脚本里的 HTTP 请求
@@ -80,11 +80,11 @@ const { body, statusCode } = await request(url, {
 })
 ```
 
-Cymusic 的 `handleHttpRequest` 函数会代理这个请求并把结果发回脚本。
+Zhmusic 的 `handleHttpRequest` 函数会代理这个请求并把结果发回脚本。
 
-## 与 Cymusic 原生格式的对照
+## 与 Zhmusic 原生格式的对照
 
-| 维度 | Cymusic 原生 | lx-music |
+| 维度 | Zhmusic 原生 | lx-music |
 |---|---|---|
 | 入口 | `module.exports.getMusicUrl` | `lx.on(EVENT_NAMES.request, ...)` |
 | 元信息 | `module.exports.{ id, name, author, ... }` | 顶部块注释 `@name` 等 |
@@ -92,9 +92,9 @@ Cymusic 的 `handleHttpRequest` 函数会代理这个请求并把结果发回脚
 | 运行时 | 普通 JS 沙箱（Function 构造）| QuickJS 原生引擎 |
 | 复杂度 | ★ | ★★★ |
 
-## lx-music → Cymusic 改写步骤
+## lx-music → Zhmusic 改写步骤
 
-如果用户要把一个 lx-music 脚本改成 Cymusic 原生格式：
+如果用户要把一个 lx-music 脚本改成 Zhmusic 原生格式：
 
 1. **去掉 `lx.on(EVENT_NAMES.request, ...)` 的事件监听**
 2. **把响应处理函数改成 `getMusicUrl(title, artist, songmid, quality)`**
@@ -119,6 +119,6 @@ Cymusic 的 `handleHttpRequest` 函数会代理这个请求并把结果发回脚
 
 ## 不要改写的场景
 
-如果 lx-music 脚本里大量使用 `lx.utils.crypto`、`lx.env`、`lx.version` 等专有 API，改写成 Cymusic 原生格式工作量很大，**直接用 Cymusic 的 lx-music 适配器加载更划算**。
+如果 lx-music 脚本里大量使用 `lx.utils.crypto`、`lx.env`、`lx.version` 等专有 API，改写成 Zhmusic 原生格式工作量很大，**直接用 Zhmusic 的 lx-music 适配器加载更划算**。
 
 判断标准：脚本里 `lx.` 调用超过 5 处 → 不改写，直接用适配器。

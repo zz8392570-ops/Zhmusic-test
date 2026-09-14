@@ -4,8 +4,8 @@
 	"private": true,
 	"main": "index.ts",
 	"types": "index.ts",
-	"description": "Native filesystem queries, source execution and system services for CyMusic",
+	"description": "Native filesystem queries, source execution and system services for ZhMusic",
 	"license": "Apache-2.0",
-	"author": "CyMusic",
+	"author": "ZhMusic",
 	"homepage": "https://github.com/gyc-12/Cymusic"
 }

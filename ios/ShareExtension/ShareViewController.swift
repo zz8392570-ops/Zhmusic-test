@@ -11,8 +11,8 @@ import UIKit
 
 class ShareViewController: UIViewController {
   let hostAppBundleIdentifier = "com.music.player.gyc"
-  let shareProtocol = "cymusic"
-  let sharedKey = "cymusicShareKey"
+  let shareProtocol = "zhmusic"
+  let sharedKey = "zhmusicShareKey"
   var sharedMedia: [SharedMediaFile] = []
   var sharedText: [String] = []
   let imageContentType = kUTTypeImage as String

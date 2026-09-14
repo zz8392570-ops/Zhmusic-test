@@ -221,7 +221,7 @@
 		"deleteSelectedMessage": "Delete the selected %{count} songs and their local files?",
 		"delete": "Delete",
 		"selectBeforeExport": "Select songs to export first.",
-		"fileLocation": "Files are stored in the CyMusic/importedLocalMusic folder.",
+		"fileLocation": "Files are stored in the ZhMusic/importedLocalMusic folder.",
 		"exportUnavailableTitle": "Some Files Are Unavailable",
 		"exportUnavailableMessage": "%{count} file(s) were moved or deleted. Import them again and retry.",
 		"exportFailed": "Export failed. Try again later.",

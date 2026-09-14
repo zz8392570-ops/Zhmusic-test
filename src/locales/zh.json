@@ -222,7 +222,7 @@
 		"deleteSelectedMessage": "确定要删除选中的 %{count} 首歌曲及其本地文件吗？",
 		"delete": "删除",
 		"selectBeforeExport": "请先选择要导出的歌曲",
-		"fileLocation": "文件位于 CyMusic/importedLocalMusic 文件夹",
+		"fileLocation": "文件位于 ZhMusic/importedLocalMusic 文件夹",
 		"exportUnavailableTitle": "部分文件不可用",
 		"exportUnavailableMessage": "有 %{count} 个文件已被移动或删除，请重新导入后再试。",
 		"exportFailed": "导出失败，请稍后重试",

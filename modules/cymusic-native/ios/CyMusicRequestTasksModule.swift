@@ -32,7 +32,7 @@ public final class CyMusicRequestTasksModule: Module {
     if let tasks { return tasks }
     let tasks = CyMusicRequestTaskRegistry<UIBackgroundTaskIdentifier>(
       begin: { expiration in
-        let identifier = UIApplication.shared.beginBackgroundTask(withName: "CyMusic request") {
+        let identifier = UIApplication.shared.beginBackgroundTask(withName: "ZhMusic request") {
           if Thread.isMainThread {
             expiration()
           } else {

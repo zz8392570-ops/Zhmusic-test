@@ -1,8 +1,8 @@
 /**
  * lx-music 音源脚本适配器
  *
- * 使用 Cymusic 已有的 UserApiModule 原生模块（JavaScriptCore 引擎）执行 lx-music 脚本，
- * 将其事件通信机制包装为 Cymusic 的 getMusicUrl 函数。
+ * 使用 ZhMusic 已有的 UserApiModule 原生模块（JavaScriptCore 引擎）执行 lx-music 脚本，
+ * 将其事件通信机制包装为 ZhMusic 的 getMusicUrl 函数。
  */
 
 import type {
@@ -594,7 +594,7 @@ const getMusicUrlViaScript = (
 }
 
 /**
- * 将 lx-music 格式脚本适配为 Cymusic 的 MusicApi 对象
+ * 将 lx-music 格式脚本适配为 ZhMusic 的 MusicApi 对象
  */
 export const adaptLxMusicScript = async (script: string): Promise<IMusic.MusicApi> => {
 	const info = parseLxMusicScriptInfo(script)

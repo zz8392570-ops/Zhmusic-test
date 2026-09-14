@@ -41,7 +41,7 @@ export async function createMusicApiFromScript(rawScript: string): Promise<IMusi
 		version: module.exports.version || '',
 		srcUrl: module.exports.srcUrl || '',
 		script,
-		scriptType: 'cymusic',
+		scriptType: 'zhmusic',
 		isSelected: false,
 		getMusicUrl: module.exports.getMusicUrl,
 	}

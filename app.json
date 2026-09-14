@@ -1,12 +1,12 @@
 {
 	"expo": {
-		"name": "CyMusic",
-		"slug": "CyMusic",
+		"name": "ZhMusic",
+		"slug": "ZhMusic",
 		"version": "1.2.0",
 		"orientation": "portrait",
 		"icon": "./assets/1024.png",
 		"userInterfaceStyle": "automatic",
-		"scheme": "cymusic",
+		"scheme": "zhmusic",
 		"assetBundlePatterns": [
 			"**/*"
 		],

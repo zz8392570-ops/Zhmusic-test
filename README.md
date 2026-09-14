@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="1024.png" width="112" alt="CyMusic 图标" />
+  <img src="1024.png" width="112" alt="ZhMusic 图标" />
 </p>
 
-<h1 align="center">CyMusic</h1>
+<h1 align="center">ZhMusic</h1>
 
 <p align="center">
   一款支持自定义音源、滚动歌词与本地音乐的 iOS 播放器。
@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/iOS-16.4%2B-111111?logo=apple&logoColor=white" alt="iOS 16.4 及以上" />
   <img src="https://img.shields.io/badge/Expo-57-000020?logo=expo&logoColor=white" alt="Expo 57" />
   <img src="https://img.shields.io/badge/React_Native-0.86-61DAFB?logo=react&logoColor=111111" alt="React Native 0.86" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/Source_License-Apache_2.0-blue" alt="CyMusic 自有源码：Apache 2.0" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Source_License-Apache_2.0-blue" alt="ZhMusic 自有源码：Apache 2.0" /></a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
   <a href="https://github.com/gyc-12/Cymusic/issues">反馈问题</a>
 </p>
 
-CyMusic 将音乐浏览、播放、歌词和个人歌单放在一起，支持深色、浅色与跟随系统的外观。
+ZhMusic 将音乐浏览、播放、歌词和个人歌单放在一起，支持深色、浅色与跟随系统的外观。
 当前 `main` 基于 **Expo 57、React Native 新架构和 RNTP v5**，保留原有 App 的主要功能。
 
 > [!NOTE]
@@ -73,7 +73,7 @@ CyMusic 将音乐浏览、播放、歌词和个人歌单放在一起，支持深
 | 渠道 | 用途 |
 | --- | --- |
 | [GitHub Releases](https://github.com/gyc-12/Cymusic/releases) | 获取已发布版本与对应说明。 |
-| [main 分支构建](https://github.com/gyc-12/Cymusic/actions/workflows/build-ios.yml?query=branch%3Amain) | 获取当前源码的 IPA；打开最近一次成功运行，在 **Artifacts** 下载 `CyMusic-unsigned-ipa`。 |
+| [main 分支构建](https://github.com/gyc-12/Cymusic/actions/workflows/build-ios.yml?query=branch%3Amain) | 获取当前源码的 IPA；打开最近一次成功运行，在 **Artifacts** 下载 `ZhMusic-unsigned-ipa`。 |
 
 本 README 介绍 `main` 分支。Releases 与 `main` 可能处于不同版本；如需 Expo 57 / RNTP v5 版本，请选择对应的 `main` 构建。
 Actions 产物是**未签名 IPA**，安装到真机前需要自己的有效签名和 App Group 配置。
@@ -81,7 +81,7 @@ Actions 产物是**未签名 IPA**，安装到真机前需要自己的有效签�
 ## 开始使用
 
 1. **安装 App**：从上方渠道获取对应版本，完成签名后安装。
-2. **配置音源**：进入设置 → 自定义音源 → 导入音源，选择本地脚本或输入脚本 URL。可参考 [CyMusic 音源示例](https://github.com/gyc-12/CyMusic-ImportMusicApi-Example)。
+2. **配置音源**：进入设置 → 自定义音源 → 导入音源，选择本地脚本或输入脚本 URL。可参考 [ZhMusic 音源示例](https://github.com/gyc-12/CyMusic-ImportMusicApi-Example)。
 3. **整理音乐**：在“收藏”中管理喜欢的歌曲、自定义歌单及本地/缓存歌曲；创建歌单或导入 QQ 音乐歌单。
 4. **开始播放**：选择歌曲，点击底部迷你播放器展开播放页；在歌曲菜单中打开歌词、收藏、添加到歌单或设置定时关闭。
 
@@ -131,11 +131,11 @@ npx expo run:ios --no-install
 ## 许可与使用范围
 
 - **自有源码**：按 [Apache License 2.0](LICENSE) 授权。官方 App 的使用说明不修改 Apache-2.0 条款，也不撤销已有的源码授权。
-- **RNTP v5**：`@rntp/player@5.9.2` 的版权属于 Double Symmetry GmbH，适用随该版本发布的[独立许可证](third-party-licenses/rntp-player-5.9.2.txt)。**RNTP v5 不属于 CyMusic 的 Apache-2.0 授权范围**，不能因本项目开源而视其为 Apache-2.0 或 MIT 软件；CyMusic 不另行授予其商业使用或再许可权利。
+- **RNTP v5**：`@rntp/player@5.9.2` 的版权属于 Double Symmetry GmbH，适用随该版本发布的[独立许可证](third-party-licenses/rntp-player-5.9.2.txt)。**RNTP v5 不属于 ZhMusic 的 Apache-2.0 授权范围**，不能因本项目开源而视其为 Apache-2.0 或 MIT 软件；ZhMusic 不另行授予其商业使用或再许可权利。
 - **官方 App**：永久免费，仅限个人、非职业、非商业使用，禁止商业用途。免费不等于可以用于公司、组织或商业产品，RNTP 的具体授权条件以其原文为准。
 - **其他依赖**：保留各自的版权与许可证。
 
-完整说明见 [CyMusic 官方 App 使用说明](docs/app-usage.md)。请尊重版权，支持正版音乐。
+完整说明见 [ZhMusic 官方 App 使用说明](docs/app-usage.md)。请尊重版权，支持正版音乐。
 
 ## 致谢
 

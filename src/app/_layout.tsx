@@ -83,7 +83,7 @@ const ThemedAppShell = ({
 
 	useEffect(() => {
 		if (navigationState?.key && hasShareIntent) {
-			router.replace('/(modals)/cymusic')
+			router.replace('/(modals)/zhmusic')
 		}
 	}, [hasShareIntent, navigationState?.key])
 

@@ -1,4 +1,4 @@
-# Cymusic 插件模板集
+# Zhmusic 插件模板集
 
 下面是三种最常见的插件模式。开发时挑最贴近的一种作为骨架，再填充实际逻辑。
 
@@ -117,7 +117,7 @@ module.exports = {
 
 **适用场景**：目标接口需要计算签名（如 sign/sec_key/encSecKey），用 MD5/AES 等做加密。
 
-**关键限制**：Cymusic 沙箱里 **`require('crypto-js')` 不可用**——必须把 MD5 等实现**内联**到脚本里。下面给一个完整可用的内联 MD5 实现：
+**关键限制**：Zhmusic 沙箱里 **`require('crypto-js')` 不可用**——必须把 MD5 等实现**内联**到脚本里。下面给一个完整可用的内联 MD5 实现：
 
 ```javascript
 const LOG = '[signed-source]'
@@ -277,11 +277,11 @@ if (!USER_COOKIE) {
 }
 ```
 
-> Cymusic 原生格式不支持 `userVariables` 字段（那是 MusicFree 的）。如果需要用户配置，让用户编辑脚本顶部常量是最实用的方案。
+> Zhmusic 原生格式不支持 `userVariables` 字段（那是 MusicFree 的）。如果需要用户配置，让用户编辑脚本顶部常量是最实用的方案。
 
 ### 内联依赖参考
 
-Cymusic 沙箱**不能 require 任何模块**。需要的库要内联：
+Zhmusic 沙箱**不能 require 任何模块**。需要的库要内联：
 
 | 需求 | 内联方案 |
 |---|---|

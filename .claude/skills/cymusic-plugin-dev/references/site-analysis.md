@@ -1,6 +1,6 @@
 # 站点分析方法论
 
-如何在没有 API 文档的情况下，把一个音乐站点变成 Cymusic 插件。
+如何在没有 API 文档的情况下，把一个音乐站点变成 Zhmusic 插件。
 
 ## 核心方法论：观察 → 分析 → 复现 → 验证
 
@@ -39,7 +39,7 @@
 
 **快速预判**：用 `curl https://target.com/song/123 -o page.html` 抓下来，搜索 `mp3`/`audio`/`url`。
 
-**对接策略**：cheerio 在 Cymusic 沙箱里**不可用**，所以用正则/字符串切片提取：
+**对接策略**：cheerio 在 Zhmusic 沙箱里**不可用**，所以用正则/字符串切片提取：
 
 ```javascript
 const html = await fetch(songPageUrl).then(r => r.text())
@@ -206,7 +206,7 @@ curl 'https://music.example.com/api/play?id=123&q=flac' | jq
 
 ```javascript
 // 场景：参数排序后拼接 + 密钥再 MD5
-// Cymusic 沙箱无 crypto-js，需要内联 MD5 实现（见 plugin-template.md 模板 3）
+// Zhmusic 沙箱无 crypto-js，需要内联 MD5 实现（见 plugin-template.md 模板 3）
 function sign(params, secret) {
   const sorted = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&')
   return md5(sorted + '&key=' + secret)
@@ -230,7 +230,7 @@ const payload = btoa(JSON.stringify({ ...params, ts: Date.now() }))
 
 ## 跨源 ID 反查策略（songmid → 目标源 ID）
 
-Cymusic 给你的是 QQ Music 的 `songmid`。如果目标源不认 QQ ID，按下面策略选一种：
+Zhmusic 给你的是 QQ Music 的 `songmid`。如果目标源不认 QQ ID，按下面策略选一种：
 
 | 策略 | 适用 | 优缺点 |
 |---|---|---|
@@ -249,7 +249,7 @@ Cymusic 给你的是 QQ Music 的 `songmid`。如果目标源不认 QQ ID，按�
 
 不同源的音质命名不一致，这里是几个常见的对照：
 
-| Cymusic | QQ Music | 网易云 | 酷我 | 酷狗 |
+| Zhmusic | QQ Music | 网易云 | 酷我 | 酷狗 |
 |---|---|---|---|---|
 | `128k` | `M500` (mp3 128) | `standard` | `128kmp3` | `mp3-128k` |
 | `320k` | `M800` (mp3 320) | `higher` / `exhigh` | `320kmp3` | `mp3-320k` |

@@ -9,7 +9,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>CyMusic</string>
+	<string>ZhMusic</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -29,6 +29,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>zhmusic</string>
 				<string>cymusic</string>
 				<string>com.music.player.gyc</string>
 			</array>
@@ -36,6 +37,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>exp+zhmusic</string>
 				<string>exp+cymusic</string>
 			</array>
 		</dict>

@@ -1,8 +1,8 @@
-# Cymusic 插件协议详细规范
+# Zhmusic 插件协议详细规范
 
 ## 加载机制
 
-Cymusic 通过 `createMusicApiFromScript` 函数加载插件（`src/helpers/userApi/importMusicSource.ts`）：
+Zhmusic 通过 `createMusicApiFromScript` 函数加载插件（`src/helpers/userApi/importMusicSource.ts`）：
 
 ```ts
 const module = { exports: {} }
@@ -67,13 +67,13 @@ async function getMusicUrl(
   songmid: string,      // QQ Music 的 songmid（注意不是 id）
   quality: string,      // '128k' | '320k' | 'flac'
   // 第 5 个参数 requestContext 在 lx-music 适配器里有用，
-  // Cymusic 原生格式可以忽略
+  // Zhmusic 原生格式可以忽略
 ): Promise<string | null>
 ```
 
 ### 返回值约定
 
-| 返回 | 含义 | Cymusic 行为 |
+| 返回 | 含义 | Zhmusic 行为 |
 |---|---|---|
 | `'https://....mp3'` | 成功 | 立即播放 |
 | `''`（空字符串）| 当前音质无 | 自动降级到下一档音质重试 |
@@ -120,7 +120,7 @@ module.exports.getMusicUrl = async function (title, artist, songmid, quality) {
     if (data.code !== 0) return null  // 业务层失败 → 同上
     return data.url             // 成功 → 字符串 URL
   } catch (e) {
-    console.log('[my-plugin]', e.message)  // 日志会被 Cymusic 转发
+    console.log('[my-plugin]', e.message)  // 日志会被 Zhmusic 转发
     return null
   }
 }
@@ -128,7 +128,7 @@ module.exports.getMusicUrl = async function (title, artist, songmid, quality) {
 
 ### 日志输出
 
-脚本中的 `console.log` / `console.error` 会被 Cymusic 内部 logger 转发到 App 内日志页（设置 → 日志）。
+脚本中的 `console.log` / `console.error` 会被 Zhmusic 内部 logger 转发到 App 内日志页（设置 → 日志）。
 
 **调试小技巧**：在脚本里加唯一前缀方便过滤：
 
@@ -166,7 +166,7 @@ async function getToken() {
 
 ## 跨源主键转换（重要）
 
-Cymusic 的 `songmid` 来自 **QQ Music**。如果你接入的源不是 QQ 系（比如酷我、网易云），需要"用 songmid 反查歌名歌手，再到目标源搜索"。
+Zhmusic 的 `songmid` 来自 **QQ Music**。如果你接入的源不是 QQ 系（比如酷我、网易云），需要"用 songmid 反查歌名歌手，再到目标源搜索"。
 
 **方案 A**：用 title + artist 直接搜目标源（最常用）
 
@@ -207,4 +207,4 @@ async function getMusicUrl(title, artist, songmid, quality) {
 
 - 脚本是用户级代码，**不要硬编码 token / 个人 cookie**——要让用户填
 - 如果脚本会被分发，请在脚本头注释声明数据来源、协议、维护者
-- 遵循 Cymusic 协议（README 中"项目协议"段）：免费、非商业、用户 24 小时清理版权数据
+- 遵循 Zhmusic 协议（README 中"项目协议"段）：免费、非商业、用户 24 小时清理版权数据

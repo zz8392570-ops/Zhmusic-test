@@ -67,10 +67,10 @@ jobs:
         run: |
           mkdir -p Payload
           cp -r ios/build/Build/Products/Release-iphoneos/CyMusic.app Payload/
-          zip -r CyMusic-unsigned.ipa Payload/
+          zip -r ZhMusic-unsigned.ipa Payload/
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: CyMusic-unsigned-ipa
-          path: CyMusic-unsigned.ipa
+          name: ZhMusic-unsigned-ipa
+          path: ZhMusic-unsigned.ipa

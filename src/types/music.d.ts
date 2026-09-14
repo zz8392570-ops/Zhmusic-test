@@ -232,8 +232,8 @@ declare namespace IMusic {
         srcUrl: string;
        /** 脚本内容 */
         script: string;
-        /** 脚本类型: cymusic 原有格式 / lxmusic lx-music 格式 */
-        scriptType?: 'cymusic' | 'lxmusic';
+        /** 脚本类型: zhmusic 原有格式 / lxmusic lx-music 格式 */
+        scriptType?: 'cymusic' | 'zhmusic' | 'lxmusic';
         /** 内嵌音源稳定键，删除后避免下次启动再次注入 */
         builtinKey?: string;
         /** 可用性探测结果 */

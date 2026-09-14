@@ -16,7 +16,7 @@ const SingerListScreen = () => {
 	const defaultStyles = useDefaultStyles()
 	const pathname = usePathname()
 	logInfo('pathname', pathname)
-	const isShareIntentPath = pathname.includes('cymusic')
+	const isShareIntentPath = pathname.includes('zhmusic') || pathname.includes('cymusic')
 
 	const { name: playlistName, album } = useLocalSearchParams<{ name: string; album?: string }>()
 	const isAlbum = !!album
