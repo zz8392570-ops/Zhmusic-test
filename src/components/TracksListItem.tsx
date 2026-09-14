@@ -21,6 +21,7 @@ import {
 } from '@/helpers/audioQuality'
 import i18n from '@/utils/i18n'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
+import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import { hapticLight, hapticSelection } from '@/utils/haptics'
 
 export type TracksListItemProps = {
@@ -91,12 +92,27 @@ const TracksListItem = ({
 			track.url,
 		],
 	)
-	const artworkSource = useMemo(
-		() => ({
-			uri: getThumbnailArtwork(track.artwork) ?? unknownTrackImageUri,
-		}),
+	const baseArtworkUri = useMemo(
+		() => getThumbnailArtwork(track.artwork) ?? unknownTrackImageUri,
 		[track.artwork],
 	)
+	const [resolvedArtworkUri, setResolvedArtworkUri] = useState(baseArtworkUri)
+	const [hasArtworkError, setHasArtworkError] = useState(false)
+	const artworkUri = hasArtworkError ? unknownTrackImageUri : resolvedArtworkUri
+	const artworkSource = useMemo(() => ({ uri: artworkUri }), [artworkUri])
+
+	useEffect(() => {
+		let isMounted = true
+		setResolvedArtworkUri(baseArtworkUri)
+		setHasArtworkError(false)
+		void resolveLeaderboardArtwork(track.platform, track.id, track.artwork).then((resolvedUrl) => {
+			if (isMounted && resolvedUrl)
+				setResolvedArtworkUri(getThumbnailArtwork(resolvedUrl) ?? resolvedUrl)
+		})
+		return () => {
+			isMounted = false
+		}
+	}, [baseArtworkUri, track.artwork, track.id, track.platform])
 
 	useEffect(() => {
 		let isMounted = true
@@ -173,7 +189,8 @@ const TracksListItem = ({
 							contentFit="cover"
 							cachePolicy="memory-disk"
 							priority="normal"
-							recyclingKey={artworkSource.uri ?? 'missing-artwork'}
+							recyclingKey={artworkSource.uri}
+							onError={() => setHasArtworkError(true)}
 							source={artworkSource}
 							style={{
 								...styles.trackArtworkImage,

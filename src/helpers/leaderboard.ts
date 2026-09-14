@@ -84,7 +84,78 @@ export const boardsToPlaylists = (source: LeaderboardSource): Playlist[] =>
 
 const toHttps = (url?: string | null) => {
 	if (!url) return unknownTrackImageUri
-	return String(url).replace(/^http:/, 'https:').replace('{size}', '400')
+	return normalizeArtworkUrl(url)
+}
+
+const normalizeArtworkUrl = (url: unknown) =>
+	String(url || '')
+		.trim()
+		.replace(/^http:\/\/img1\.kwcdn\.kuwo\.cn\//, 'https://img1.kuwo.cn/')
+		.replace(/^http:/, 'https:')
+		.replace('{size}', '400')
+
+const getEmbeddedTrackArtwork = (track: any, source: LeaderboardSource) => {
+	const candidates = [
+		track.artwork,
+		track.img,
+		track.pic,
+		track.cover,
+		track.coverImg,
+		track.album_sizable_cover,
+		track.trans_param?.union_cover,
+		track.album?.picUrl,
+		track.al?.picUrl,
+		track.albumImgs?.[0]?.img,
+	]
+	const embedded = candidates.find((value) => typeof value === 'string' && value.trim())
+	if (embedded) return normalizeArtworkUrl(embedded)
+
+	const albumId = track.albumId ?? track.albumid
+	if (source === 'tx' && albumId) {
+		return `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumId}.jpg`
+	}
+	return unknownTrackImageUri
+}
+
+const artworkCache = new Map<string, string | null>()
+const artworkRequests = new Map<string, Promise<string | undefined>>()
+
+export const resolveLeaderboardArtwork = async (
+	platform: unknown,
+	trackId: unknown,
+	artwork?: string,
+): Promise<string | undefined> => {
+	if (artwork && artwork !== unknownTrackImageUri) return normalizeArtworkUrl(artwork)
+	if (platform !== 'kw' || !trackId) return undefined
+
+	const key = `kw:${trackId}`
+	if (artworkCache.has(key)) return artworkCache.get(key) ?? undefined
+	const pendingRequest = artworkRequests.get(key)
+	if (pendingRequest) return pendingRequest
+
+	const request = (async () => {
+		const controller = new AbortController()
+		const timeout = setTimeout(() => controller.abort(), 8_000)
+		try {
+			const response = await fetch(
+				`https://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=url&size=150&rid=${encodeURIComponent(String(trackId))}`,
+				{ signal: controller.signal },
+			)
+			if (!response.ok) return undefined
+			const resolvedUrl = normalizeArtworkUrl(await response.text())
+			return /^https?:\/\//.test(resolvedUrl) ? resolvedUrl : undefined
+		} catch {
+			return undefined
+		} finally {
+			clearTimeout(timeout)
+		}
+	})().then((resolvedUrl) => {
+		artworkCache.set(key, resolvedUrl ?? null)
+		artworkRequests.delete(key)
+		return resolvedUrl
+	})
+	artworkRequests.set(key, request)
+	return request
 }
 
 const toRadioPlaylist = (
@@ -231,7 +302,7 @@ export const mapLeaderboardTrack = (track: any, source: LeaderboardSource): Trac
 	albumid: track.albumId,
 	genre: track.genre || 'Unknown Genre',
 	date: track.releaseDate || 'Unknown Release Date',
-	artwork: track.img || unknownTrackImageUri,
+	artwork: getEmbeddedTrackArtwork(track, source),
 	duration: 0,
 	singerImg: track.singerImg || unknownTrackImageUri,
 })
