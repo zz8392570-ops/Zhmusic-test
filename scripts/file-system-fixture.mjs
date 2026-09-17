@@ -12,8 +12,17 @@ import ts from 'typescript'
 export const projectRoot = fileURLToPath(new URL('../', import.meta.url))
 const projectRequire = createRequire(path.join(projectRoot, 'package.json'))
 const fsp = fs.promises
-export const uri = (filePath) => pathToFileURL(filePath).href
-const rawPath = (address) => (address.startsWith('file:') ? fileURLToPath(address) : address)
+export const uri = (filePath) =>
+	process.platform === 'win32' && filePath.startsWith('/')
+		? `file://${filePath.split('/').map(encodeURIComponent).join('/')}`
+		: pathToFileURL(filePath).href
+export const pathFromUri = (address) =>
+	process.platform === 'win32' &&
+	/^file:\/\/\//.test(address) &&
+	!/^file:\/\/\/[A-Za-z]:\//.test(address)
+		? decodeURIComponent(new URL(address).pathname)
+		: fileURLToPath(address)
+const rawPath = (address) => (address.startsWith('file:') ? pathFromUri(address) : address)
 export const item = (id, url, extra = {}) => ({
 	id,
 	url,
@@ -54,7 +63,15 @@ export const exists = async (filePath) => {
 }
 
 export function createFixture() {
-	const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'cymusic-file-system-'))
+	// The production resolver intentionally accepts iOS absolute paths only. On
+	// Windows use a drive-relative root on the working drive so real I/O still runs.
+	const tempRoot =
+		process.platform === 'win32' ? path.join(process.cwd(), 'node_modules', '.cache') : os.tmpdir()
+	fs.mkdirSync(tempRoot, { recursive: true })
+	const temporary = fs
+		.mkdtempSync(path.join(tempRoot, 'cymusic-file-system-'))
+		.replaceAll('\\', '/')
+		.replace(/^[A-Za-z]:/, '')
 	const device = 'C1AE4D08-E48F-4FB1-ADD3-5519A312BA8E'
 	const oldId = '7271300E-93A5-46F8-8F63-94CCA3D6D1B9'
 	const newId = 'DF61442C-A0BF-4991-AD9E-59E25D117025'
@@ -107,6 +124,7 @@ export function createFixture() {
 			'qualityStore',
 			'musicApiStore',
 			'musicApiSelectedStore',
+			'musicApiTestingStore',
 			'nowApiState',
 			'autoCacheLocalStore',
 			'isCachedIconVisibleStore',
@@ -116,11 +134,26 @@ export function createFixture() {
 			'trackSkipLoadingStore',
 			'trackSourceLoadingStore',
 			'playbackIntentStore',
+			'autoCacheWifiOnlyStore',
+			'cacheDownloadTasksStore',
+			'cacheRevisionStore',
+			'playbackQualityStore',
+			'playbackCachedStore',
+			'sourceLoadingProgressStore',
+			'sourceLoadingErrorStore',
+			'recentlyPlayedStore',
 		]
 		const stores = Object.fromEntries(storeNames.map((name) => [name, state()]))
 		stores.qualityStore.setValue('128k')
-		stores.repeatModeStore.setValue('queue')
+		stores.repeatModeStore.setValue('QUEUE')
 		stores.playbackIntentStore.setValue('pause')
+		stores.cacheDownloadTasksStore.setValue([])
+		stores.cacheRevisionStore.setValue(0)
+		stores.recentlyPlayedStore.setValue([])
+		stores.importedLocalMusicStore.setValue([])
+		stores.playListsStore.setValue([])
+		stores.musicApiStore.setValue([])
+		stores.musicApiTestingStore.setValue(false)
 		const persistence = {
 			get: (key) => {
 				const value = disk.has(key) ? JSON.parse(disk.get(key)) : null
@@ -162,7 +195,12 @@ export function createFixture() {
 			getInfoAsync: async (address) => {
 				try {
 					const info = await fsp.stat(rawPath(address))
-					return { exists: true, isDirectory: info.isDirectory(), size: info.size }
+					return {
+						exists: true,
+						isDirectory: info.isDirectory(),
+						size: info.size,
+						modificationTime: info.mtimeMs / 1000,
+					}
 				} catch (error) {
 					if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return { exists: false }
 					throw error
@@ -170,11 +208,12 @@ export function createFixture() {
 			},
 			makeDirectoryAsync: async (address, options) =>
 				fsp.mkdir(rawPath(address), { recursive: options.intermediates }),
+			readDirectoryAsync: async (address) => fsp.readdir(rawPath(address)),
 			deleteAsync: async (address, options = {}) => {
 				calls.deletes.push(address)
 				assert(address.startsWith('file:///'), 'Deletion must use one local URI scheme')
 				if (hooks.delete) await hooks.delete(address)
-				await fsp.rm(fileURLToPath(address), { recursive: true, force: !!options.idempotent })
+				await fsp.rm(pathFromUri(address), { recursive: true, force: !!options.idempotent })
 			},
 			moveAsync: async (options) => {
 				calls.moves.push(options)
@@ -244,10 +283,11 @@ export function createFixture() {
 			},
 		}
 		const eventListeners = new Map()
-		const nativeProjection = (track) => track && ({
-			...track,
-			url: typeof track.url === 'object' ? track.url.uri : track.url,
-		})
+		const nativeProjection = (track) =>
+			track && {
+				...track,
+				url: typeof track.url === 'object' ? track.url.uri : track.url,
+			}
 		const player = {
 			queue: [],
 			activeIndex: null,
@@ -256,13 +296,25 @@ export function createFixture() {
 			progress: { position: 0, duration: 0, buffered: 0, cached: 0 },
 			rate: 1,
 			volume: 1,
-			setupPlayer: (options) => { calls.player.push(['setup', options]) },
-			setCommands: (options) => { calls.player.push(['commands', options]) },
-			setRepeatMode: (mode) => { calls.player.push(['repeat', mode]) },
-			setShuffleEnabled: (enabled) => { calls.player.push(['shuffle', enabled]) },
-			setVolume: (volume) => { player.volume = volume },
+			setupPlayer: (options) => {
+				calls.player.push(['setup', options])
+			},
+			setCommands: (options) => {
+				calls.player.push(['commands', options])
+			},
+			setRepeatMode: (mode) => {
+				calls.player.push(['repeat', mode])
+			},
+			setShuffleEnabled: (enabled) => {
+				calls.player.push(['shuffle', enabled])
+			},
+			setVolume: (volume) => {
+				player.volume = volume
+			},
 			getVolume: () => player.volume,
-			setPlaybackSpeed: (rate) => { player.rate = rate },
+			setPlaybackSpeed: (rate) => {
+				player.rate = rate
+			},
 			getPlaybackSpeed: () => player.rate,
 			registerPlaybackSession: (session) => session(),
 			addEventListener: (event, callback) => {
@@ -271,7 +323,7 @@ export function createFixture() {
 				return { remove: () => eventListeners.get(event).delete(callback) }
 			},
 			emit: (event, payload) => {
-				for (const listener of [...eventListeners.get(event) ?? []]) listener(payload)
+				for (const listener of [...(eventListeners.get(event) ?? [])]) listener(payload)
 			},
 			listenerCount: (event) => eventListeners.get(event)?.size ?? 0,
 			setMediaItems: (tracks) => {
@@ -330,7 +382,13 @@ export function createFixture() {
 				PlaybackError: 'error',
 				PlaybackProgressUpdated: 'progress',
 			},
-			PlaybackState: { Idle: 'idle', Ready: 'ready', Buffering: 'buffering', Ended: 'ended', Error: 'error' },
+			PlaybackState: {
+				Idle: 'idle',
+				Ready: 'ready',
+				Buffering: 'buffering',
+				Ended: 'ended',
+				Error: 'error',
+			},
 		}
 		const cache = {
 			isCached: async (track) => {
@@ -347,6 +405,9 @@ export function createFixture() {
 			clearCache: async () => {
 				throw new Error('Unexpected cache clearing')
 			},
+			migrateCacheRetention: async () => {},
+			forgetCachedFile() {},
+			getCacheLocalPath: async (value) => value,
 		}
 		const logger = {
 			logInfo: (...args) => calls.info.push(args),
@@ -361,6 +422,10 @@ export function createFixture() {
 			},
 			'expo-modules-core': { uuid: { v4: randomUUID }, UnavailabilityError: Error },
 			'expo-file-system': expoFs,
+			'expo-network': {
+				NetworkStateType: { WIFI: 'wifi' },
+				getNetworkStateAsync: async () => ({ type: 'wifi' }),
+			},
 			'@rntp/player': player,
 			'@/player/PlayerStore': stores,
 			'@/store/PersistStatus': persistence,
@@ -387,7 +452,7 @@ export function createFixture() {
 			},
 			'@/store/playList': queueOwner,
 			'@/helpers/types': {
-				MusicRepeatMode: { QUEUE: 'queue', SINGLE: 'single', SHUFFLE: 'shuffle' },
+				MusicRepeatMode: { QUEUE: 'QUEUE', SINGLE: 'SINGLE', SHUFFLE: 'SHUFFLE' },
 			},
 			'@/utils/mediaIndexMap': {
 				createMediaIndexMap: () => {
@@ -402,12 +467,18 @@ export function createFixture() {
 				Image: { resolveAssetSource: () => ({ uri: 'fixture://fake-audio.mp3' }) },
 			},
 			'@/helpers/userApi/getMusicSource': { myGetLyric: async () => ({ lyric: 'fixture' }) },
-			'@/utils/i18n': { nowLanguage: state('en') },
+			'@/utils/i18n': { nowLanguage: state('en'), t: (key) => key },
 			'@/utils/utils': { showToast: (...args) => calls.toasts.push(args) },
 			'@/helpers/userApi/lxMusicSourceAdapter': {
 				isLxMusicScript: () => false,
 				reloadLxMusicScript: async (api) => api,
+				disposeLxMusicScript() {},
 			},
+			'@/helpers/userApi/builtinMusicSources': {
+				BUNDLED_SOURCES_VERSION: 'fixture',
+				loadBundledMusicApiStubs: () => [],
+			},
+			'expo-router': { router: { push() {} } },
 		}
 		if (!realCache) overrides['@/player/CacheManager'] = cache
 		Object.assign(overrides, moduleOverrides)
@@ -424,6 +495,7 @@ export function createFixture() {
 			modules.set(filename, module)
 			const source = fs.readFileSync(filename, 'utf8')
 			const compiled = ts.transpileModule(source, {
+				fileName: filename,
 				compilerOptions: {
 					target: ts.ScriptTarget.ES2022,
 					module: ts.ModuleKind.CommonJS,
@@ -471,7 +543,7 @@ export function createFixture() {
 					return calls.timers.length
 				},
 				() => {},
-				{ log() {}, warn() {} },
+				{ log() {}, warn() {}, error: (...args) => calls.errors.push(args) },
 				globals,
 			)
 			return module.exports

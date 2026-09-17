@@ -4,9 +4,9 @@
 import assert from 'node:assert/strict'
 import fsp from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import {
+	pathFromUri as fileURLToPath,
 	createFixture,
 	deferred,
 	exists,
@@ -58,9 +58,37 @@ async function httpDownload({ url, fileUri, options, progress }) {
 	return { uri: fileUri, status: response.status, headers: {}, mimeType: 'audio/mpeg' }
 }
 const httpRuntime = () => {
-	const h = fixture.runtime({ realCache: true })
+	const h = fixture.runtime({
+		realCache: true,
+		moduleOverrides: {
+			'@/player/MusicSourceResolver': {
+				resolveSource: async (track) => {
+					const outcome = /^manual-(.+)$/.exec(track.id)?.[1]
+					const status =
+						outcome && (/^\d+$/.test(outcome) || outcome === 'transport-error') ? outcome : '200'
+					return {
+						url: `http://127.0.0.1:${server.address().port}/${status}`,
+						quality: '128k',
+						wasCached: false,
+					}
+				},
+			},
+		},
+	})
 	h.hooks.download = httpDownload
 	return h
+}
+const settleTasks = async (h) => {
+	for (let index = 0; index < 1000; index++) {
+		if (
+			h.stores.cacheDownloadTasksStore
+				.getValue()
+				.every((task) => !['queued', 'downloading'].includes(task.status))
+		)
+			return
+		await new Promise((resolve) => setTimeout(resolve, 2))
+	}
+	assert.fail('Download queue did not settle')
 }
 const assertClean = async (h) => {
 	assert.equal(h.progressListeners.size, 0)
@@ -82,8 +110,15 @@ async function main() {
 			assert.equal(cache.getLocalFilePath(track), localPath)
 			assert.equal(cache.getCacheFileUri(localPath), uri(rawTarget))
 			await write(rawTarget, 'previous-valid-audio')
-			if (status === 200) assert.equal(await cache.downloadToCache(track), localPath)
-			else await assert.rejects(cache.downloadToCache(track), new RegExp(`状态码: ${status}`))
+			// Test the transport commit owner directly: downloadToCache intentionally
+			// reuses an existing file and never performs an overwrite request.
+			const download = h.load('src/helpers/fileDownload.ts').downloadFile
+			if (status === 200) await download(track.url, cache.getCacheFileUri(localPath))
+			else
+				await assert.rejects(
+					download(track.url, cache.getCacheFileUri(localPath)),
+					new RegExp(`状态码: ${status}`),
+				)
 			assert.equal(
 				await fsp.readFile(rawTarget, 'utf8'),
 				status === 200 ? 'audio-fixture-200' : 'previous-valid-audio',
@@ -123,13 +158,14 @@ async function main() {
 				}
 			const cache = h.load('src/player/CacheManager.ts')
 			await h.load('src/helpers/trackPlayerIndex.ts').default.cacheAndImportMusic(track)
+			await settleTasks(h)
 			const records = h.stores.importedLocalMusicStore.getValue() || []
 			if (outcome === 200) {
 				assert.deepEqual(
 					records.map(({ id, url }) => ({ id, url })),
 					[{ id: track.id, url: cache.getLocalFilePath(track) }],
 				)
-				assert.equal(h.calls.alerts.length, 1)
+				assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].status, 'completed')
 				assert.equal(
 					await fsp.readFile(fileURLToPath(cache.getCacheFileUri(records[0].url)), 'utf8'),
 					'audio-fixture-200',
@@ -137,7 +173,11 @@ async function main() {
 			} else {
 				assert.deepEqual(records, [])
 				assert.equal(h.calls.alerts.length, 0)
-				assert.equal(h.calls.writes.length, 0)
+				assert.equal(
+					h.calls.writes.filter(({ key }) => key === 'music.importedLocalMusic').length,
+					0,
+				)
+				assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].status, 'failed')
 				assert.equal(h.calls.errors.length, 1)
 				assert.equal(await cache.isCached(track), false)
 			}
@@ -167,9 +207,10 @@ async function main() {
 		const localPath = cache.getLocalFilePath(track)
 		await write(`${fixture.documents}/musicCache/fixture_already#%23.mp3`, 'already-cached')
 		await h.load('src/helpers/trackPlayerIndex.ts').default.cacheAndImportMusic(track)
+		await settleTasks(h)
 		assert.equal(h.stores.importedLocalMusicStore.getValue()[0].url, localPath)
 		assert.equal(h.calls.downloads.length, 0)
-		assert.equal(h.calls.alerts.length, 1)
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].status, 'completed')
 	})
 	await test('manual import waits for the final move before writing its record', async () => {
 		const h = httpRuntime()
@@ -183,11 +224,12 @@ async function main() {
 			.load('src/helpers/trackPlayerIndex.ts')
 			.default.cacheAndImportMusic(item('await-move', `${baseUrl}/200`))
 		await entered.promise
-		assert.equal(h.calls.writes.length, 0)
+		assert.equal(h.calls.writes.filter(({ key }) => key === 'music.importedLocalMusic').length, 0)
 		assert.equal(h.calls.alerts.length, 0)
 		finish.resolve()
 		await pending
-		assert.equal(h.calls.writes.length, 1)
+		await settleTasks(h)
+		assert.equal(h.calls.writes.filter(({ key }) => key === 'music.importedLocalMusic').length, 1)
 		await assertClean(h)
 	})
 	await test('cleanup errors preserve the original rejection and are logged', async () => {

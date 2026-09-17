@@ -13,7 +13,7 @@
 			"version": "Version",
 			"checkUpdate": "Check for Updates",
 			"projectLink": "Project Link",
-			"clearCache": "Clear Cache",
+			"clearCache": "Clear automatic cache",
 			"manageCache": "Manage Downloads & Cache",
 			"autoCacheWifiOnly": "Auto-cache on Wi-Fi Only",
 			"viewLogs": "View Logs",
@@ -26,7 +26,7 @@
 			"deleteSource": "Delete Source",
 			"selectDelete": "Select Delete",
 			"importSource": "Import Source",
-			"currentQuality": "Current Quality",
+			"currentQuality": "Preferred quality",
 			"changeLanguage": "Change Language",
 			"theme": "Theme",
 			"normal": "Normal",
@@ -40,7 +40,7 @@
 		},
 		"descriptions": {
 			"preciseSeeking": "Helps keep audio and lyrics aligned after seeking in some FLAC files. Playback may wait for the full audio file to load. Applies after changing tracks.",
-			"autoCacheLocal": "Automatically save streamed songs for faster playback next time.",
+			"autoCacheLocal": "Cache online songs after playback. Older automatic files are removed at the size limit; songs saved for offline use are retained.",
 			"autoCacheWifiOnly": "Prevents automatic caching from using cellular data. Manual downloads are unaffected.",
 			"isCachedIconVisible": "Show cached status and audio format in song lists."
 		},
@@ -80,12 +80,12 @@
 				"cancel": "Cancel"
 			},
 			"cache": {
-				"title": "Clear Cache",
-				"message": "Cached song files will be removed. Favorites and playlists won't be affected.",
+				"title": "Clear Automatic Cache",
+				"message": "Remove eligible automatic files. Offline saves, imported files and the playing file are retained. Favorites and playlists stay intact.",
 				"cancel": "Cancel",
 				"confirm": "Clear",
 				"success": "Success",
-				"successMessage": "Cache has been cleared",
+				"successMessage": "Automatic cache cleared; offline songs retained",
 				"error": "Failed",
 				"errorMessage": "Failed to clear cache"
 			},
@@ -110,22 +110,34 @@
 	"cacheCenter": {
 		"title": "Downloads & Cache",
 		"summary": "%{count} cached song(s)",
-		"tasks": "Recent Downloads",
-		"cachedSongs": "Cached Songs",
+		"tasks": "Download tasks",
+		"cachedSongs": "Offline songs & automatic cache",
 		"empty": "No cached songs yet",
 		"downloading": "Downloading %{progress}%",
-		"downloaded": "Saved for offline playback",
+		"downloaded": "Saved offline",
 		"downloadFailed": "Download failed",
 		"alreadyDownloading": "This song is already downloading",
 		"cancel": "Cancel",
 		"retry": "Retry",
-		"deleteTitle": "Delete Cache",
-		"deleteMessage": "Delete the cached file for “%{name}”?",
+		"deleteTitle": "Delete Local File",
+		"deleteMessage": "Delete the local audio file for “%{name}”? Download it again to play offline.",
 		"status": {
 			"completed": "Completed",
 			"failed": "Failed",
-			"cancelled": "Cancelled"
-		}
+			"cancelled": "Cancelled",
+			"queued": "Queued",
+			"interrupted": "Ready to continue"
+		},
+		"limit": "Automatic cache limit",
+		"retentionHint": "Older automatic files are removed at the limit. Offline saves and existing downloads from older versions are retained. Playing files and active offline saves are temporarily protected.",
+		"resumeAll": "Continue unfinished tasks",
+		"automatic": "Automatic cache",
+		"saved": "Saved offline",
+		"keepOffline": "Keep offline",
+		"queued": "Added to download queue",
+		"batchQueued": "Queued %{count} songs for offline saving",
+		"downloadAll": "Save playlist offline",
+		"batchMessage": "Save playlist songs; about %{count} songs need downloading. Manual downloads may use cellular data. Check your network and free space."
 	},
 	"queue": {
 		"title": "Queue · %{count}",
@@ -177,9 +189,9 @@
 		"songs": "Songs",
 		"search": "Search",
 		"radio": "Charts",
-		"favorites": "Library",
+		"favorites": "My Music",
 		"favoritesSongs": "Favorite Songs",
-		"localOrCachedSongs": "Local/Cached Songs",
+		"localOrCachedSongs": "Local & Offline",
 		"recentlyPlayed": "Recently Played"
 	},
 	"library": {
@@ -201,8 +213,18 @@
 		"deletedMessage": "Deleted “%{name}”. Undo?",
 		"undo": "Undo",
 		"done": "Done",
-		"filters": { "all": "All", "offline": "Offline" },
-		"sort": { "recent": "Recent", "title": "Title", "artist": "Artist" }
+		"filters": {
+			"all": "All",
+			"offline": "Offline"
+		},
+		"sort": {
+			"recent": "Recent",
+			"title": "Title",
+			"artist": "Artist"
+		},
+		"songResults": "Songs · %{count}",
+		"playlistResults": "Playlists · %{count}",
+		"searchNoResults": "No matching playlists. Try another name."
 	},
 	"localMusic": {
 		"notice": "Notice",
@@ -225,7 +247,13 @@
 		"exportUnavailableTitle": "Some Files Are Unavailable",
 		"exportUnavailableMessage": "%{count} file(s) were moved or deleted. Import them again and retry.",
 		"exportFailed": "Export failed. Try again later.",
-		"filters": { "all": "All", "imported": "Imported", "cached": "Cached" }
+		"filters": {
+			"all": "All",
+			"imported": "Imported",
+			"cached": "Cached",
+			"saved": "Saved Offline",
+			"automatic": "Automatic Cache"
+		}
 	},
 	"home": {
 		"title": "Home",
@@ -256,10 +284,10 @@
 		"addFailed": "Couldn't add the song"
 	},
 	"find": {
-		"inRadio": "Find in Radio",
+		"inRadio": "Find in Charts",
 		"inSearch": "Find Songs, Artists, or Playlists Online",
 		"inSongs": "Find in Songs",
-		"inFavorites": "Find in Favorites",
+		"inFavorites": "Find Songs, Artists, Albums or Playlists",
 		"noResults": "No results found",
 		"noMoreResults": "No more results",
 		"cancel": "Cancel",
@@ -309,7 +337,8 @@
 		"emptyPlaylist": "This playlist is empty",
 		"emptyPlaylistDescription": "There aren't any playable songs here yet",
 		"unknownSong": "Unknown song",
-		"unknownArtist": "Unknown artist"
+		"unknownArtist": "Unknown artist",
+		"pendingResults": "Still searching %{platforms}; returned songs are ready to play"
 	},
 	"playButton": {
 		"play": "Play",
@@ -399,6 +428,16 @@
 		"error": {
 			"title": "Error",
 			"minutesErrorMessage": "Please enter a valid number of minutes"
+		},
+		"sourceLoading": {
+			"resolving": "Getting audio from %{source} %{quality}…",
+			"switching": "Switching to %{source} %{quality}…",
+			"retryingQuality": "Trying %{source} %{quality} audio…",
+			"timeout": "Getting audio timed out. Switch source or retry.",
+			"failed": "Could not get audio. Switch source or retry.",
+			"switch": "Switch source",
+			"next": "Next song",
+			"noAlternative": "No other source is available. Import or test sources in Settings."
 		}
 	},
 	"menu": {
@@ -410,5 +449,24 @@
 		"removeFromFavorites": "Remove from Favorites",
 		"removeFromPlayingList": "Remove from PlayingList",
 		"delete": "Delete"
+	},
+	"backup": {
+		"title": "Backup & Restore",
+		"description": "Back up favorites, playlists, recent plays and personal settings. Audio, source scripts and custom cover images are excluded. Import local songs, sources and covers again on a new device.",
+		"export": "Export backup file",
+		"import": "Choose backup file",
+		"exportFailed": "Could not export the backup. Try again later.",
+		"invalid": "Invalid, unsupported or over-10-MB backup. Existing data was not changed.",
+		"restoreFailed": "Restore failed. Check free space and try again.",
+		"restored": "Backup restored",
+		"preview": "Backup preview",
+		"summary": "%{favorites} favorites · %{playlists} playlists · %{recent} recent plays · %{settings} settings",
+		"merge": "Merge: keep existing music and remove duplicates",
+		"replace": "Replace: use music details from this backup",
+		"restoreSettings": "Restore personal settings too",
+		"confirmTitle": "Restore Backup?",
+		"replaceMessage": "Replace your favorites, playlists and recent plays. Audio files stay intact. The switch above controls whether settings are restored.",
+		"mergeMessage": "Merge favorites, playlists and recent plays. Matching platform and song IDs are deduplicated. The switch above controls whether settings are restored.",
+		"restore": "Restore backup"
 	}
 }

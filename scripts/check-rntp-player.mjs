@@ -165,6 +165,9 @@ function settingsRuntime() {
 			useThemeMode: () => ({ themeMode: 'system', setThemeMode() {} }),
 		},
 		'@/helpers/userApi/importMusicSource': {},
+		'@/helpers/leaderboard': { DEFAULT_HOME_BOARD_ID: 'fixture', DEFAULT_HOME_SOURCE: 'tx', normalizeLeaderboardSource: (value) => value || 'tx', setHomeLeaderboard() {} },
+		'@/store/library': { getHomeBoardName: () => 'Fixture', getHomeBoards: () => [] },
+		'@/components/MusicSourceHealthList': 'MusicSourceHealthList',
 		'@/store/PersistStatus': h.persistence,
 		'@/utils/i18n': { __esModule: true, default: i18n, nowLanguage: { useValue: () => i18n.locale } },
 		'@/utils/stateMapper': h.load('src/utils/stateMapper.ts'),
@@ -275,7 +278,7 @@ await check('Settings defaults off for missing, malformed and non-Boolean persis
 		if (raw === undefined) h.disk.delete('music.preciseSeeking')
 		else h.disk.set('music.preciseSeeking', raw)
 		assert.equal(findElement(h.render(), 'Switch').props.value, expected, String(raw))
-		assert.equal(h.listeners.size, 1)
+		assert.equal(h.listeners.size, 3)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 	}
@@ -290,7 +293,7 @@ await check('the real Settings Switch saves one key, updates through the storage
 	control.props.onValueChange(true)
 	assert.deepEqual(h.storageWrites, [['music.preciseSeeking', 'true']])
 	assert.equal(findElement(h.render(), 'Switch').props.value, true)
-	assert.equal(h.listeners.size, 1)
+	assert.equal(h.listeners.size, 3)
 	h.unmount()
 	assert.equal(h.listeners.size, 0)
 	assert.equal(findElement(h.render(), 'Switch').props.value, true)
@@ -326,7 +329,7 @@ await check('the iOS Switch exposes both localized explanations visibly and as i
 		h.unmount()
 	}
 	h.nativeViews.Platform.OS = 'android'
-	assert.equal(findElement(h.render(), 'Switch'), undefined)
+	assert.equal(findElement(h.render(), 'Switch', (node) => node.props.testID === 'settings.preciseSeeking'), undefined)
 	h.unmount()
 })
 
@@ -505,7 +508,7 @@ await check('a native interruption that leaves Ready without output displays Pla
 	assert.equal(findElement(PlayPauseButton({}), 'Icon').props.name, 'play')
 })
 
-await check('favorite display retains the library toggle owner\'s existing id comparison and uses the app record', () => {
+await check('favorite display compares platform and id and uses the app record', () => {
 	const h = runtime()
 	const current = song('favorite', { platform: 'tx' })
 	h.stores.currentMusicStore.setValue(current)
@@ -516,7 +519,7 @@ await check('favorite display retains the library toggle owner\'s existing id co
 		'@/player/PlayerStore': h.stores,
 		'@/utils/mediaItem': { isSameMediaItem: (a, b) => a?.id === b?.id && a?.platform === b?.platform },
 	}).useTrackPlayerFavorite()
-	assert.equal(favorite.isFavorite, true)
+	assert.equal(favorite.isFavorite, false)
 	favorite.toggleFavorite()
 	assert.deepEqual(toggled, [current])
 })
@@ -835,7 +838,7 @@ await check('lyric/progress events reject another item, a retired queue timestam
 	await h.setup()
 	await h.facade.play(song('lyrics'))
 	const lyrics = h.load('src/helpers/lyricManager.ts')
-	h.stores.nowLyricState.setValue('[00:00.00]zero\n[00:03.00]three')
+	h.stores.nowLyricState.setValue({ rawLrc: '[00:00.00]zero\n[00:03.00]three' })
 	await lyrics.default.setup()
 	const active = h.player.getActiveMediaItem()
 	const event = { mediaId: active.mediaId, position: 4, duration: 40, timestamp: Date.now() }

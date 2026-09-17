@@ -1,4 +1,5 @@
 import PersistStatus from '@/store/PersistStatus'
+import { waitForRequest, throwIfRequestAborted } from '@/helpers/requestControl'
 import {
 	musicApiSelectedStore,
 	musicApiStore,
@@ -25,6 +26,8 @@ import { disposeLxMusicScript, isLxMusicScript, reloadLxMusicScript } from './lx
 type SelectMusicApiOptions = {
 	silent?: boolean
 	notify?: boolean
+	signal?: AbortSignal
+	isCurrent?: () => boolean
 }
 
 type AddMusicApiOptions = {
@@ -37,6 +40,7 @@ const failedApiByMusicId = new Map<string, Set<string>>()
 export const getMusicFailureKey = (musicItem: IMusic.IMusicItem) =>
 	`${String(musicItem.platform || 'unknown').toLowerCase()}:${musicItem.id}`
 let loadedRuntimeId: string | null = null
+let selectionRevision = 0
 let runtimeLock: Promise<void> = Promise.resolve()
 let healthQueue: Promise<void> = Promise.resolve()
 
@@ -144,29 +148,53 @@ export const requestMusicUrlFromApi = async (
 	quality: IMusic.IQualityKey,
 	timeoutMs: number,
 	requestContext?: object,
-): Promise<string | null> =>
-	withSourceRuntime(async () => {
-		const ready = await ensureApiRuntime(api)
-		if (typeof ready.getMusicUrl !== 'function') return null
-		const enrichedRequestContext = {
-			...requestContext,
-			platform: musicItem.platform,
-			musicItem,
-		}
-		const url = await Promise.race([
-			ready.getMusicUrl(
-				musicItem.title,
-				musicItem.artist,
-				musicItem.id,
-				quality,
-				enrichedRequestContext,
-			),
-			new Promise<never>((_, reject) => {
-				setTimeout(() => reject(new Error('请求超时')), timeoutMs)
-			}),
-		])
-		return typeof url === 'string' && isValidMusicUrl(url) ? url : null
-	})
+	signal?: AbortSignal,
+): Promise<string | null> => {
+	throwIfRequestAborted(signal)
+	const attempt = new AbortController()
+	const onAbort = () => attempt.abort(signal?.reason)
+	signal?.addEventListener('abort', onAbort, { once: true })
+	const timer = setTimeout(() => {
+		const error = new Error('请求超时')
+		error.name = 'TimeoutError'
+		attempt.abort(error)
+	}, timeoutMs)
+	try {
+		return await waitForRequest(
+			() =>
+				withSourceRuntime(async () => {
+					throwIfRequestAborted(attempt.signal)
+					const ready = await ensureApiRuntime(api)
+					throwIfRequestAborted(attempt.signal)
+					if (typeof ready.getMusicUrl !== 'function') return null
+					const enrichedRequestContext = {
+						...requestContext,
+						platform: musicItem.platform,
+						musicItem,
+						signal: attempt.signal,
+					}
+					const url = await waitForRequest(
+						() =>
+							ready.getMusicUrl(
+								musicItem.title,
+								musicItem.artist,
+								musicItem.id,
+								quality,
+								enrichedRequestContext,
+							),
+						timeoutMs,
+						attempt.signal,
+					)
+					return typeof url === 'string' && isValidMusicUrl(url) ? url : null
+				}),
+			timeoutMs,
+			attempt.signal,
+		)
+	} finally {
+		clearTimeout(timer)
+		signal?.removeEventListener('abort', onAbort)
+	}
+}
 
 export const restoreSelectedRuntime = async () => {
 	const selected = musicApiSelectedStore.getValue()
@@ -178,8 +206,10 @@ export const setMusicApiAsSelectedById = async (
 	musicApiId: string,
 	options: SelectMusicApiOptions = {},
 ) => {
+	const revision = ++selectionRevision
 	try {
-		let musicApis: IMusic.MusicApi[] = musicApiStore.getValue() || []
+		throwIfRequestAborted(options.signal)
+		const musicApis: IMusic.MusicApi[] = musicApiStore.getValue() || []
 		const targetApiIndex = musicApis.findIndex((api) => api.id === musicApiId)
 		if (targetApiIndex === -1) {
 			logError(`Music API with id ${musicApiId} not found`)
@@ -187,15 +217,18 @@ export const setMusicApiAsSelectedById = async (
 			return
 		}
 
-		musicApis = persistApiList(
-			musicApis.map((api) => ({
-				...api,
+		const selectedApi = musicApis[targetApiIndex]
+		const reloadedApi = await withSourceRuntime(() => {
+			throwIfRequestAborted(options.signal)
+			return ensureApiRuntime({ ...selectedApi, isSelected: true })
+		})
+		throwIfRequestAborted(options.signal)
+		if (revision !== selectionRevision || options.isCurrent?.() === false) return
+		persistApiList(
+			(musicApiStore.getValue() || []).map((api) => ({
+				...(api.id === musicApiId ? reloadedApi : api),
 				isSelected: api.id === musicApiId,
 			})),
-		)
-		const selectedApi = musicApis[targetApiIndex]
-		const reloadedApi = await withSourceRuntime(() =>
-			ensureApiRuntime({ ...selectedApi, isSelected: true }),
 		)
 		musicApiSelectedStore.setValue(reloadedApi)
 		PersistStatus.set('music.selectedMusicApi', reloadedApi)
@@ -208,6 +241,7 @@ export const setMusicApiAsSelectedById = async (
 		}
 		return reloadedApi
 	} catch (error) {
+		throwIfRequestAborted(options.signal)
 		logError('Error setting music API as selected:', error)
 		if (!options.silent) Alert.alert('错误', '设置选中音源时发生错误')
 	}

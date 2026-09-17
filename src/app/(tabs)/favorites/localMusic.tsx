@@ -49,11 +49,13 @@ const LocalMusicScreen = () => {
 	}
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 	const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set())
-	const [filter, setFilter] = useState<'all' | 'imported' | 'cached'>('all')
+	const [filter, setFilter] = useState<'all' | 'imported' | 'cached' | 'saved' | 'automatic'>('all')
 	const [sort, setSort] = useState<'recent' | 'title' | 'artist'>('recent')
 	const visibleTracks = useMemo(() => {
 		const filtered = localTracks.filter((track) => {
 			const cached = String(track.url || '').includes('/musicCache/')
+			if (filter === 'saved') return cached && track.cacheKind !== 'automatic'
+			if (filter === 'automatic') return cached && track.cacheKind === 'automatic'
 			return filter === 'all' || (filter === 'cached' ? cached : !cached)
 		})
 		if (sort === 'recent') return filtered
@@ -308,7 +310,7 @@ const LocalMusicScreen = () => {
 				style={{ paddingHorizontal: screenPadding.horizontal }}
 			>
 				<View style={styles.libraryControls}>
-					{(['all', 'imported', 'cached'] as const).map((item) => (
+					{(['all', 'imported', 'saved', 'automatic'] as const).map((item) => (
 						<Pressable
 							key={item}
 							accessibilityRole="button"

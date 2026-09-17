@@ -4,6 +4,7 @@ import PersistStatus from '@/store/PersistStatus'
 import * as FileSystem from 'expo-file-system/legacy'
 import { downloadFile } from '@/helpers/fileDownload'
 import { fileUriFromPath } from '@/helpers/localFile'
+import { resolveLocalFile } from '@/helpers/localFile'
 import FileSystemNative from '../../modules/cymusic-native'
 import {
 	inferAudioQualityFromPath,
@@ -78,6 +79,20 @@ export type CachedAudioInfo = {
 	quality: AudioQuality
 }
 
+/** Resolve a cache reference using the owned-media rules, including previous app containers. */
+export const getCacheLocalPath = async (value: unknown): Promise<string | null> => {
+	const local = await resolveLocalFile(value, { requireOwnedMedia: true })
+	if (
+		local.status !== 'resolved' ||
+		local.filePath
+			.slice(0, local.filePath.lastIndexOf('/'))
+			.replace(/^\/private(?=\/var\/)/, '') !==
+			cacheDirectoryPath.replace(/^\/private(?=\/var\/)/, '')
+	)
+		return null
+	return `${cacheDir}${local.filePath.split('/').pop()}`
+}
+
 export const getCachedAudioInfo = async (
 	musicItem: IMusic.IMusicItem,
 	includeOtherFormats = false,
@@ -94,6 +109,8 @@ export const getCachedAudioInfo = async (
 			]),
 		),
 	)
+	const referencedCache = await getCacheLocalPath(musicItem.url)
+	if (referencedCache) paths.unshift(referencedCache)
 	const qualityMap = getCacheQualityMap()
 
 	for (const localPath of paths) {
@@ -162,22 +179,124 @@ export const getCacheSize = async () => {
 	)
 }
 
-export const clearCache = async () => {
-	const dirInfo = await FileSystem.getInfoAsync(cacheDir)
-	if (dirInfo.exists) {
-		await FileSystem.deleteAsync(cacheDir, { idempotent: true })
-		const importedLocalMusic = importedLocalMusicStore.getValue() || []
-		const updatedImportedLocalMusic = importedLocalMusic.filter(
-			(item: IMusic.IMusicItem) => !String(item.url || '').includes('/musicCache/'),
-		)
-		importedLocalMusicStore.setValue(updatedImportedLocalMusic)
-		PersistStatus.set('music.importedLocalMusic', updatedImportedLocalMusic)
-		logInfo('缓存已清理')
-	} else {
-		logInfo('缓存目录不存在，无需清理')
-	}
-	PersistStatus.set('music.cacheQualityMap', {})
+export const markSavedOffline = (localPath: string) => {
+	if (!localPath.startsWith(cacheDir)) throw new Error('Invalid cache address')
+	const key = localPath.slice(cacheDir.length)
+	if (!key || key.includes('/') || key.includes('\\') || key === '.' || key === '..')
+		throw new Error('Invalid cache filename')
+	PersistStatus.set('music.savedOffline', {
+		...(PersistStatus.get('music.savedOffline') ?? {}),
+		[key]: true,
+	})
 	cacheRevisionStore.setValue(cacheRevisionStore.getValue() + 1)
+}
+
+/** Called after an explicitly selected owned file has been removed. */
+export const forgetCachedFile = (filePath: string) => {
+	if (
+		filePath.slice(0, filePath.lastIndexOf('/')).replace(/^\/private(?=\/var\/)/, '') !==
+		cacheDirectoryPath.replace(/^\/private(?=\/var\/)/, '')
+	)
+		return
+	const key = filePath.split('/').pop()!
+	const saved = { ...(PersistStatus.get('music.savedOffline') ?? {}) }
+	const quality = { ...getCacheQualityMap() }
+	delete saved[key]
+	delete quality[key]
+	PersistStatus.set('music.savedOffline', saved)
+	PersistStatus.set('music.cacheQualityMap', quality)
+	cacheRevisionStore.setValue(cacheRevisionStore.getValue() + 1)
+}
+
+/** Older versions did not distinguish downloads from automatic cache. Retain them. */
+export const migrateCacheRetention = async () => {
+	const saved = { ...(PersistStatus.get('music.savedOffline') ?? {}) }
+	let changed = false
+	for (const track of importedLocalMusicStore.getValue() ?? []) {
+		if (track.cacheKind === 'automatic' || !String(track.url ?? '').includes('/musicCache/'))
+			continue
+		const local = await resolveLocalFile(track.url, { requireOwnedMedia: true })
+		if (local.status === 'resolved') {
+			const key = local.filePath.split('/').pop()
+			if (key && !saved[key]) {
+				saved[key] = true
+				changed = true
+			}
+		}
+	}
+	if (changed) PersistStatus.set('music.savedOffline', saved)
+}
+
+const removeAutomaticCacheFile = async (
+	entry: string,
+	isProtected: () => boolean = () => false,
+) => {
+	if (isProtected()) return false
+	if (isProtected() || (PersistStatus.get('music.savedOffline') ?? {})[entry]) return false
+	const localPath = `${cacheDir}${entry}`
+	const local = await resolveLocalFile(getCacheFileUri(localPath), { requireOwnedMedia: true })
+	if (local.status !== 'resolved') return false
+	// Recheck retention after asynchronous resolution. A concurrent manual save wins.
+	if ((PersistStatus.get('music.savedOffline') ?? {})[entry]) return false
+	await FileSystem.deleteAsync(local.fileUri, { idempotent: true })
+	const updated = (importedLocalMusicStore.getValue() ?? []).filter(
+		(track) =>
+			track.url !== localPath && track.url !== local.fileUri && track.url !== local.filePath,
+	)
+	importedLocalMusicStore.setValue(updated)
+	PersistStatus.set('music.importedLocalMusic', updated)
+	const quality = { ...getCacheQualityMap() }
+	delete quality[entry]
+	PersistStatus.set('music.cacheQualityMap', quality)
+	cacheRevisionStore.setValue(cacheRevisionStore.getValue() + 1)
+	return true
+}
+
+type ProtectedCachePaths = string[] | (() => string[])
+const isPreserved = (entry: string, paths: ProtectedCachePaths) =>
+	(typeof paths === 'function' ? paths() : paths).some(
+		(value) => value === `${cacheDir}${entry}` || value === getCacheFileUri(`${cacheDir}${entry}`),
+	)
+
+export const enforceAutomaticCacheLimit = async (preservePaths: ProtectedCachePaths = []) => {
+	const dirInfo = await FileSystem.getInfoAsync(cacheDir)
+	if (!dirInfo.exists) return
+	const saved = PersistStatus.get('music.savedOffline') ?? {}
+	const entries = (await FileSystem.readDirectoryAsync(cacheDir)).filter((entry) => !saved[entry])
+	const files = await Promise.all(
+		entries.map(async (entry) => ({
+			entry,
+			info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
+		})),
+	)
+	let total = files.reduce(
+		(bytes, file) => bytes + (file.info.exists && !file.info.isDirectory ? file.info.size ?? 0 : 0),
+		0,
+	)
+	const configuredLimit = PersistStatus.get('music.cacheLimitMB')
+	const limit =
+		(configuredLimit && [256, 512, 1024, 2048].includes(configuredLimit) ? configuredLimit : 1024) *
+		1024 *
+		1024
+	files.sort(
+		(a, b) =>
+			(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
+			(b.info.exists ? b.info.modificationTime ?? 0 : 0),
+	)
+	for (const file of files) {
+		if (total <= limit) break
+		if (await removeAutomaticCacheFile(file.entry, () => isPreserved(file.entry, preservePaths)))
+			total -= file.info.exists && !file.info.isDirectory ? file.info.size ?? 0 : 0
+	}
+}
+
+export const clearCache = async (preservePaths: ProtectedCachePaths = []) => {
+	await migrateCacheRetention()
+	if (!(await FileSystem.getInfoAsync(cacheDir)).exists) return
+	for (const entry of await FileSystem.readDirectoryAsync(cacheDir)) {
+		await removeAutomaticCacheFile(entry, () => isPreserved(entry, preservePaths))
+	}
+	logInfo('自动缓存已清理，离线保存已保留')
 }
 
 export { cacheDir }

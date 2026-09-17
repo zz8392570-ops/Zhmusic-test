@@ -269,6 +269,15 @@ const RootNavigation = () => {
 				}}
 			/>
 			<Stack.Screen
+				name="(modals)/backupManager"
+				options={{
+					presentation: 'card',
+					headerTitle: i18n.t('backup.title'),
+					headerStyle: { backgroundColor: colors.background },
+					headerTintColor: colors.text,
+				}}
+			/>
+			<Stack.Screen
 				name="(modals)/importPlayList"
 				options={{
 					presentation: 'modal',

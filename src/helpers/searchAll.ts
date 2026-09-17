@@ -6,6 +6,7 @@ import {
 	searchSongsAcrossPlatforms,
 	type MusicPlatform,
 	type SearchPlatform,
+	type SearchProgressHandler,
 } from './crossPlatformSearch'
 
 export type SearchType = 'songs' | 'artists' | 'playlists'
@@ -15,10 +16,11 @@ const searchAll = async (
 	page: number = 1,
 	type: SearchType = 'songs',
 	platform: SearchPlatform = 'all',
+	onProgress?: SearchProgressHandler,
 ): Promise<{ data: Track[]; hasMore: boolean; unavailablePlatforms: MusicPlatform[] }> => {
 	let result
 	if (type === 'songs') {
-		return searchSongsAcrossPlatforms(searchText, page, platform)
+		return searchSongsAcrossPlatforms(searchText, page, platform, onProgress)
 	} else if (type === 'artists') {
 		result = await searchArtist(searchText, page)
 		result.data = result.data.map((artist) => ({

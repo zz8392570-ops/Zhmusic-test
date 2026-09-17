@@ -33,7 +33,11 @@ export type CacheDownloadTask = {
 	track: IMusic.IMusicItem
 	quality: AudioQuality
 	progress: number
-	status: 'downloading' | 'completed' | 'failed' | 'cancelled'
+	status: 'queued' | 'downloading' | 'interrupted' | 'completed' | 'failed' | 'cancelled'
+	kind?: 'saved' | 'automatic'
+	silent?: boolean
+	updatedAt?: number
+	runId?: string
 	error?: string
 }
 /** 当前会话的缓存下载任务 */
@@ -52,5 +56,12 @@ export const nowLyricState = new GlobalState<ILyric.ILyricSource | null>(null)
 export const trackSkipLoadingStore = new GlobalState<'next' | 'previous' | null>(null)
 /** 当前曲目音源解析中 */
 export const trackSourceLoadingStore = new GlobalState<string | null>(null)
+export type SourceLoadingProgress = {
+	stage: 'resolving' | 'switching' | 'retryingQuality'
+	sourceName?: string
+	quality?: string
+}
+export const sourceLoadingProgressStore = new GlobalState<SourceLoadingProgress | null>(null)
+export const sourceLoadingErrorStore = new GlobalState<string | null>(null)
 /** User transport intent; v5 readiness/output do not expose pending play intent. */
 export const playbackIntentStore = new GlobalState<'play' | 'pause' | 'stop'>('pause')

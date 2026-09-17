@@ -45,7 +45,18 @@ import {
 	showSourceExhaustedNotice,
 } from '@/utils/sourceSwitchNotice'
 import { resolveLocalFile } from './localFile'
-import { cancelDownload } from './fileDownload'
+import {
+	enqueueDownload,
+	cancelCacheTask,
+	resumeCacheTasks,
+	restoreDownloadTasks,
+	clearAutomaticDownloads,
+	downloadPlaylist,
+	configureDownloads,
+	setCacheLimitMB,
+	getProtectedDownloadPaths,
+} from '@/player/DownloadManager'
+import { requestAbortError } from './requestControl'
 import { logError, logInfo } from './logger'
 import {
 	addMusicApi,
@@ -76,7 +87,6 @@ import {
 	autoCacheLocalStore,
 	autoCacheWifiOnlyStore,
 	cacheDownloadTasksStore,
-	type CacheDownloadTask,
 	isCachedIconVisibleStore,
 	songsNumsToLoadStore,
 	importedLocalMusicStore,
@@ -84,6 +94,8 @@ import {
 	nowLyricState,
 	trackSkipLoadingStore,
 	trackSourceLoadingStore,
+	sourceLoadingProgressStore,
+	sourceLoadingErrorStore,
 	playbackIntentStore,
 	playbackQualityStore,
 	playbackCachedStore,
@@ -92,9 +104,10 @@ import {
 
 import {
 	isCached,
-	downloadToCache,
+	migrateCacheRetention,
 	clearCache as clearCacheFiles,
 	getCacheFileUri,
+	forgetCachedFile,
 	ensureDirExists,
 } from '@/player/CacheManager'
 
@@ -143,6 +156,7 @@ let currentIndex = -1
 let playerSubscriptions: { remove(): void }[] = []
 let controlRevision = 0
 let activeTrackSkip: symbol | null = null
+let activeSourceRequest: AbortController | null = null
 let nativeQueue: {
 	token: string
 	track: Track
@@ -218,6 +232,10 @@ function observeNativeTransport(intent: 'play' | 'pause' | 'stop') {
 }
 
 function reset() {
+	activeSourceRequest?.abort(requestAbortError())
+	activeSourceRequest = null
+	sourceLoadingProgressStore.setValue(null)
+	sourceLoadingErrorStore.setValue(null)
 	controlRevision++
 	retireTrackSkip()
 	playbackIntentStore.setValue('stop')
@@ -312,6 +330,8 @@ async function setupTrackPlayer() {
 	if (importedLocalMusic) {
 		importedLocalMusicStore.setValue(importedLocalMusic)
 	}
+	await migrateCacheRetention()
+	restoreDownloadTasks()
 	recentlyPlayedStore.setValue(recentlyPlayed)
 	if (restoredQueue && Array.isArray(restoredQueue)) {
 		addAll(restoredQueue, undefined, repeatMode === MusicRepeatMode.SHUFFLE)
@@ -895,6 +915,7 @@ const play = async (
 	skipOperation?: symbol,
 ) => {
 	let trackSourceLoadingToken: string | null = null
+	let sourceRequest: AbortController | null = null
 	try {
 		// A direct selection supersedes an older Next/Previous request. Its late
 		// finally must not clear a newer navigation operation with the same direction.
@@ -905,7 +926,7 @@ const play = async (
 		if (!musicItem) {
 			throw new Error(PlayFailReason.PLAY_LIST_IS_EMPTY)
 		}
-		if (!isCurrentMusic(musicItem)) {
+		if (!isCurrentMusic(musicItem) || forcePlay) {
 			clearFailedApis(getMusicFailureKey(musicItem))
 		}
 		setPlaybackIntent('play')
@@ -943,6 +964,11 @@ const play = async (
 		}
 
 		trackSourceLoadingToken = createTrackSourceLoadingToken(musicItem)
+		activeSourceRequest?.abort(requestAbortError())
+		sourceRequest = new AbortController()
+		activeSourceRequest = sourceRequest
+		sourceLoadingProgressStore.setValue({ stage: 'resolving' })
+		sourceLoadingErrorStore.setValue(null)
 		trackSourceLoadingStore.setValue(trackSourceLoadingToken)
 		playbackQualityStore.setValue(null)
 		playbackCachedStore.setValue(false)
@@ -958,6 +984,11 @@ const play = async (
 			quality: playbackQuality,
 		} = await resolveSource(musicItem, {
 			requestType: 'current',
+			signal: sourceRequest.signal,
+			onProgress: (progress) => {
+				if (trackSourceLoadingStore.getValue() === trackSourceLoadingToken)
+					sourceLoadingProgressStore.setValue(progress)
+			},
 		})
 
 		// 5. Race condition guard
@@ -1010,6 +1041,7 @@ const play = async (
 				void cacheAndImportMusic(track, {
 					quality: playbackQuality ?? qualityStore.getValue(),
 					silent: true,
+					kind: 'automatic',
 				})
 			}, 5000)
 		}
@@ -1026,6 +1058,7 @@ const play = async (
 			}, NEXT_TRACK_PRELOAD_DELAY_MS)
 		}
 	} catch (e: any) {
+		if (sourceRequest?.signal.aborted || e?.name === 'AbortError') return
 		if (trackSourceLoadingToken && trackSourceLoadingStore.getValue() !== trackSourceLoadingToken)
 			return
 		const message = e?.message
@@ -1038,91 +1071,77 @@ const play = async (
 			// empty queue
 		} else {
 			logError('播放失败', e)
+			stop()
+			nativeQueue = null
+			ReactNativeTrackPlayer.clear()
+			sourceLoadingErrorStore.setValue(
+				e?.name === 'TimeoutError'
+					? i18n.t('player.sourceLoading.timeout')
+					: i18n.t('player.sourceLoading.failed'),
+			)
 		}
 	} finally {
 		if (trackSourceLoadingToken && trackSourceLoadingStore.getValue() === trackSourceLoadingToken) {
 			trackSourceLoadingStore.setValue(null)
+			sourceLoadingProgressStore.setValue(null)
 		}
+		if (activeSourceRequest === sourceRequest) activeSourceRequest = null
 	}
 }
-const updateCacheDownloadTask = (task: CacheDownloadTask) => {
-	const tasks = cacheDownloadTasksStore.getValue() || []
-	cacheDownloadTasksStore.setValue(
-		[task, ...tasks.filter((item) => item.id !== task.id)].slice(0, 30),
-	)
+
+const cancelSourceLoading = () => {
+	activeSourceRequest?.abort(requestAbortError())
+	activeSourceRequest = null
+	trackSourceLoadingStore.setValue(null)
+	sourceLoadingProgressStore.setValue(null)
+	sourceLoadingErrorStore.setValue(null)
+	retireTrackSkip()
+	stop()
 }
 
-const cacheAndImportMusic = async (
-	track: IMusic.IMusicItem,
-	options: { quality?: AudioQuality; silent?: boolean } = {},
-) => {
-	const cachedQuality =
-		options.quality ?? playbackQualityStore.getValue() ?? qualityStore.getValue()
-	const taskId = `${track.platform || 'unknown'}:${track.id}:${cachedQuality}`
-	const existingTask = cacheDownloadTasksStore
-		.getValue()
-		.find((task) => task.id === taskId && task.status === 'downloading')
-	if (existingTask) {
-		if (!options.silent) showToast(i18n.t('cacheCenter.alreadyDownloading'), undefined, 'info')
+const retryWithNextSource = async () => {
+	const track = currentMusicStore.getValue()
+	if (!track) return
+	const selected = musicApiSelectedStore.getValue()
+	const alternative = getPlaybackFailoverApis(track).find((api) => api.id !== selected?.id)
+	if (!alternative) {
+		showToast(i18n.t('player.sourceLoading.noAlternative'), '', 'info')
 		return
 	}
-	const task: CacheDownloadTask = {
-		id: taskId,
-		track,
-		quality: cachedQuality,
-		progress: 0,
-		status: 'downloading',
-	}
-	updateCacheDownloadTask(task)
-	try {
-		const localPath = await downloadToCache(
-			track,
-			cachedQuality,
-			(progress) => {
-				const currentTask = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
-				if (currentTask?.status !== 'cancelled') {
-					updateCacheDownloadTask({ ...task, progress, status: 'downloading' })
-				}
-			},
-			taskId,
-		)
-		await addImportedLocalMusic([{ ...track, url: localPath, cachedQuality }], false)
-		updateCacheDownloadTask({ ...task, progress: 1, status: 'completed' })
-		if (!options.silent) showToast(i18n.t('cacheCenter.downloaded'), track.title)
-	} catch (error) {
-		logError('缓存音乐时出错:', error)
-		const cancelled = cacheDownloadTasksStore
-			.getValue()
-			.some((item) => item.id === taskId && item.status === 'cancelled')
-		if (!cancelled) {
-			updateCacheDownloadTask({
-				...task,
-				status: 'failed',
-				error: error instanceof Error ? error.message : String(error),
-			})
-			if (!options.silent) showToast(i18n.t('cacheCenter.downloadFailed'), track.title, 'error')
-		}
-	}
+	cancelSourceLoading()
+	const revision = controlRevision
+	nativeQueue = null
+	ReactNativeTrackPlayer.clear()
+	await setMusicApiAsSelectedById(alternative.id, {
+		silent: true,
+		notify: false,
+		isCurrent: () => revision === controlRevision && isCurrentMusic(track),
+	})
+	if (revision !== controlRevision || !isCurrentMusic(track)) return
+	await play(track, true)
+}
+const cacheAndImportMusic = async (
+	track: IMusic.IMusicItem,
+	options: { quality?: AudioQuality; silent?: boolean; kind?: 'saved' | 'automatic' } = {},
+) => {
+	await enqueueDownload(track, {
+		...options,
+		quality:
+			options.quality ??
+			(isCurrentMusic(track) ? playbackQualityStore.getValue() : null) ??
+			qualityStore.getValue(),
+	})
 }
 
-const cancelCacheDownload = async (taskId: string) => {
-	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
-	if (!task || task.status !== 'downloading') return
-	await cancelDownload(taskId)
-	updateCacheDownloadTask({ ...task, status: 'cancelled' })
-}
+const cancelCacheDownload = cancelCacheTask
 
 const clearCache = async () => {
-	const downloading = cacheDownloadTasksStore
-		.getValue()
-		.filter((task) => task.status === 'downloading')
-	await Promise.all(downloading.map((task) => cancelDownload(task.id)))
-	cacheDownloadTasksStore.setValue(
-		cacheDownloadTasksStore
-			.getValue()
-			.map((task) => (task.status === 'downloading' ? { ...task, status: 'cancelled' } : task)),
+	await clearAutomaticDownloads(() =>
+		clearCacheFiles(() => [
+			...(nativeQueue ? [nativeQueue.track.url] : []),
+			...getProtectedDownloadPaths(),
+		]),
 	)
-	await clearCacheFiles()
 }
 
 /**
@@ -1331,6 +1350,7 @@ const deleteImportedLocalMusic = async (musicItemsIdToDelete: string) => {
 		}
 		if (localFile.status === 'resolved') {
 			await FileSystem.deleteAsync(localFile.fileUri)
+			forgetCachedFile(localFile.filePath)
 		}
 		// Explicit removal may discard a missing-file record, but never guesses a file
 		// target. Read the latest list after I/O so concurrent imports/deletes survive.
@@ -1369,6 +1389,8 @@ const myTrackPlayer = {
 	skipToNext,
 	skipToPrevious,
 	play,
+	cancelSourceLoading,
+	retryWithNextSource,
 	playWithReplacePlayList,
 	pause,
 	stop,
@@ -1418,10 +1440,18 @@ const myTrackPlayer = {
 	toggleAutoCacheWifiOnly,
 	cacheAndImportMusic,
 	cancelCacheDownload,
+	resumeCacheDownloads: resumeCacheTasks,
+	downloadPlaylist,
+	setCacheLimitMB,
 	isCached,
 	toggleIsCachedIconVisible,
 	reloadMusicApi,
 }
+
+configureDownloads(() => [
+	...(nativeQueue ? [nativeQueue.track.url] : []),
+	...getProtectedDownloadPaths(),
+])
 
 export default myTrackPlayer
 export { MusicRepeatMode, PlaybackState as MusicState }

@@ -6,7 +6,7 @@ const PersistConfig = {
 	PersistStatus: 'appPersistStatus',
 }
 
-interface IPersistConfig {
+export interface IPersistConfig {
 	'music.musicItem': IMusic.IMusicItem //当前播放
 	'music.progress': number
 	'music.repeatMode': string
@@ -46,6 +46,9 @@ interface IPersistConfig {
 	'search.type': 'songs' | 'artists' | 'playlists'
 	'search.platform': 'all' | 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
 	'music.cacheQualityMap': Record<string, string>
+	'music.cacheLimitMB': number
+	'music.savedOffline': Record<string, boolean>
+	'music.cacheDownloads': import('@/player/PlayerStore').CacheDownloadTask[]
 	'music.bundledSourcesVersion': number
 	'music.removedBuiltinSources': string[]
 }

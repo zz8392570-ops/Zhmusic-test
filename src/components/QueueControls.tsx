@@ -6,7 +6,7 @@ import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
 import shuffle from 'lodash.shuffle'
 import { useMemo } from 'react'
-import { StyleSheet, Text, View, ViewProps } from 'react-native'
+import { Alert, StyleSheet, Text, View, ViewProps } from 'react-native'
 import { TouchableOpacity } from 'react-native-gesture-handler'
 import type { Track } from '@/player/types'
 import { hapticLight, hapticSelection } from '@/utils/haptics'
@@ -40,6 +40,9 @@ export const QueueControls = ({
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
 	const isEmpty = tracks.length === 0
+	const downloadable = tracks.filter(
+		(track) => track.platform !== 'local' && !String(track.url ?? '').includes('/musicCache/'),
+	)
 	const handlePlay = async () => {
 		if (isEmpty) return
 		hapticLight()
@@ -144,6 +147,28 @@ export const QueueControls = ({
 				</View>
 			)}
 			{/* import button */}
+			{!isMultiSelectMode && downloadable.length > 0 && !showImportMenu ? (
+				<TouchableOpacity
+					accessibilityRole="button"
+					accessibilityLabel={i18n.t('cacheCenter.downloadAll')}
+					style={[styles.button, { minHeight: 48, paddingHorizontal: 10 }]}
+					onPress={() =>
+						Alert.alert(
+							i18n.t('cacheCenter.downloadAll'),
+							i18n.t('cacheCenter.batchMessage', { count: downloadable.length }),
+							[
+								{ text: i18n.t('find.cancel'), style: 'cancel' },
+								{
+									text: i18n.t('player.download'),
+									onPress: () => void myTrackPlayer.downloadPlaylist(tracks as IMusic.IMusicItem[]),
+								},
+							],
+						)
+					}
+				>
+					<Ionicons name="download-outline" size={23} color={colors.primary} />
+				</TouchableOpacity>
+			) : null}
 			{showImportMenu && (
 				<View style={{ flex: 1 }}>
 					{isMultiSelectMode ? (

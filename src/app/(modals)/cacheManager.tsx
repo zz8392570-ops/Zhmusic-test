@@ -8,6 +8,8 @@ import { getCacheSize } from '@/player/CacheManager'
 import type { CacheDownloadTask } from '@/player/PlayerStore'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
+import PersistStatus from '@/store/PersistStatus'
+import { MenuView } from '@react-native-menu/menu'
 import { Image } from 'expo-image'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
@@ -33,6 +35,7 @@ const CacheManagerScreen = () => {
 	const importedTracks = useMemo(() => importedTracksValue || [], [importedTracksValue])
 	const revision = cacheRevisionStore.useValue()
 	const [cacheSize, setCacheSize] = useState(0)
+	const cacheLimitMB = PersistStatus.useValue('music.cacheLimitMB', 1024) ?? 1024
 	const cachedTracks = useMemo(
 		() => importedTracks.filter((track) => String(track.url || '').includes('/musicCache/')),
 		[importedTracks],
@@ -47,7 +50,7 @@ const CacheManagerScreen = () => {
 	useEffect(refreshSize, [refreshSize, revision, cachedTracks.length])
 
 	const retryTask = (task: CacheDownloadTask) => {
-		void myTrackPlayer.cacheAndImportMusic(task.track, { quality: task.quality })
+		void myTrackPlayer.cacheAndImportMusic(task.track, { quality: task.quality, kind: task.kind })
 	}
 
 	const deleteTrack = (track: IMusic.IMusicItem) => {
@@ -76,10 +79,45 @@ const CacheManagerScreen = () => {
 					{i18n.t('cacheCenter.summary', { count: cachedTracks.length })}
 				</Text>
 			</View>
+			<View style={styles.section}>
+				<MenuView
+					actions={[256, 512, 1024, 2048].map((limit) => ({
+						id: String(limit),
+						title: `${limit} MB`,
+						state: limit === cacheLimitMB ? 'on' : 'off',
+					}))}
+					onPressAction={({ nativeEvent: { event } }) =>
+						void myTrackPlayer
+							.setCacheLimitMB(Number(event))
+							.catch(() => Alert.alert(i18n.t('settings.actions.cache.error')))
+					}
+				>
+					<Pressable
+						accessibilityRole="button"
+						style={styles.trackRow}
+						accessibilityLabel={i18n.t('cacheCenter.limit')}
+					>
+						<Text style={[styles.title, { flex: 1 }]}>{i18n.t('cacheCenter.limit')}</Text>
+						<Text style={styles.meta}>{cacheLimitMB} MB ›</Text>
+					</Pressable>
+				</MenuView>
+				<Text style={[styles.meta, { paddingBottom: 14 }]}>
+					{i18n.t('cacheCenter.retentionHint')}
+				</Text>
+			</View>
 
 			{tasks.length ? (
 				<View style={styles.section}>
 					<Text style={styles.sectionTitle}>{i18n.t('cacheCenter.tasks')}</Text>
+					{tasks.some((task) => task.status === 'interrupted') ? (
+						<Pressable
+							accessibilityRole="button"
+							onPress={myTrackPlayer.resumeCacheDownloads}
+							style={styles.action}
+						>
+							<Text style={styles.actionText}>{i18n.t('cacheCenter.resumeAll')}</Text>
+						</Pressable>
+					) : null}
 					{tasks.map((task) => (
 						<View key={task.id} style={styles.taskRow}>
 							<View style={styles.rowText}>
@@ -89,6 +127,11 @@ const CacheManagerScreen = () => {
 								<Text style={styles.meta}>
 									{task.quality.toUpperCase()} · {taskStatusText(task)}
 								</Text>
+								{task.error ? (
+									<Text style={styles.meta} numberOfLines={2}>
+										{task.error}
+									</Text>
+								) : null}
 								{task.status === 'downloading' ? (
 									<View style={styles.progressTrack}>
 										<View
@@ -100,7 +143,7 @@ const CacheManagerScreen = () => {
 									</View>
 								) : null}
 							</View>
-							{task.status === 'downloading' ? (
+							{task.status === 'downloading' || task.status === 'queued' ? (
 								<Pressable
 									accessibilityRole="button"
 									onPress={() => void myTrackPlayer.cancelCacheDownload(task.id)}
@@ -108,7 +151,7 @@ const CacheManagerScreen = () => {
 								>
 									<Text style={styles.actionText}>{i18n.t('cacheCenter.cancel')}</Text>
 								</Pressable>
-							) : task.status === 'failed' || task.status === 'cancelled' ? (
+							) : ['failed', 'cancelled', 'interrupted'].includes(task.status) ? (
 								<Pressable
 									accessibilityRole="button"
 									onPress={() => retryTask(task)}
@@ -134,9 +177,21 @@ const CacheManagerScreen = () => {
 								</Text>
 								<Text style={styles.meta} numberOfLines={1}>
 									{track.artist} ·{' '}
-									{(track.cachedQuality || track.format || 'unknown').toUpperCase()}
+									{(track.cachedQuality || track.format || 'unknown').toUpperCase()} ·{' '}
+									{i18n.t(
+										track.cacheKind === 'automatic' ? 'cacheCenter.automatic' : 'cacheCenter.saved',
+									)}
 								</Text>
 							</View>
+							{track.cacheKind === 'automatic' ? (
+								<Pressable
+									accessibilityRole="button"
+									onPress={() => void myTrackPlayer.cacheAndImportMusic(track, { kind: 'saved' })}
+									style={styles.action}
+								>
+									<Text style={styles.actionText}>{i18n.t('cacheCenter.keepOffline')}</Text>
+								</Pressable>
+							) : null}
 							<Pressable
 								accessibilityRole="button"
 								accessibilityLabel={i18n.t('cacheCenter.deleteTitle')}

@@ -34,6 +34,7 @@ export type SearchListProps = {
 	hasError: boolean
 	isLoading: boolean
 	unavailablePlatforms?: MusicPlatform[]
+	pendingPlatforms?: MusicPlatform[]
 }
 
 const PLATFORM_LABEL_KEYS: Record<MusicPlatform, string> = {
@@ -309,6 +310,7 @@ export const SearchList = ({
 	hasError,
 	isLoading,
 	unavailablePlatforms = [],
+	pendingPlatforms = [],
 }: SearchListProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
@@ -481,7 +483,25 @@ export const SearchList = ({
 					/>
 				}
 				ListHeaderComponent={
-					tracks.length > 0 ? <PartialResultsNotice platforms={unavailablePlatforms} /> : null
+					tracks.length > 0 ? (
+						<View>
+							<PartialResultsNotice platforms={unavailablePlatforms} />
+							{pendingPlatforms.length ? (
+								<View
+									style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }}
+								>
+									<ActivityIndicator size="small" color={colors.primary} />
+									<Text style={{ color: colors.textMuted, fontSize: 12, flex: 1 }}>
+										{i18n.t('find.pendingResults', {
+											platforms: pendingPlatforms
+												.map((platform) => i18n.t(PLATFORM_LABEL_KEYS[platform]))
+												.join(' · '),
+										})}
+									</Text>
+								</View>
+							) : null}
+						</View>
+					) : null
 				}
 				renderItem={renderItem}
 				keyExtractor={keyExtractor}

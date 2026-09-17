@@ -3,6 +3,7 @@ import { toMD5 } from '@/components/utils/musicSdk/utils'
 import { unknownTrackImageUri } from '@/constants/images'
 import type { Track } from '@/player/types'
 import { searchMusic } from './userApi/xiaoqiu'
+import { waitForRequest } from './requestControl'
 
 export type MusicPlatform = 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
 export type SearchPlatform = 'all' | MusicPlatform
@@ -16,7 +17,10 @@ type PlatformSearchResult = {
 
 export type CrossPlatformSearchResult = PlatformSearchResult & {
 	unavailablePlatforms: MusicPlatform[]
+	pendingPlatforms?: MusicPlatform[]
 }
+
+export type SearchProgressHandler = (result: CrossPlatformSearchResult) => void
 
 const SEARCH_TIMEOUT_MS = 10_000
 const ALL_PLATFORM_PAGE_SIZE = 10
@@ -281,19 +285,6 @@ const platformSearchers: Record<
 	mg: searchMg,
 }
 
-const interleave = (lists: Track[][]) => {
-	const output: Track[] = []
-	const longest = Math.max(0, ...lists.map((list) => list.length))
-	for (let index = 0; index < longest; index++) {
-		for (const list of lists) {
-			if (list[index]) output.push(list[index])
-		}
-	}
-	return output
-}
-
-const PLATFORM_PRIORITY = new Map(MUSIC_PLATFORMS.map((platform, index) => [platform, index]))
-
 const normalizeSearchText = (value: unknown) =>
 	String(value ?? '')
 		.normalize('NFKC')
@@ -333,13 +324,9 @@ const mergeDuplicateGroup = (tracks: Track[]): Track => {
 		const standalone = asStandaloneTrack(track)
 		unique.set(`${standalone.platform ?? 'unknown'}::${standalone.id}`, standalone)
 	}
-	const ordered = Array.from(unique.values()).sort((left, right) => {
-		const leftPriority =
-			PLATFORM_PRIORITY.get(left.platform as MusicPlatform) ?? Number.MAX_SAFE_INTEGER
-		const rightPriority =
-			PLATFORM_PRIORITY.get(right.platform as MusicPlatform) ?? Number.MAX_SAFE_INTEGER
-		return leftPriority - rightPriority
-	})
+	// The first displayed recording keeps its identity and position as slower
+	// platforms arrive. Other recordings remain available in its source menu.
+	const ordered = Array.from(unique.values())
 	const [primary, ...sourceAlternatives] = ordered
 	return {
 		...primary,
@@ -356,43 +343,65 @@ const mergeDuplicateGroup = (tracks: Track[]): Track => {
  */
 export const deduplicateCrossPlatformTracks = (tracks: Track[]): Track[] => {
 	const groups = new Map<string, Track[][]>()
+	const orderedGroups: Track[][] = []
 	for (const track of tracks) {
 		const key = getDeduplicationKey(track)
 		const candidates = groups.get(key) ?? []
 		const matchingGroup = candidates.find((group) => isCompatibleDuration(group[0], track))
 		if (matchingGroup) matchingGroup.push(track)
-		else candidates.push([track])
+		else {
+			const group = [track]
+			candidates.push(group)
+			orderedGroups.push(group)
+		}
 		groups.set(key, candidates)
 	}
-	return Array.from(groups.values()).flatMap((groupsForKey) =>
-		groupsForKey.map(mergeDuplicateGroup),
-	)
+	return orderedGroups.map(mergeDuplicateGroup)
 }
 
 export const searchSongsAcrossPlatforms = async (
 	query: string,
 	page: number,
 	platform: SearchPlatform,
+	onProgress?: SearchProgressHandler,
 ): Promise<CrossPlatformSearchResult> => {
 	if (platform !== 'all') {
-		const result = await platformSearchers[platform](query, page, SINGLE_PLATFORM_PAGE_SIZE)
+		const result = await waitForRequest(
+			() => platformSearchers[platform](query, page, SINGLE_PLATFORM_PAGE_SIZE),
+			SEARCH_TIMEOUT_MS,
+		)
 		return { ...result, unavailablePlatforms: [] }
 	}
 
-	const settled = await Promise.allSettled(
-		MUSIC_PLATFORMS.map((source) => platformSearchers[source](query, page, ALL_PLATFORM_PAGE_SIZE)),
-	)
-	const availableResults: PlatformSearchResult[] = []
+	let data: Track[] = []
+	let hasMore = false
+	let successCount = 0
 	const unavailablePlatforms: MusicPlatform[] = []
-	settled.forEach((result, index) => {
-		if (result.status === 'fulfilled') availableResults.push(result.value)
-		else unavailablePlatforms.push(MUSIC_PLATFORMS[index])
+	const pending = new Set(MUSIC_PLATFORMS)
+	const snapshot = (): CrossPlatformSearchResult => ({
+		data,
+		hasMore,
+		unavailablePlatforms: [...unavailablePlatforms],
+		pendingPlatforms: [...pending],
 	})
-
-	if (availableResults.length === 0) throw new Error('All music platforms failed to search')
-	return {
-		data: deduplicateCrossPlatformTracks(interleave(availableResults.map((result) => result.data))),
-		hasMore: availableResults.some((result) => result.hasMore),
-		unavailablePlatforms,
-	}
+	await Promise.all(
+		MUSIC_PLATFORMS.map(async (source) => {
+			try {
+				const result = await waitForRequest(
+					() => platformSearchers[source](query, page, ALL_PLATFORM_PAGE_SIZE),
+					SEARCH_TIMEOUT_MS,
+				)
+				successCount++
+				data = deduplicateCrossPlatformTracks([...data, ...result.data])
+				hasMore ||= result.hasMore
+			} catch {
+				unavailablePlatforms.push(source)
+			} finally {
+				pending.delete(source)
+				onProgress?.(snapshot())
+			}
+		}),
+	)
+	if (successCount === 0) throw new Error('All music platforms failed to search')
+	return snapshot()
 }

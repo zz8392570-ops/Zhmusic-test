@@ -77,7 +77,7 @@ export const parseLxMusicScriptInfo = (script: string): Record<InfoKeys, string>
 // JavaScriptCore 原生模块桥接
 // ============================================================
 
-type LxRequestType = 'current' | 'preload'
+type LxRequestType = 'current' | 'preload' | 'download'
 
 type LxRequestContext = {
 	requestKey?: string
@@ -85,6 +85,7 @@ type LxRequestContext = {
 	timeoutMs?: number
 	platform?: string
 	musicItem?: IMusic.IMusicItem
+	signal?: AbortSignal
 }
 
 type PendingRequest = {
@@ -92,17 +93,20 @@ type PendingRequest = {
 	reject: (err: Error) => void
 	requestKey: string
 	requestType: LxRequestType
+	cancelled?: boolean
 }
 
 type SettledRequest = {
 	requestKey: string
 	requestType: LxRequestType
+	cancelled?: boolean
 	timeout: ReturnType<typeof setTimeout>
 }
 
 type HttpRequest = {
 	controller: AbortController
 	timeout: ReturnType<typeof setTimeout> | null
+	parentRequestKey?: string
 }
 
 type LxRuntime = {
@@ -159,9 +163,12 @@ const rememberSettledRequestType = (
 	wireRequestKey: string,
 	request: PendingRequest,
 ) => {
+	const previous = runtime.settledRequestTypes.get(wireRequestKey)
+	if (previous) clearTimeout(previous.timeout)
 	const settled: SettledRequest = {
 		requestKey: request.requestKey,
 		requestType: request.requestType,
+		cancelled: request.cancelled,
 		timeout: setTimeout(() => {
 			if (runtime.settledRequestTypes.get(wireRequestKey) === settled) {
 				runtime.settledRequestTypes.delete(wireRequestKey)
@@ -278,8 +285,10 @@ const handleScriptAction = (runtime: LxRuntime, event: any) => {
 				}
 			}
 			const settled = runtime.settledRequestTypes.get(respData.requestKey)
-			if (settled) clearTimeout(settled.timeout)
-			runtime.settledRequestTypes.delete(respData.requestKey)
+			if (settled && !settled.cancelled) {
+				clearTimeout(settled.timeout)
+				runtime.settledRequestTypes.delete(respData.requestKey)
+			}
 			break
 		}
 
@@ -322,13 +331,24 @@ const abortHttpRequest = (runtime: LxRuntime, requestKey: string, expected?: Htt
  */
 const handleHttpRequest = async (runtime: LxRuntime, reqData: RequestParams) => {
 	const { requestKey, url, options } = reqData
+	if (
+		reqData.parentRequestKey &&
+		runtime.settledRequestTypes.get(reqData.parentRequestKey)?.cancelled
+	) {
+		sendAction('response', { requestKey, error: 'Cancelled', response: null })
+		return
+	}
 	const previous = runtime.pendingHttpRequests.get(requestKey)
 	if (previous) {
 		if (previous.timeout !== null) clearTimeout(previous.timeout)
 		previous.controller.abort()
 	}
 	const controller = new AbortController()
-	const request: HttpRequest = { controller, timeout: null }
+	const request: HttpRequest = {
+		controller,
+		timeout: null,
+		parentRequestKey: (reqData as RequestParams & { parentRequestKey?: string }).parentRequestKey,
+	}
 	runtime.pendingHttpRequests.set(requestKey, request)
 	request.timeout =
 		options.timeout > 0
@@ -497,6 +517,11 @@ const getMusicUrlViaScript = (
 			return
 		}
 		const requestType = requestContext?.requestType ?? 'current'
+		const signal = requestContext?.signal
+		if (signal?.aborted) {
+			reject(new Error('请求已取消'))
+			return
+		}
 		const requestKey =
 			requestContext?.requestKey ?? `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 		// A quality retry may reuse its business key while the previous attempt is
@@ -516,18 +541,29 @@ const getMusicUrlViaScript = (
 				if (runtime.pendingRequests.get(wireRequestKey) !== pending) return
 				runtime.pendingRequests.delete(wireRequestKey)
 				clearTimeout(timeout)
+				signal?.removeEventListener('abort', onAbort)
 				resolve(url)
 			},
 			reject: (err: Error) => {
 				if (runtime.pendingRequests.get(wireRequestKey) !== pending) return
 				runtime.pendingRequests.delete(wireRequestKey)
 				clearTimeout(timeout)
+				signal?.removeEventListener('abort', onAbort)
 				reject(err)
 			},
 			requestKey,
 			requestType,
 		}
+		const onAbort = () => {
+			pending.cancelled = true
+			pending.reject(new Error('请求已取消'))
+			rememberSettledRequestType(runtime, wireRequestKey, pending)
+			for (const [key, request] of runtime.pendingHttpRequests) {
+				if (request.parentRequestKey === wireRequestKey) abortHttpRequest(runtime, key, request)
+			}
+		}
 		runtime.pendingRequests.set(wireRequestKey, pending)
+		signal?.addEventListener('abort', onAbort, { once: true })
 
 		logInfo(`${logPrefix} Sending musicUrl request: ${title} - ${artist}`)
 		const originalMusicItem = requestContext?.musicItem

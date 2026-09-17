@@ -60,6 +60,9 @@ const SearchScreen = () => {
 	const [hasSearchError, setHasSearchError] = useState(false)
 	const [hasHotError, setHasHotError] = useState(false)
 	const [unavailablePlatforms, setUnavailablePlatforms] = useState<MusicPlatform[]>([])
+	const [pendingPlatforms, setPendingPlatforms] = useState<MusicPlatform[]>([])
+	const resultsRef = useRef<Track[]>([])
+	const unavailableRef = useRef<MusicPlatform[]>([])
 	const [isEditing, setIsEditing] = useState(false)
 	const [songFilter, setSongFilter] = useState<SongFilter>('all')
 	const [cachedResultKeys, setCachedResultKeys] = useState<Set<string>>(new Set())
@@ -81,6 +84,9 @@ const SearchScreen = () => {
 		cancelSearchRequest()
 		setSubmittedQuery('')
 		setSearchResults([])
+		resultsRef.current = []
+		unavailableRef.current = []
+		setPendingPlatforms([])
 		setPage(1)
 		setHasMore(false)
 		setHasSearchError(false)
@@ -97,6 +103,7 @@ const SearchScreen = () => {
 			}
 
 			const history = PersistStatus.get('search.history') ?? []
+			cancelSearchRequest()
 			PersistStatus.set('search.history', addSearchHistory(history, keyword))
 			setSubmittedQuery(keyword)
 			setSearchRevision((revision) => revision + 1)
@@ -105,7 +112,7 @@ const SearchScreen = () => {
 			setIsLoading(true)
 			setIsEditing(false)
 		},
-		[resetResults],
+		[cancelSearchRequest, resetResults],
 	)
 
 	const handleCancelSearch = useCallback(() => {
@@ -210,27 +217,36 @@ const SearchScreen = () => {
 			const requestId = ++searchRequestRef.current
 			setIsLoading(true)
 			setHasSearchError(false)
+			const previousResults = currentPage === 1 ? [] : resultsRef.current
+			const previousUnavailable = currentPage === 1 ? [] : unavailableRef.current
+			const applyResults = (result: {
+				data: Track[]
+				hasMore: boolean
+				unavailablePlatforms: MusicPlatform[]
+				pendingPlatforms?: MusicPlatform[]
+			}) => {
+				if (requestId !== searchRequestRef.current) return
+				const next = [...previousResults, ...result.data]
+				resultsRef.current =
+					type === 'songs' && platform === 'all' ? deduplicateCrossPlatformTracks(next) : next
+				setSearchResults(resultsRef.current)
+				setHasMore(result.hasMore)
+				setPendingPlatforms(result.pendingPlatforms ?? [])
+				unavailableRef.current = Array.from(
+					new Set([...previousUnavailable, ...result.unavailablePlatforms]),
+				)
+				setUnavailablePlatforms(unavailableRef.current)
+			}
 
 			try {
 				const {
 					data,
 					hasMore: moreResults,
 					unavailablePlatforms: failedPlatforms,
-				} = await searchAll(query, currentPage, type, platform)
+				} = await searchAll(query, currentPage, type, platform, applyResults)
 				if (requestId !== searchRequestRef.current) return
 
-				setSearchResults((currentResults) => {
-					const nextResults = currentPage === 1 ? data : [...currentResults, ...data]
-					return type === 'songs' && platform === 'all'
-						? deduplicateCrossPlatformTracks(nextResults)
-						: nextResults
-				})
-				setHasMore(moreResults)
-				setUnavailablePlatforms((currentPlatforms) =>
-					currentPage === 1
-						? failedPlatforms
-						: Array.from(new Set([...currentPlatforms, ...failedPlatforms])),
-				)
+				applyResults({ data, hasMore: moreResults, unavailablePlatforms: failedPlatforms })
 				setPage(currentPage)
 			} catch (error) {
 				if (requestId !== searchRequestRef.current) return
@@ -239,6 +255,7 @@ const SearchScreen = () => {
 			} finally {
 				if (requestId === searchRequestRef.current) {
 					setIsLoading(false)
+					setPendingPlatforms([])
 				}
 			}
 		},
@@ -248,6 +265,9 @@ const SearchScreen = () => {
 	useEffect(() => {
 		cancelSearchRequest()
 		setSearchResults([])
+		resultsRef.current = []
+		unavailableRef.current = []
+		setPendingPlatforms([])
 		setPage(1)
 		setHasMore(false)
 		setHasSearchError(false)
@@ -459,6 +479,7 @@ const SearchScreen = () => {
 						hasError={hasSearchError}
 						isLoading={isLoading}
 						unavailablePlatforms={unavailablePlatforms}
+						pendingPlatforms={pendingPlatforms}
 					/>
 				) : null}
 			</View>

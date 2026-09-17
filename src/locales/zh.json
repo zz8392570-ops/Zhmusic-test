@@ -13,7 +13,7 @@
 			"version": "版本号",
 			"checkUpdate": "检查更新",
 			"projectLink": "项目链接",
-			"clearCache": "清空缓存",
+			"clearCache": "清理自动缓存",
 			"manageCache": "管理下载与缓存",
 			"autoCacheWifiOnly": "仅 Wi-Fi 自动缓存",
 			"viewLogs": "查看日志",
@@ -26,7 +26,7 @@
 			"deleteSource": "删除音源",
 			"selectDelete": "选择删除",
 			"importSource": "导入音源",
-			"currentQuality": "当前音质",
+			"currentQuality": "首选音质",
 			"changeLanguage": "切换语言",
 			"theme": "主题",
 			"normal": "正常",
@@ -40,7 +40,7 @@
 		},
 		"descriptions": {
 			"preciseSeeking": "改善部分 FLAC 快进后的音频与歌词不同步。开启后可能需要加载完整音频，播放前等待更久。切换歌曲后生效。",
-			"autoCacheLocal": "播放在线歌曲后自动保存，方便下次快速播放。",
+			"autoCacheLocal": "播放在线歌曲后自动缓存；达到容量上限时清理较早的自动缓存。主动保存的离线歌曲会保留。",
 			"autoCacheWifiOnly": "避免自动缓存消耗移动数据；手动下载不受此开关影响。",
 			"isCachedIconVisible": "在歌曲列表中显示已缓存状态和对应格式。"
 		},
@@ -81,12 +81,12 @@
 				"errorMessage": "无法检查更新，请稍后再试"
 			},
 			"cache": {
-				"title": "清空缓存",
-				"message": "将删除已缓存的歌曲文件，收藏和歌单不会受到影响。",
+				"title": "清理自动缓存",
+				"message": "删除可清理的自动缓存，保留主动保存的离线歌曲、本地导入文件和当前播放文件。收藏和歌单不受影响。",
 				"cancel": "取消",
-				"confirm": "清空",
+				"confirm": "清理",
 				"success": "成功",
-				"successMessage": "缓存已清理",
+				"successMessage": "自动缓存已清理，离线歌曲已保留",
 				"error": "失败",
 				"errorMessage": "缓存清理失败"
 			},
@@ -111,22 +111,34 @@
 	"cacheCenter": {
 		"title": "下载与缓存",
 		"summary": "已缓存 %{count} 首歌曲",
-		"tasks": "本次下载",
-		"cachedSongs": "已缓存歌曲",
+		"tasks": "下载任务",
+		"cachedSongs": "离线歌曲与自动缓存",
 		"empty": "还没有缓存歌曲",
 		"downloading": "下载中 %{progress}%",
-		"downloaded": "已缓存到本地",
+		"downloaded": "已保存离线",
 		"downloadFailed": "缓存失败",
 		"alreadyDownloading": "这首歌正在下载",
 		"cancel": "取消",
 		"retry": "重试",
-		"deleteTitle": "删除缓存",
-		"deleteMessage": "确定删除“%{name}”的缓存文件吗？",
+		"deleteTitle": "删除本地文件",
+		"deleteMessage": "确定删除“%{name}”的本地音频文件吗？删除后需要重新下载才能离线播放。",
 		"status": {
 			"completed": "已完成",
 			"failed": "失败",
-			"cancelled": "已取消"
-		}
+			"cancelled": "已取消",
+			"queued": "排队中",
+			"interrupted": "待继续"
+		},
+		"limit": "自动缓存上限",
+		"retentionHint": "自动缓存达到上限时优先清理较早文件；离线保存和旧版本已有下载会保留。当前播放与正在离线保存的文件暂不清理。",
+		"resumeAll": "继续未完成任务",
+		"automatic": "自动缓存",
+		"saved": "离线保存",
+		"keepOffline": "保留离线",
+		"queued": "已加入下载队列",
+		"batchQueued": "已加入 %{count} 首歌曲的离线保存任务",
+		"downloadAll": "离线保存歌单",
+		"batchMessage": "保存歌单歌曲，需下载约 %{count} 首。手动下载可能使用移动数据，请确认网络和剩余空间。"
 	},
 	"queue": {
 		"title": "播放队列 · %{count}",
@@ -178,9 +190,9 @@
 		"songs": "音乐",
 		"search": "搜索",
 		"radio": "榜单",
-		"favorites": "我的",
+		"favorites": "我的音乐",
 		"favoritesSongs": "喜欢的歌曲",
-		"localOrCachedSongs": "本地/缓存的歌曲",
+		"localOrCachedSongs": "本地与离线",
 		"recentlyPlayed": "最近播放"
 	},
 	"library": {
@@ -202,8 +214,18 @@
 		"deletedMessage": "已删除“%{name}”，需要撤销吗？",
 		"undo": "撤销",
 		"done": "完成",
-		"filters": { "all": "全部", "offline": "离线" },
-		"sort": { "recent": "最近", "title": "歌名", "artist": "歌手" }
+		"filters": {
+			"all": "全部",
+			"offline": "离线"
+		},
+		"sort": {
+			"recent": "最近",
+			"title": "歌名",
+			"artist": "歌手"
+		},
+		"songResults": "歌曲 · %{count}",
+		"playlistResults": "歌单 · %{count}",
+		"searchNoResults": "没有匹配的歌单，试试其他名称"
 	},
 	"localMusic": {
 		"notice": "提示",
@@ -226,7 +248,13 @@
 		"exportUnavailableTitle": "部分文件不可用",
 		"exportUnavailableMessage": "有 %{count} 个文件已被移动或删除，请重新导入后再试。",
 		"exportFailed": "导出失败，请稍后重试",
-		"filters": { "all": "全部", "imported": "导入", "cached": "缓存" }
+		"filters": {
+			"all": "全部",
+			"imported": "导入",
+			"cached": "缓存",
+			"saved": "离线保存",
+			"automatic": "自动缓存"
+		}
 	},
 	"home": {
 		"title": "首页",
@@ -257,10 +285,10 @@
 		"addFailed": "加入歌单失败"
 	},
 	"find": {
-		"inRadio": "在广播中搜索",
+		"inRadio": "在榜单中搜索",
 		"inSearch": "在线搜索歌曲、歌手或歌单",
 		"inSongs": "在歌曲中搜索",
-		"inFavorites": "在收藏中搜索",
+		"inFavorites": "搜索歌曲、歌手、专辑或歌单",
 		"noResults": "没有找到结果",
 		"noMoreResults": "没有更多结果",
 		"cancel": "取消",
@@ -310,7 +338,8 @@
 		"emptyPlaylist": "歌单暂无歌曲",
 		"emptyPlaylistDescription": "这个歌单目前没有可播放的歌曲",
 		"unknownSong": "未知歌曲",
-		"unknownArtist": "未知歌手"
+		"unknownArtist": "未知歌手",
+		"pendingResults": "还在搜索 %{platforms}，已返回的歌曲可直接播放"
 	},
 	"playButton": {
 		"play": "播放",
@@ -400,6 +429,16 @@
 		"error": {
 			"title": "错误",
 			"minutesErrorMessage": "请输入有效的分钟数"
+		},
+		"sourceLoading": {
+			"resolving": "正在获取音源 %{source} %{quality}…",
+			"switching": "正在换源至 %{source} %{quality}…",
+			"retryingQuality": "正在尝试 %{source} %{quality} 音质…",
+			"timeout": "获取音源超时，请换源或重试",
+			"failed": "获取音源失败，请换源或重试",
+			"switch": "换源重试",
+			"next": "下一首",
+			"noAlternative": "没有其他可用音源，请先在设置中导入或测试音源"
 		}
 	},
 	"menu": {
@@ -410,7 +449,25 @@
 		"showArtist": "查看歌手",
 		"selectSource": "选择播放来源",
 		"addToPlaylist": "添加到歌单",
-
 		"delete": "删除"
+	},
+	"backup": {
+		"title": "备份与恢复",
+		"description": "备份收藏、歌单、最近播放和个人设置。备份文件不包含音频、音源脚本和自定义封面图片；换机后请重新导入本地歌曲、音源和封面。",
+		"export": "导出备份文件",
+		"import": "选择备份文件",
+		"exportFailed": "备份导出失败，请稍后重试",
+		"invalid": "备份文件无效、版本不支持或超过 10 MB，未修改现有数据",
+		"restoreFailed": "恢复失败，请检查存储空间后重试",
+		"restored": "备份已恢复",
+		"preview": "备份内容预览",
+		"summary": "%{favorites} 首收藏 · %{playlists} 个歌单 · %{recent} 条最近播放 · %{settings} 项设置",
+		"merge": "合并：保留现有音乐并去重",
+		"replace": "覆盖：使用备份中的音乐资料",
+		"restoreSettings": "同时恢复个人设置",
+		"confirmTitle": "确认恢复备份",
+		"replaceMessage": "将覆盖现有收藏、歌单和最近播放记录。音频文件不受影响；是否恢复设置取决于上方开关。",
+		"mergeMessage": "将备份与现有收藏、歌单和最近播放记录合并，同平台同歌曲 ID 去重。是否恢复设置取决于上方开关。",
+		"restore": "恢复备份"
 	}
 }

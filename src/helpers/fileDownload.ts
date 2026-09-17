@@ -6,6 +6,9 @@ type DownloadProgress = { bytesWritten: number; contentLength: number }
 let nextDownloadId = 0
 const activeDownloads = new Map<string, ReturnType<typeof createDownloadResumable>>()
 const pendingCancellations = new Set<string>()
+export const clearDownloadCancellation = (taskId: string) => {
+	pendingCancellations.delete(taskId)
+}
 
 export async function cancelDownload(taskId: string): Promise<boolean> {
 	pendingCancellations.add(taskId)
@@ -46,6 +49,7 @@ export async function downloadFile(
 		const result = await task.downloadAsync()
 		if (!result) throw new Error('下载已取消或未返回结果')
 		if (result.status !== 200) throw new Error(`下载失败，状态码: ${result.status}`)
+		if (taskId && pendingCancellations.has(taskId)) throw new Error('下载已取消')
 		await new File(temporaryUri).move(new File(destinationUri), { overwrite: true })
 	} finally {
 		if (taskId && activeDownloads.get(taskId) === task) activeDownloads.delete(taskId)

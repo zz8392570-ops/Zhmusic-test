@@ -133,6 +133,7 @@ await test('same business request key has distinct attempts and unchanged script
 		assert.deepEqual(sent.data.data.info.musicInfo, {
 			id: 'song', songmid: 'song', title: 'Title', name: 'Title', singer: 'Artist',
 			artist: 'Artist', source: 'tx', hash: 'song',
+			types: [], _types: {}, typeUrl: {},
 		})
 	}
 	f.clock.advance(10)
@@ -358,7 +359,7 @@ await test('CommonJS import still executes its four-argument host protocol', asy
 		module.exports.getMusicUrl = (title, artist, id, quality) =>
 			Promise.resolve('https://example.test/' + [title, artist, id, quality].join('/'))
 	`)
-	assert.equal(api.scriptType, 'cymusic')
+	assert.equal(api.scriptType, 'zhmusic')
 	assert.equal(api.id, 'commonjs')
 	assert.equal(await api.getMusicUrl('title', 'artist', 'id', '320k'), 'https://example.test/title/artist/id/320k')
 	assert.equal(f.native.loads.length, 0)

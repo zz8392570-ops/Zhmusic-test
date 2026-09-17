@@ -1,6 +1,8 @@
 import { fakeAudioMp3Uri } from '@/constants/images'
 import { resolveLocalFile } from '@/helpers/localFile'
 import { logError, logInfo } from '@/helpers/logger'
+import { waitForRequest, throwIfRequestAborted } from '@/helpers/requestControl'
+import type { SourceLoadingProgress } from './PlayerStore'
 import {
 	getFailedApiIds,
 	getMusicFailureKey,
@@ -13,7 +15,6 @@ import {
 	isValidMusicUrl,
 	MAX_FAILOVER_SOURCES,
 } from '@/helpers/userApi/musicSourceHealth'
-import PersistStatus from '@/store/PersistStatus'
 import { showToast } from '@/utils/utils'
 import {
 	showAutomaticSourceSwitchNotice,
@@ -24,7 +25,7 @@ import {
 	normalizeAudioQuality,
 	type AudioQuality,
 } from '@/helpers/audioQuality'
-import { getCachedAudioInfo } from './CacheManager'
+import { getCachedAudioInfo, getCacheLocalPath } from './CacheManager'
 import { musicApiSelectedStore, musicApiStore, nowApiState, qualityStore } from './PlayerStore'
 
 export type SourceResult = {
@@ -33,10 +34,14 @@ export type SourceResult = {
 	quality: AudioQuality | null
 }
 
-export type ResolveSourceRequestType = 'current' | 'preload'
+export type ResolveSourceRequestType = 'current' | 'preload' | 'download'
 
 type ResolveSourceOptions = {
 	requestType?: ResolveSourceRequestType
+	signal?: AbortSignal
+	quality?: IMusic.IQualityKey
+	totalTimeoutMs?: number
+	onProgress?: (progress: SourceLoadingProgress) => void
 }
 
 type MusicUrlRequestContext = {
@@ -67,8 +72,13 @@ const createSourceRequestKey = (item: IMusic.IMusicItem, requestType: ResolveSou
 const getSourceRequestLogPrefix = (requestType: ResolveSourceRequestType, requestKey: string) =>
 	`[sourceResolver][${requestType}][requestKey=${requestKey}]`
 
-function makePreloadKey(item: IMusic.IMusicItem): string {
-	return `${getMusicItemSourceKey(item)}://${item.id}`
+function makePreloadKey(item: IMusic.IMusicItem, quality = qualityStore.getValue()): string {
+	return JSON.stringify([
+		getMusicItemSourceKey(item),
+		item.id,
+		quality,
+		musicApiSelectedStore.getValue()?.id,
+	])
 }
 
 export const getPreloadedUrl = (item: IMusic.IMusicItem): string | undefined => {
@@ -92,19 +102,17 @@ export const preloadSource = async (item: IMusic.IMusicItem): Promise<void> => {
 	}
 }
 
-const setQuality = (quality: IMusic.IQualityKey) => {
-	qualityStore.setValue(quality)
-	PersistStatus.set('music.quality', quality)
-}
-
-export const resolveSource = async (
+const resolveSourceInternal = async (
 	musicItem: IMusic.IMusicItem,
 	options: ResolveSourceOptions = {},
 ): Promise<SourceResult> => {
-	const preloadKey = makePreloadKey(musicItem)
 	const requestType = options.requestType ?? 'current'
+	const preferredQuality = options.quality ?? qualityStore.getValue()
+	const preloadKey = makePreloadKey(musicItem, preferredQuality)
+	throwIfRequestAborted(options.signal)
 
 	const localFile = await resolveLocalFile(musicItem.url)
+	throwIfRequestAborted(options.signal)
 	if (localFile.status !== 'nonlocal') {
 		if (localFile.status !== 'resolved') {
 			if (isCurrentSourceRequest(requestType)) {
@@ -114,9 +122,13 @@ export const resolveSource = async (
 			return { url: fakeAudioMp3Uri, wasCached: false, quality: null }
 		}
 		preloadCache.delete(preloadKey)
-		const wasCached = localFile.fileUri.includes('/musicCache/')
+		const cachePath = localFile.fileUri.includes('/musicCache/')
+			? await getCacheLocalPath(localFile.fileUri)
+			: null
+		throwIfRequestAborted(options.signal)
+		const wasCached = cachePath !== null
 		return {
-			url: localFile.fileUri,
+			url: cachePath ?? localFile.fileUri,
 			wasCached,
 			quality:
 				normalizeAudioQuality(musicItem.cachedQuality) ??
@@ -125,6 +137,7 @@ export const resolveSource = async (
 	}
 
 	const cached = await getCachedAudioInfo(musicItem)
+	throwIfRequestAborted(options.signal)
 	if (cached) {
 		preloadCache.delete(preloadKey)
 		logInfo('使用缓存的音频路径播放:', cached.localPath)
@@ -132,7 +145,7 @@ export const resolveSource = async (
 	}
 
 	// 只在本地与磁盘缓存都未命中时，才复用预加载的远端音源
-	const preloaded = preloadCache.get(preloadKey)
+	const preloaded = requestType === 'download' ? undefined : preloadCache.get(preloadKey)
 	if (preloaded) {
 		logInfo(`[sourceResolver][${requestType}] 使用预加载的音源:`, preloaded.url)
 		preloadCache.delete(preloadKey)
@@ -157,7 +170,7 @@ export const resolveSource = async (
 		const apisToTry: IMusic.MusicApi[] = []
 		let selectedSourceFailureReason: AutomaticSourceSwitchReason = 'noPlayableUrl'
 		if (!failedIds.has(nowMusicApi.id)) apisToTry.push(nowMusicApi)
-		if (isCurrentSourceRequest(requestType)) {
+		if (requestType !== 'preload') {
 			for (const api of getFailoverCandidates(
 				musicApiStore.getValue() || [],
 				nowMusicApi.id,
@@ -171,20 +184,40 @@ export const resolveSource = async (
 
 		try {
 			for (const api of apisToTry.slice(0, MAX_FAILOVER_SOURCES)) {
-				let currentQualityIndex = qualityOrder.indexOf(qualityStore.getValue())
+				throwIfRequestAborted(options.signal)
+				let currentQualityIndex = qualityOrder.indexOf(preferredQuality)
 				if (currentQualityIndex < 0) currentQualityIndex = qualityOrder.length - 1
 				let resp_url: string | null = null
 				let resolvedQuality: AudioQuality = null
 				let apiFailureReason: AutomaticSourceSwitchReason = 'noPlayableUrl'
 
 				while (currentQualityIndex < qualityOrder.length && !resp_url) {
+					throwIfRequestAborted(options.signal)
 					const currentQuality = qualityOrder[currentQualityIndex]
+					options.onProgress?.({
+						stage:
+							api.id !== nowMusicApi.id
+								? 'switching'
+								: currentQuality !== preferredQuality
+									? 'retryingQuality'
+									: 'resolving',
+						sourceName: api.name,
+						quality: currentQuality,
+					})
 					try {
-						resp_url = await requestMusicUrlFromApi(api, musicItem, currentQuality, timeoutMs, {
-							requestKey,
-							requestType,
+						resp_url = await requestMusicUrlFromApi(
+							api,
+							musicItem,
+							currentQuality,
 							timeoutMs,
-						} as MusicUrlRequestContext)
+							{
+								requestKey,
+								requestType,
+								timeoutMs,
+							} as MusicUrlRequestContext,
+							options.signal,
+						)
+						throwIfRequestAborted(options.signal)
 						if (!resp_url || !isValidMusicUrl(resp_url)) {
 							if (isCurrentSourceRequest(requestType)) {
 								logInfo(`${logPrefix} ${api.name} ${currentQuality}音质无可用链接，尝试下一个音质`)
@@ -194,12 +227,12 @@ export const resolveSource = async (
 							continue
 						}
 						resolvedQuality = currentQuality
-						if (isCurrentSourceRequest(requestType) && currentQuality !== qualityStore.getValue()) {
+						if (isCurrentSourceRequest(requestType) && currentQuality !== preferredQuality) {
 							showToast('提示', `已自动切换至${currentQuality}音质`, 'info')
-							setQuality(currentQuality)
 						}
 						logInfo(`${logPrefix} ${api.name} 成功获取${currentQuality}音质的音乐URL:`, resp_url)
 					} catch (error) {
+						throwIfRequestAborted(options.signal)
 						const errMsg = error instanceof Error ? error.message : String(error)
 						apiFailureReason = /timeout|timed out|超时/i.test(errMsg) ? 'timeout' : 'requestFailed'
 						if (isCurrentSourceRequest(requestType)) {
@@ -213,11 +246,14 @@ export const resolveSource = async (
 				}
 
 				if (resp_url) {
+					throwIfRequestAborted(options.signal)
 					if (isCurrentSourceRequest(requestType) && api.id !== nowMusicApi.id) {
 						const switchedSource = await setMusicApiAsSelectedById(api.id, {
 							silent: true,
 							notify: false,
+							signal: options.signal,
 						})
+						throwIfRequestAborted(options.signal)
 						if (switchedSource) {
 							showAutomaticSourceSwitchNotice({
 								fromSource: nowMusicApi.name,
@@ -246,6 +282,7 @@ export const resolveSource = async (
 			}
 			return { url: fakeAudioMp3Uri, wasCached: false, quality: null }
 		} catch (error) {
+			throwIfRequestAborted(options.signal)
 			if (isCurrentSourceRequest(requestType)) {
 				nowApiState.setValue('异常')
 			}
@@ -269,5 +306,31 @@ export const resolveSource = async (
 			normalizeAudioQuality(musicItem.playbackQuality) ??
 			normalizeAudioQuality(musicItem.cachedQuality) ??
 			inferAudioQualityFromPath(musicItem.url),
+	}
+}
+
+export const resolveSource = async (
+	musicItem: IMusic.IMusicItem,
+	options: ResolveSourceOptions = {},
+): Promise<SourceResult> => {
+	const controller = new AbortController()
+	const onAbort = () => controller.abort(options.signal?.reason)
+	throwIfRequestAborted(options.signal)
+	options.signal?.addEventListener('abort', onAbort, { once: true })
+	const totalTimeoutMs = options.totalTimeoutMs ?? 20_000
+	const timer = setTimeout(() => {
+		const error = new Error('获取音源超时，请换源或重试')
+		error.name = 'TimeoutError'
+		controller.abort(error)
+	}, totalTimeoutMs)
+	try {
+		return await waitForRequest(
+			() => resolveSourceInternal(musicItem, { ...options, signal: controller.signal }),
+			totalTimeoutMs,
+			controller.signal,
+		)
+	} finally {
+		clearTimeout(timer)
+		options.signal?.removeEventListener('abort', onAbort)
 	}
 }

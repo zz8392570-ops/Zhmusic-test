@@ -3,8 +3,8 @@
 // its SDK checkpoint, playback/quality and playlist-hydration checks.
 import assert from 'node:assert/strict'
 import fsp from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
 import {
+	pathFromUri as fileURLToPath,
 	createFixture,
 	deferred,
 	deepFreeze,
@@ -25,6 +25,15 @@ const test = async (name, action) => {
 		await action()
 		checks.push({ name, passed: true })
 	} catch (error) {
+		if (process.platform === 'win32' && error.code === 'EPERM' && /symlink/.test(error.message)) {
+			checks.push({
+				name,
+				skipped: true,
+				reason:
+					'Windows cannot create file symlinks without Developer Mode or elevated privileges.',
+			})
+			return
+		}
 		checks.push({ name, passed: false, error: error.stack })
 	}
 }
@@ -49,7 +58,7 @@ async function main() {
 	}
 	for (const name of [
 		'ascii.mp3',
-		'升级 café #1?.mp3',
+		process.platform === 'win32' ? '升级 café #1.mp3' : '升级 café #1?.mp3',
 		'100%.mp3',
 		'literal%23.mp3',
 		'literal%2523.mp3',
@@ -66,7 +75,10 @@ async function main() {
 			await test(`${form}: ${name}`, () => expectResolved(address, current, moved))
 	}
 	await test('known duplicate prefix and legacy literal hash URI', async () => {
-		const relative = '/importedLocalMusic/升级 café #1?.mp3'
+		const relative =
+			process.platform === 'win32'
+				? '/importedLocalMusic/升级 café #1.mp3'
+				: '/importedLocalMusic/升级 café #1?.mp3'
 		await expectResolved(
 			`file://file://${oldDocuments}${relative}`,
 			`${documents}${relative}`,
@@ -312,7 +324,11 @@ async function main() {
 			),
 		)
 		const snapshot = JSON.stringify(saved)
-		const expected = { url: uri(`${documents}/importedLocalMusic/ascii.mp3`), wasCached: false }
+		const expected = {
+			url: uri(`${documents}/importedLocalMusic/ascii.mp3`),
+			wasCached: false,
+			quality: 'mp3',
+		}
 		assert.deepEqual(await source.resolveSource(saved, { requestType: 'current' }), expected)
 		assert.deepEqual(await source.resolveSource(saved, { requestType: 'preload' }), expected)
 		await source.preloadSource(saved)
@@ -454,12 +470,23 @@ async function main() {
 		)
 	})
 	await test('already-cached import produces exactly one scheme with the same path', async () => {
-		const importing = runtime()
+		const importing = runtime({ realCache: true })
 		const facade = importing.load('src/helpers/trackPlayerIndex.ts').default
-		const expected = `${documents}/musicCache/cache-id.mp3`
+		const cache = importing.load('src/player/CacheManager.ts')
+		const song = item('cache-id', 'https://example.test/music.mp3')
+		const expected = fileURLToPath(cache.getCacheFileUri(cache.getLocalFilePath(song)))
 		await write(expected, 'cached bytes')
-		await facade.cacheAndImportMusic(item('cache-id', 'https://example.test/music.mp3'))
-		assert.equal(importing.stores.importedLocalMusicStore.getValue()[0].url, uri(expected))
+		await facade.cacheAndImportMusic(song)
+		for (
+			let index = 0;
+			index < 200 && !importing.stores.importedLocalMusicStore.getValue().length;
+			index++
+		)
+			await new Promise((resolve) => setTimeout(resolve, 2))
+		assert.equal(
+			importing.stores.importedLocalMusicStore.getValue()[0].url,
+			cache.getLocalFilePath(song),
+		)
 		assert.equal(await fsp.readFile(expected, 'utf8'), 'cached bytes')
 	})
 	await test('dangling links remain links and cannot select another URI interpretation', async () => {
@@ -516,13 +543,14 @@ main()
 	})
 	.finally(async () => {
 		await fixture.dispose()
-		const failed = checks.filter((check) => !check.passed)
+		const failed = checks.filter((check) => !check.passed && !check.skipped)
 		console.log(
 			JSON.stringify(
 				{
 					check: 'local-files',
 					projectRoot,
-					passed: checks.length - failed.length,
+					passed: checks.filter((check) => check.passed).length,
+					skipped: checks.filter((check) => check.skipped),
 					failed: failed.length,
 					failures: failed,
 					limitations: [

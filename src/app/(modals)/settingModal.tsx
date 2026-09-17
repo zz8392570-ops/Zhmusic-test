@@ -506,7 +506,10 @@ const SettingModal = () => {
 		},
 		{
 			title: i18n.t('settings.sections.advanced'),
-			data: [{ id: '13', title: i18n.t('settings.items.viewLogs'), type: 'link' }],
+			data: [
+				{ id: 'backup-manager', title: i18n.t('backup.title'), type: 'link' },
+				{ id: '13', title: i18n.t('settings.items.viewLogs'), type: 'link' },
+			],
 		},
 		{
 			title: i18n.t('settings.sections.about'),
@@ -768,6 +771,7 @@ const SettingModal = () => {
 					key={item.id}
 					style={itemStyle}
 					onPress={() => {
+						if (item.id === 'backup-manager') router.push('/(modals)/backupManager')
 						if (item.id === 'cache-manager') {
 							router.push('/(modals)/cacheManager')
 						}

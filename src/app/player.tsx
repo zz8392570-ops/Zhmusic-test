@@ -1,5 +1,6 @@
 import Lyric from '@/components/lyric'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
+import SourceLoadingStatus from '@/components/SourceLoadingStatus'
 import { MovingText } from '@/components/MovingText'
 import { PlayerControls } from '@/components/PlayerControls'
 import { PlayerProgressBar } from '@/components/PlayerProgressbar'
@@ -448,6 +449,9 @@ const PlayerScreenContent = () => {
 		<>
 			<StatusBar style="light" />
 			<View style={[styles.screen, { backgroundColor }]}>
+				<View style={{ position: 'absolute', top: top + 48, left: 20, right: 20, zIndex: 20 }}>
+					<SourceLoadingStatus />
+				</View>
 				{showLyrics ? (
 					<View
 						style={[
