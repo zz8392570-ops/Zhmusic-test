@@ -1,3 +1,4 @@
+import GlobalButton from '@/components/GlobalButton'
 import { getStackScreenWithSearchBar } from '@/constants/layout'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
@@ -10,11 +11,12 @@ const RadiolistsScreenLayout = () => {
 	const defaultStyles = useDefaultStyles()
 	return (
 		<View style={defaultStyles.container} key={language}>
-			<Stack>
+			<Stack screenOptions={{ headerRight: () => <GlobalButton /> }}>
 				<Stack.Screen
 					name="index"
 					options={{
 						...getStackScreenWithSearchBar(colors),
+						headerLargeTitle: false,
 						headerTitle: i18n.t('appTab.radio'),
 					}}
 				/>

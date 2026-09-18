@@ -1,3 +1,6 @@
+import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
+import { useFavorites } from '@/store/library'
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import { TracksList } from '@/components/TracksList'
 import { screenPadding } from '@/constants/tokens'
@@ -27,6 +30,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 const SongsScreen = () => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
+	const { favorites } = useFavorites()
 	const tracks = useTracks()
 	const songsNumsToLoad = songsNumsToLoadStore.useValue()
 	const isLoading = useTracksLoading()
@@ -49,6 +53,31 @@ const SongsScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
+			<Pressable
+				onPress={() => router.push('/(tabs)/favorites/favoriteMusic')}
+				accessibilityRole="button"
+				accessibilityLabel={i18n.t('appTab.favoritesSongs')}
+				style={({ pressed }) => ({
+					marginHorizontal: screenPadding.horizontal,
+					marginTop: 8,
+					marginBottom: 4,
+					paddingHorizontal: 14,
+					paddingVertical: 10,
+					borderRadius: 12,
+					flexDirection: 'row',
+					alignItems: 'center',
+					gap: 10,
+					backgroundColor: colors.surfaceMuted,
+					opacity: pressed ? 0.7 : 1,
+				})}
+			>
+				<Ionicons name="heart" size={22} color={colors.primary} />
+				<Text style={{ flex: 1, color: colors.text, fontWeight: '600' }}>
+					{i18n.t('appTab.favoritesSongs')}
+				</Text>
+				<Text style={{ color: colors.textMuted }}>{favorites.length}</Text>
+				<Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+			</Pressable>
 			<SearchPlatformSelector
 				includeAll={false}
 				inset={screenPadding.horizontal}

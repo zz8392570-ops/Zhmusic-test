@@ -5,11 +5,13 @@ import { useFavorites } from '@/store/library'
 import { isInPlayList } from '@/store/playList'
 import { useQueue } from '@/store/queue'
 import i18n from '@/utils/i18n'
-import { MenuAction, MenuView } from '@react-native-menu/menu'
+import type { MenuAction } from '@react-native-menu/menu'
+import { MenuView } from '@/components/ActionMenu'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { PropsWithChildren, useCallback, useMemo, useState } from 'react'
 import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
+import { Alert } from 'react-native'
 import { isSameMediaItem } from '@/utils/mediaItem'
 
 type TrackShortcutsMenuProps = PropsWithChildren<{
@@ -162,6 +164,15 @@ export const TrackShortcutsMenu = ({
 			.with('add-to-storedPlayList', async () => {
 				handleAddToStoredPlayList(track as IMusic.IMusicItem)
 			})
+			.with('download', async () => {
+				Alert.alert(i18n.t('player.download'), track.title, [
+					{ text: i18n.t('find.cancel'), style: 'cancel' },
+					{
+						text: i18n.t('player.download'),
+						onPress: () => void myTrackPlayer.cacheAndImportMusic(track as IMusic.IMusicItem),
+					},
+				])
+			})
 			.with('delete-track', async () => {
 				onDeleteTrack?.(track.id)
 			})
@@ -200,6 +211,9 @@ export const TrackShortcutsMenu = ({
 					title: i18n.t('menu.addToPlaylist'),
 					image: 'text.badge.plus',
 				},
+				...(track.platform !== 'local'
+					? [{ id: 'download', title: i18n.t('player.download'), image: 'arrow.down.circle' }]
+					: []),
 				...sourceActions,
 				...(isSinger || !canNavigateCatalog ? [] : (artistActions as MenuAction[])),
 				...(allowDelete

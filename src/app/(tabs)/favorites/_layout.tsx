@@ -1,3 +1,4 @@
+import GlobalButton from '@/components/GlobalButton'
 import AddPlayListButton from '@/components/AddPlayListButton'
 import { getStackScreenWithSearchBar } from '@/constants/layout'
 import { useThemeColors } from '@/hooks/useAppTheme'
@@ -11,13 +12,18 @@ const FavoritesScreenLayout = () => {
 	const defaultStyles = useDefaultStyles()
 	return (
 		<View style={defaultStyles.container} key={language}>
-			<Stack>
+			<Stack screenOptions={{ headerRight: () => <GlobalButton /> }}>
 				<Stack.Screen
 					name="index"
 					options={{
 						...getStackScreenWithSearchBar(colors),
 						headerTitle: i18n.t('appTab.favorites'),
-						headerRight: () => <AddPlayListButton />,
+						headerRight: () => (
+							<View style={{ flexDirection: 'row', alignItems: 'center' }}>
+								<AddPlayListButton />
+								<GlobalButton />
+							</View>
+						),
 					}}
 				/>
 				<Stack.Screen

@@ -1,3 +1,4 @@
+import GlobalButton from '@/components/GlobalButton'
 import { getStackScreenWithSearchBar } from '@/constants/layout'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
@@ -10,7 +11,7 @@ const PlaylistsScreenLayout = () => {
 	const defaultStyles = useDefaultStyles()
 	return (
 		<View style={defaultStyles.container} key={language}>
-			<Stack>
+			<Stack screenOptions={{ headerRight: () => <GlobalButton /> }}>
 				<Stack.Screen
 					name="index"
 					options={{

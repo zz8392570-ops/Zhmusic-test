@@ -1,3 +1,4 @@
+import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import Lyric from '@/components/lyric'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
 import SourceLoadingStatus from '@/components/SourceLoadingStatus'
@@ -24,7 +25,7 @@ import { setTimingClose, useTimingClose } from '@/utils/timingClose'
 import { showToast } from '@/utils/utils'
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/utils/haptics'
 import { Entypo, MaterialCommunityIcons } from '@expo/vector-icons'
-import { MenuView } from '@react-native-menu/menu'
+import { MenuView } from '@/components/ActionMenu'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
@@ -159,6 +160,7 @@ const PlayerScreenContent = () => {
 	}))
 
 	const currentActiveTrack = myTrackPlayer.useCurrentMusic()
+	const currentLyric = LyricManager.useCurrentLyric()
 	const playbackQuality = playbackQualityStore.useValue()
 	const isPlaybackCached = playbackCachedStore.useValue()
 	const prevTrackRef = useRef(currentActiveTrack)
@@ -176,7 +178,29 @@ const PlayerScreenContent = () => {
 		? i18n.t(platformLabelKey)
 		: String(trackToDisplay?.platform ?? '').toUpperCase()
 
-	const artworkUri = trackToDisplay?.artwork || unknownTrackImageUri
+	const [resolvedArtwork, setResolvedArtwork] = useState<string | null>(null)
+	const [artworkFailed, setArtworkFailed] = useState(false)
+	useEffect(() => {
+		let active = true
+		setResolvedArtwork(null)
+		setArtworkFailed(false)
+		if (trackToDisplay)
+			void resolveLeaderboardArtwork(
+				trackToDisplay.platform,
+				trackToDisplay.id,
+				trackToDisplay.artwork,
+			)
+				.then((uri) => {
+					if (active) setResolvedArtwork(uri || null)
+				})
+				.catch(() => {})
+		return () => {
+			active = false
+		}
+	}, [trackToDisplay])
+	const artworkUri = artworkFailed
+		? unknownTrackImageUri
+		: resolvedArtwork || trackToDisplay?.artwork || unknownTrackImageUri
 	const artworkSource = useMemo(() => ({ uri: artworkUri }), [artworkUri])
 	const { backgroundColor } = usePlayerBackground(artworkUri)
 	const artworkFade = useMemo(
@@ -286,7 +310,14 @@ const PlayerScreenContent = () => {
 
 	const handleDownload = useCallback(async () => {
 		if (trackToDisplay) {
-			myTrackPlayer.cacheAndImportMusic(trackToDisplay as IMusic.IMusicItem)
+			Alert.alert(i18n.t('player.download'), trackToDisplay.title, [
+				{ text: i18n.t('find.cancel'), style: 'cancel' },
+				{
+					text: i18n.t('player.download'),
+					onPress: () =>
+						void myTrackPlayer.cacheAndImportMusic(trackToDisplay as IMusic.IMusicItem),
+				},
+			])
 		}
 	}, [trackToDisplay])
 
@@ -459,6 +490,40 @@ const PlayerScreenContent = () => {
 							{ paddingTop: top + 40, paddingBottom: Math.max(bottom, 16) },
 						]}
 					>
+						<TouchableOpacity
+							onPress={handleLyricsToggle}
+							accessibilityRole="button"
+							accessibilityLabel={i18n.t('player.hideLyrics')}
+							style={{
+								flexDirection: 'row',
+								alignItems: 'center',
+								gap: 14,
+								paddingHorizontal: 20,
+								paddingVertical: 12,
+							}}
+						>
+							<Image
+								source={artworkSource}
+								onError={() => setArtworkFailed(true)}
+								placeholder={unknownTrackImageUri}
+								contentFit="cover"
+								style={{ width: 64, height: 64, borderRadius: 12 }}
+							/>
+							<View style={{ flex: 1 }}>
+								<Text numberOfLines={1} style={styles.trackTitleText}>
+									{trackToDisplay?.title}
+								</Text>
+								<Text numberOfLines={1} style={styles.trackArtistText}>
+									{trackToDisplay?.artist}
+								</Text>
+							</View>
+							<MaterialCommunityIcons
+								name="heart"
+								size={22}
+								color={isFavorite ? colors.primary : colors.textMuted}
+								onPress={handleFavorite}
+							/>
+						</TouchableOpacity>
 						<Animated.View style={[styles.lyricContainer, lyricsAnimatedStyle]}>
 							{/* <Pressable style={styles.artworkTouchable} onPress={handleLyricsToggle}> */}
 							<Lyric onTurnPageClick={handleLyricsToggle} />
@@ -558,7 +623,16 @@ const PlayerScreenContent = () => {
 						<View style={styles.artworkRegion}>
 							<View style={styles.artworkCanvas}>
 								<GestureDetector gesture={swipeGesture}>
-									<Animated.View style={[styles.artworkImageContainer, artworkAnimatedStyle]}>
+									<Animated.View
+										style={[
+											styles.artworkImageContainer,
+											artworkAnimatedStyle,
+											{
+												width: Math.min(width - 56, compact ? 240 : 340),
+												height: Math.min(width - 56, compact ? 240 : 340),
+											},
+										]}
+									>
 										<TouchableOpacity
 											style={styles.artworkTouchable}
 											activeOpacity={1}
@@ -575,6 +649,7 @@ const PlayerScreenContent = () => {
 												transition={200}
 												recyclingKey={artworkUri}
 												source={artworkSource}
+												onError={() => setArtworkFailed(true)}
 												style={styles.artworkImage}
 											/>
 										</TouchableOpacity>
@@ -613,7 +688,22 @@ const PlayerScreenContent = () => {
 											/>
 										</View>
 
-										{/* Favorite button icon */}
+										<TouchableOpacity
+											onPress={handleFavorite}
+											style={styles.menuButton}
+											accessibilityRole="button"
+											accessibilityLabel={i18n.t(
+												isFavorite ? 'menu.removeFromFavorites' : 'menu.addToFavorites',
+											)}
+											accessibilityState={{ selected: isFavorite }}
+										>
+											<MaterialCommunityIcons
+												name={isFavorite ? 'heart' : 'heart-outline'}
+												size={25}
+												color={isFavorite ? colors.primary : colors.text}
+											/>
+										</TouchableOpacity>
+										{/* Song options */}
 										<MenuView
 											title={i18n.t('player.songOptions')}
 											onPressAction={({ nativeEvent }) => {
@@ -695,7 +785,20 @@ const PlayerScreenContent = () => {
 									) : null}
 								</View>
 
-								<PlayerProgressBar style={{ marginTop: compact ? 18 : 24 }} />
+								<TouchableOpacity
+									onPress={handleLyricsToggle}
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('player.showLyrics')}
+									style={{ paddingTop: 16, minHeight: 42 }}
+								>
+									<Text
+										numberOfLines={1}
+										style={{ color: colors.textMuted, textAlign: 'center', fontSize: 14 }}
+									>
+										{currentLyric?.lrc || i18n.t('player.showLyrics')}
+									</Text>
+								</TouchableOpacity>
+								<PlayerProgressBar style={{ marginTop: compact ? 12 : 18 }} />
 
 								<PlayerControls style={{ marginTop: compact ? 20 : 28 }} />
 							</View>
@@ -796,6 +899,8 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			flex: 1,
 		},
 		artworkCanvas: {
+			alignItems: 'center',
+			justifyContent: 'center',
 			position: 'absolute',
 			top: 0,
 			// Finish the fade before metadata so bright artwork cannot dilute text contrast.
@@ -805,7 +910,8 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			overflow: 'hidden',
 		},
 		artworkImageContainer: {
-			flex: 1,
+			borderRadius: 24,
+			overflow: 'hidden',
 		},
 		artworkTouchable: {
 			width: '100%',

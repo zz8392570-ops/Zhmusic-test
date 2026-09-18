@@ -1,3 +1,5 @@
+import { useFavorites } from '@/store/library'
+import { isSameMediaItem } from '@/utils/mediaItem'
 import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
 import { unknownTrackImageUri } from '@/constants/images'
@@ -56,6 +58,8 @@ const TracksListItem = ({
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
+	const { favorites, toggleTrackFavorite } = useFavorites()
+	const isFavorite = favorites.some((item) => isSameMediaItem(item, track as IMusic.IMusicItem))
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const cacheRevision = cacheRevisionStore.useValue()
 	const embeddedCachedQuality = useMemo(
@@ -254,6 +258,26 @@ const TracksListItem = ({
 					</View>
 				</View>
 			</TouchableHighlight>
+			{!isMultiSelectMode ? (
+				<TouchableOpacity
+					style={styles.shortcutsButton}
+					onPress={() => {
+						hapticSelection()
+						toggleTrackFavorite(track)
+					}}
+					accessibilityRole="button"
+					accessibilityLabel={i18n.t(
+						isFavorite ? 'menu.removeFromFavorites' : 'menu.addToFavorites',
+					)}
+					accessibilityState={{ selected: isFavorite }}
+				>
+					<Ionicons
+						name={isFavorite ? 'heart' : 'heart-outline'}
+						size={22}
+						color={isFavorite ? colors.primary : colors.textMuted}
+					/>
+				</TouchableOpacity>
+			) : null}
 			{!isMultiSelectMode ? (
 				<TrackShortcutsMenu
 					track={track}
