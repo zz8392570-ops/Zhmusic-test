@@ -292,6 +292,8 @@ export const mapLeaderboardTrack = (track: any, source: LeaderboardSource): Trac
 	id: String(track.songmid ?? ''),
 	platform: source,
 	songmid: String(track.songmid ?? ''),
+	songId: track.songId,
+	strMediaMid: track.strMediaMid,
 	hash: track.hash,
 	qualities: track._types,
 	copyrightId: track.copyrightId,

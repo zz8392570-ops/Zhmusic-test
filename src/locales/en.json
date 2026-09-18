@@ -356,6 +356,7 @@
 		"selectHint": "Select or deselect this song"
 	},
 	"player": {
+		"searchSong": "Search song: %{title}",
 		"songOptions": "Song Options",
 		"closeAfter": "Close After",
 		"setTimingClose": "Set Timing Close",

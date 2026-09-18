@@ -1,3 +1,4 @@
+import { searchSongByTitle } from '@/helpers/songSearchNavigation'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import Lyric from '@/components/lyric'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
@@ -510,7 +511,13 @@ const PlayerScreenContent = () => {
 								style={{ width: 64, height: 64, borderRadius: 12 }}
 							/>
 							<View style={{ flex: 1 }}>
-								<Text numberOfLines={1} style={styles.trackTitleText}>
+								<Text
+									onPress={() => searchSongByTitle(trackToDisplay?.title)}
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('player.searchSong', { title: trackToDisplay?.title })}
+									numberOfLines={1}
+									style={styles.trackTitleText}
+								>
 									{trackToDisplay?.title}
 								</Text>
 								<Text numberOfLines={1} style={styles.trackArtistText}>
@@ -680,13 +687,20 @@ const PlayerScreenContent = () => {
 										}}
 									>
 										{/* Track title */}
-										<View style={styles.trackTitleContainer}>
+										<TouchableOpacity
+											style={styles.trackTitleContainer}
+											onPress={() => searchSongByTitle(trackToDisplay?.title)}
+											accessibilityRole="button"
+											accessibilityLabel={i18n.t('player.searchSong', {
+												title: trackToDisplay?.title,
+											})}
+										>
 											<MovingText
 												text={trackToDisplay?.title ?? ''}
 												animationThreshold={30}
 												style={styles.trackTitleText}
 											/>
-										</View>
+										</TouchableOpacity>
 
 										<TouchableOpacity
 											onPress={handleFavorite}

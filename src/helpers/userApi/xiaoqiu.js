@@ -8,11 +8,25 @@ function formatMusicItem(_) {
 	const albumid = _.albumid || ((_a = _.album) === null || _a === void 0 ? void 0 : _a.id)
 	const albummid = _.albummid || ((_b = _.album) === null || _b === void 0 ? void 0 : _b.mid)
 	const albumname = _.albumname || ((_c = _.album) === null || _c === void 0 ? void 0 : _c.title)
+	const songmid = _.mid || _.songmid
+	const qualities = {}
+	for (const [quality, field] of [
+		['128k', 'size_128mp3'],
+		['320k', 'size_320mp3'],
+		['flac', 'size_flac'],
+	]) {
+		const size = Number(_.file?.[field] ?? 0)
+		if (size > 0) qualities[quality] = { size: `${(size / 1024 / 1024).toFixed(1)} MB` }
+	}
 	return {
-		id: _.mid || _.songid,
-		songmid: _.id || _.songmid,
+		id: String(songmid || _.songid || _.id || ''),
+		songmid: String(songmid || ''),
+		songId: _.id ?? _.songid,
+		strMediaMid: _.file?.media_mid || _.strMediaMid || songmid,
+		duration: Number(_.interval ?? _.duration) || 0,
+		qualities,
 		title: _.title || _.songname,
-		artist: _.singer.map((s) => s.name).join(', '),
+		artist: (_.singer || []).map((s) => s.name).join('、'),
 		artwork: albummid
 			? `https://y.gtimg.cn/music/photo_new/T002R800x800M000${albummid}.jpg`
 			: undefined,

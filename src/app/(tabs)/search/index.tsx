@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router'
 import SearchDiscovery from '@/components/search/SearchDiscovery'
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import SearchSuggestions from '@/components/search/SearchSuggestions'
@@ -41,6 +42,11 @@ const HOT_SEARCH_BATCH_SIZE = 10
 const trackKey = (track: Track) => `${track.platform ?? 'unknown'}:${track.id}`
 
 const SearchScreen = () => {
+	const { query: incomingQuery, songSearchRequest } = useLocalSearchParams<{
+		query?: string
+		songSearchRequest?: string
+	}>()
+	const consumedSearchRequest = useRef<string | undefined>(undefined)
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const searchType = PersistStatus.useValue('search.type', 'songs') ?? 'songs'
@@ -144,6 +150,19 @@ const SearchScreen = () => {
 		onCancel: handleCancelSearch,
 		onSubmit: submitSearch,
 	})
+
+	useEffect(() => {
+		if (!songSearchRequest || consumedSearchRequest.current === songSearchRequest) return
+		const keyword = incomingQuery?.trim()
+		if (!keyword) return
+		consumedSearchRequest.current = songSearchRequest
+		PersistStatus.set('search.type', 'songs')
+		PersistStatus.set('search.platform', 'all')
+		setSongFilter('all')
+		setSearchText(keyword)
+		blurSearch()
+		submitSearch(keyword)
+	}, [incomingQuery, songSearchRequest, setSearchText, blurSearch, submitSearch])
 
 	const hotSearchPlatform: SearchPlatform = searchType === 'songs' ? searchPlatform : 'tx'
 

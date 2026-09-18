@@ -1,3 +1,4 @@
+import { searchSongByTitle } from '@/helpers/songSearchNavigation'
 import { PlayPauseButton, SkipToNextButton } from '@/components/PlayerControls'
 import myTrackPlayer, { trackSourceLoadingStore } from '@/helpers/trackPlayerIndex'
 import { unknownTrackImageUri } from '@/constants/images'
@@ -63,34 +64,39 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 	return (
 		<View style={[styles.container, style]}>
 			<BlurView intensity={80} tint={blurTint} style={styles.blurContainer}>
-				<TouchableOpacity
-					onPress={handlePress}
-					activeOpacity={0.9}
-					style={styles.trackInfoAction}
-					accessibilityRole="button"
-					accessibilityLabel={displayedTrack.title ?? i18n.t('player.nowPlaying')}
-					accessibilityHint={i18n.t('player.openNowPlaying')}
-				>
-					<Animated.View style={[styles.trackArtworkContainer, artworkAnimatedStyle]}>
-						<Image
-							contentFit="cover"
-							cachePolicy="memory-disk"
-							recyclingKey={displayedTrack.artwork ?? unknownTrackImageUri ?? 'missing-artwork'}
-							source={{
-								uri: displayedTrack.artwork ?? unknownTrackImageUri,
-							}}
-							style={StyleSheet.absoluteFill}
-						/>
-					</Animated.View>
+				<View style={styles.trackInfoAction}>
+					<TouchableOpacity
+						onPress={handlePress}
+						activeOpacity={0.9}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('player.openNowPlaying')}
+					>
+						<Animated.View style={[styles.trackArtworkContainer, artworkAnimatedStyle]}>
+							<Image
+								contentFit="cover"
+								cachePolicy="memory-disk"
+								recyclingKey={displayedTrack.artwork ?? unknownTrackImageUri ?? 'missing-artwork'}
+								source={{
+									uri: displayedTrack.artwork ?? unknownTrackImageUri,
+								}}
+								style={StyleSheet.absoluteFill}
+							/>
+						</Animated.View>
+					</TouchableOpacity>
 
-					<View style={styles.trackTitleContainer}>
+					<TouchableOpacity
+						style={styles.trackTitleContainer}
+						onPress={() => searchSongByTitle(displayedTrack.title)}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('player.searchSong', { title: displayedTrack.title })}
+					>
 						<MovingText
 							style={styles.trackTitle}
 							text={displayedTrack.title ?? ''}
 							animationThreshold={20}
 						/>
-					</View>
-				</TouchableOpacity>
+					</TouchableOpacity>
+				</View>
 
 				<View style={styles.trackControlsContainer}>
 					{isTrackSourceLoading ? (

@@ -357,6 +357,7 @@
 		"selectHint": "选择或取消选择这首歌曲"
 	},
 	"player": {
+		"searchSong": "搜索歌曲：%{title}",
 		"songOptions": "歌曲选项",
 		"closeAfter": "定时关闭",
 		"setTimingClose": "设置定时关闭",

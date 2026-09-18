@@ -435,7 +435,7 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 						songTitle: failedMusic.title,
 					})
 				}
-				await play(failedMusic, true)
+				await play(failedMusic, true, undefined, true)
 				return
 			}
 
@@ -913,6 +913,7 @@ const play = async (
 	musicItem?: IMusic.IMusicItem | null,
 	forcePlay?: boolean,
 	skipOperation?: symbol,
+	isAutomaticRecovery = false,
 ) => {
 	let trackSourceLoadingToken: string | null = null
 	let sourceRequest: AbortController | null = null
@@ -926,7 +927,8 @@ const play = async (
 		if (!musicItem) {
 			throw new Error(PlayFailReason.PLAY_LIST_IS_EMPTY)
 		}
-		if (!isCurrentMusic(musicItem) || forcePlay) {
+		// Automatic recovery must retain failed sources or A → B will retry A forever.
+		if (!isAutomaticRecovery && (!isCurrentMusic(musicItem) || forcePlay)) {
 			clearFailedApis(getMusicFailureKey(musicItem))
 		}
 		setPlaybackIntent('play')

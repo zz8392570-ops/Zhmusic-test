@@ -19,7 +19,7 @@ const check = async (name, action) => {
 }
 const song = (id, extra = {}) => item(id, `https://media.example/${id}.mp3`, extra)
 
-function runtime() {
+function runtime(extraOverrides = {}) {
 	const sourceCalls = []
 	const delays = []
 	const effects = []
@@ -75,6 +75,7 @@ function runtime() {
 		'expo-haptics': { impactAsync: async () => {}, ImpactFeedbackStyle: { Light: 'light' } },
 		'expo-router': { useRouter: () => ({ navigate() {} }) },
 		'@/components/MovingText': { MovingText: 'MovingText' },
+		...extraOverrides,
 	} })
 	// Use the exact installed v5 enums, while isolating the actual native engine.
 	Object.assign(h.player,
@@ -172,6 +173,7 @@ function settingsRuntime() {
 		'@/utils/i18n': { __esModule: true, default: i18n, nowLanguage: { useValue: () => i18n.locale } },
 		'@/utils/stateMapper': h.load('src/utils/stateMapper.ts'),
 		'@/utils/utils': { showToast() {} },
+		'@/components/ActionMenu': { MenuView: 'MenuView' },
 		'@react-native-menu/menu': { MenuView: 'MenuView' },
 		'expo-constants': { expoConfig: { version: 'fixture' } },
 		'expo-document-picker': {},
@@ -831,6 +833,54 @@ await check('a current unhandled playback error advances exactly once after the 
 	await flush()
 	assert.equal(h.facade.getCurrentMusic().id, 'b')
 	assert.equal(h.sourceCalls.length, 2)
+})
+
+await check('automatic source recovery retains failed APIs and cannot bounce A to B to A', async () => {
+    const failed = new Set()
+    const exhausted = []
+    let selected = { id: 'a', name: 'A' }
+    const sources = [selected, { id: 'b', name: 'B' }]
+    let h
+    h = runtime({
+        '@/helpers/userApi/musicApiControl': {
+            runBackgroundHealthTests: async () => {},
+            getMusicFailureKey: track => track.id,
+            clearFailedApis: () => failed.clear(),
+            rememberFailedApi: (_, id) => failed.add(id),
+            getFailedApiIds: () => failed,
+            getPlaybackFailoverApis: () => sources.filter(api => !failed.has(api.id)),
+            setMusicApiAsSelectedById: async id => {
+                selected = sources.find(api => api.id === id)
+                h.stores.musicApiSelectedStore.setValue(selected)
+                return selected
+            },
+        },
+        '@/utils/sourceSwitchNotice': {
+            getPlaybackSourceSwitchReason: () => 'playbackFailed',
+            showAutomaticSourceSwitchNotice: () => {},
+            showSourceExhaustedNotice: async info => { exhausted.push(info); return 'stop' },
+        },
+    })
+    await h.setup()
+    h.stores.musicApiSelectedStore.setValue(selected)
+    await h.facade.play(song('ruyuan'))
+    h.player.state = 'error'
+    h.emit('PlaybackError', { message: 'broken A', code: 'network' })
+    h.delays[0].resolve()
+    await flush()
+    assert.equal(selected.id, 'b')
+    assert.equal(failed.has('a'), true, 'A must remain failed after the automatic forced play')
+    h.player.state = 'error'
+    h.emit('PlaybackError', { message: 'broken B', code: 'network' })
+    h.delays[1].resolve()
+    await flush()
+    assert.equal(selected.id, 'b', 'Exhaustion must not select A again')
+    assert.equal(h.sourceCalls.length, 2)
+    assert.equal(exhausted.length, 1)
+    assert.equal(exhausted[0].triedCount, 2)
+    // A user-selected fresh attempt may retry the sources.
+    await h.facade.play(song('ruyuan'), true)
+    assert.equal(failed.size, 0)
 })
 
 await check('lyric/progress events reject another item, a retired queue timestamp and the silent placeholder', async () => {
