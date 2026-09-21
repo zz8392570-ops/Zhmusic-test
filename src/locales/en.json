@@ -171,6 +171,34 @@
 		"createFailed": "Couldn't create the playlist. Try again.",
 		"imported": "Imported playlist: %{name}"
 	},
+	"playlistTools": {
+		"title": "Organize Playlist",
+		"sort": "Sort",
+		"sortFields": {
+			"title": "By title",
+			"artist": "By artist",
+			"album": "By album",
+			"duration": "By duration",
+			"source": "By service"
+		},
+		"sorted": "Playlist order saved",
+		"findDuplicates": "Find duplicate songs",
+		"noDuplicates": "No duplicate songs found",
+		"duplicatesFoundTitle": "Possible duplicates found",
+		"duplicatesFoundMessage": "%{count} duplicate songs are selected. Review them before removing.",
+		"selectSongs": "Select songs",
+		"deleteSelectedTitle": "Remove selected songs",
+		"deleteSelectedMessage": "Remove the selected %{count} songs from this playlist?",
+		"delete": "Remove",
+		"replaceSource": "Find and replace version",
+		"chooseSource": "Choose another version",
+		"chooseSourceMessage": "Choose a version of “%{name}” to save in this playlist.",
+		"noReplacement": "No other version was found",
+		"sourceSearchFailed": "Couldn't search for another version. Try again later.",
+		"replaced": "The saved playlist version was replaced",
+		"replacementDuplicate": "That version is already in this playlist",
+		"updateFailed": "Couldn't update the playlist. Try again."
+	},
 	"logScreen": {
 		"title": "Application Logs",
 		"actions": {

@@ -8,6 +8,7 @@ import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Image } from 'expo-image'
 import type { Track } from '@/player/types'
+import type { MenuAction } from '@react-native-menu/menu'
 import { QueueControls } from './QueueControls'
 import { TracksList } from './TracksList'
 
@@ -25,6 +26,9 @@ type PlaylistTracksListProps = {
 	onSelectAll?: () => void
 	deleteSelectedTracks?: () => void
 	exportSelectedTracks?: () => void
+	managementActions?: MenuAction[]
+	onManagementAction?: (actionId: string) => void
+	onReplaceSource?: (track: Track) => void
 	showMetadata?: boolean
 	metadata?: string
 }
@@ -43,6 +47,9 @@ export const PlaylistTracksList = ({
 	onSelectAll,
 	deleteSelectedTracks,
 	exportSelectedTracks,
+	managementActions,
+	onManagementAction,
+	onReplaceSource,
 	showMetadata = false,
 	metadata,
 }: PlaylistTracksListProps) => {
@@ -106,12 +113,15 @@ export const PlaylistTracksList = ({
 						hasSelection={selectedTracks.size > 0}
 						deleteSelectedTracks={deleteSelectedTracks}
 						exportSelectedTracks={exportSelectedTracks}
+						managementActions={managementActions}
+						onManagementAction={onManagementAction}
 					/>
 				</View>
 			}
 			tracks={tracks}
 			allowDelete={allowDelete}
 			onDeleteTrack={onDeleteTrack}
+			onReplaceSource={onReplaceSource}
 			isMultiSelectMode={isMultiSelectMode}
 			selectedTracks={selectedTracks}
 			onToggleSelection={onToggleSelection}

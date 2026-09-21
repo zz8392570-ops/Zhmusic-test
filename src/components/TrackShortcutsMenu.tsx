@@ -19,6 +19,7 @@ type TrackShortcutsMenuProps = PropsWithChildren<{
 	isSinger?: boolean
 	allowDelete?: boolean
 	onDeleteTrack?: (trackId: string) => void
+	onReplaceSource?: (track: Track) => void
 }>
 
 export const TrackShortcutsMenu = ({
@@ -27,6 +28,7 @@ export const TrackShortcutsMenu = ({
 	isSinger,
 	allowDelete,
 	onDeleteTrack,
+	onReplaceSource,
 }: TrackShortcutsMenuProps) => {
 	const router = useRouter()
 	const { favorites, toggleTrackFavorite } = useFavorites()
@@ -173,6 +175,9 @@ export const TrackShortcutsMenu = ({
 					},
 				])
 			})
+			.with('replace-source', async () => {
+				onReplaceSource?.(track)
+			})
 			.with('delete-track', async () => {
 				onDeleteTrack?.(track.id)
 			})
@@ -213,6 +218,15 @@ export const TrackShortcutsMenu = ({
 				},
 				...(track.platform !== 'local'
 					? [{ id: 'download', title: i18n.t('player.download'), image: 'arrow.down.circle' }]
+					: []),
+				...(onReplaceSource && track.platform !== 'local'
+					? [
+							{
+								id: 'replace-source',
+								title: i18n.t('playlistTools.replaceSource'),
+								image: 'arrow.triangle.2.circlepath',
+							},
+						]
 					: []),
 				...sourceActions,
 				...(isSinger || !canNavigateCatalog ? [] : (artistActions as MenuAction[])),

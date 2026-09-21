@@ -172,6 +172,34 @@
 		"createFailed": "创建失败，请重试",
 		"imported": "已导入歌单：%{name}"
 	},
+	"playlistTools": {
+		"title": "整理歌单",
+		"sort": "排序",
+		"sortFields": {
+			"title": "按歌名",
+			"artist": "按歌手",
+			"album": "按专辑",
+			"duration": "按时长",
+			"source": "按平台"
+		},
+		"sorted": "歌单排序已保存",
+		"findDuplicates": "检查重复歌曲",
+		"noDuplicates": "没有发现重复歌曲",
+		"duplicatesFoundTitle": "发现疑似重复歌曲",
+		"duplicatesFoundMessage": "已选中 %{count} 首重复歌曲，请检查后删除。",
+		"selectSongs": "批量选择",
+		"deleteSelectedTitle": "移除所选歌曲",
+		"deleteSelectedMessage": "确定从歌单移除选中的 %{count} 首歌曲吗？",
+		"delete": "移除",
+		"replaceSource": "搜索并替换版本",
+		"chooseSource": "选择替代版本",
+		"chooseSourceMessage": "为“%{name}”选择要保存到歌单的版本。",
+		"noReplacement": "没有找到其他可用版本",
+		"sourceSearchFailed": "搜索替代版本失败，请稍后重试",
+		"replaced": "已替换并保存到歌单",
+		"replacementDuplicate": "所选版本已在歌单中",
+		"updateFailed": "歌单更新失败，请重试"
+	},
 	"logScreen": {
 		"title": "应用日志",
 		"actions": {

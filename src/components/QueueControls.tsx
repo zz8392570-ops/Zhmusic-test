@@ -8,6 +8,8 @@ import shuffle from 'lodash.shuffle'
 import { useMemo } from 'react'
 import { Alert, StyleSheet, Text, View, ViewProps, TouchableOpacity } from 'react-native'
 import type { Track } from '@/player/types'
+import type { MenuAction } from '@react-native-menu/menu'
+import { MenuView } from '@/components/ActionMenu'
 import { hapticLight, hapticSelection } from '@/utils/haptics'
 
 type QueueControlsProps = {
@@ -20,6 +22,8 @@ type QueueControlsProps = {
 	hasSelection?: boolean
 	deleteSelectedTracks?: () => void
 	exportSelectedTracks?: () => void
+	managementActions?: MenuAction[]
+	onManagementAction?: (actionId: string) => void
 } & ViewProps
 
 export const QueueControls = ({
@@ -33,6 +37,8 @@ export const QueueControls = ({
 	hasSelection = false,
 	deleteSelectedTracks,
 	exportSelectedTracks,
+	managementActions,
+	onManagementAction,
 	...viewProps
 }: QueueControlsProps) => {
 	const colors = useThemeColors()
@@ -205,6 +211,21 @@ export const QueueControls = ({
 					)}
 				</View>
 			)}
+			{!isMultiSelectMode && managementActions?.length ? (
+				<MenuView
+					title={i18n.t('playlistTools.title')}
+					actions={managementActions}
+					onPressAction={({ nativeEvent: { event } }) => onManagementAction?.(event)}
+				>
+					<TouchableOpacity
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('playlistTools.title')}
+						style={[styles.button, { minHeight: 48, paddingHorizontal: 12 }]}
+					>
+						<Ionicons name="options-outline" size={23} color={colors.primary} />
+					</TouchableOpacity>
+				</MenuView>
+			) : null}
 		</View>
 	)
 }

@@ -23,6 +23,7 @@ export type TracksListProps = {
 	isSinger?: boolean
 	allowDelete?: boolean
 	onDeleteTrack?: (trackId: string) => void
+	onReplaceSource?: (track: Track) => void
 	isMultiSelectMode?: boolean
 	selectedTracks?: Set<string>
 	onToggleSelection?: (trackId: string) => void
@@ -44,6 +45,7 @@ export const TracksList = React.memo(
 		allowDelete = false,
 		isMultiSelectMode = false,
 		onDeleteTrack,
+		onReplaceSource,
 		selectedTracks = EMPTY_SET,
 		onToggleSelection,
 		toggleMultiSelectMode,
@@ -126,6 +128,7 @@ export const TracksList = React.memo(
 						isSinger={isSinger}
 						allowDelete={allowDelete}
 						onDeleteTrack={onDeleteTrack}
+						onReplaceSource={onReplaceSource}
 						isMultiSelectMode={isMultiSelectMode}
 						onToggleSelection={onToggleSelection}
 						selectedTracks={selectedTracks}
@@ -140,6 +143,7 @@ export const TracksList = React.memo(
 				isSinger,
 				allowDelete,
 				onDeleteTrack,
+				onReplaceSource,
 				isMultiSelectMode,
 				onToggleSelection,
 				selectedTracks,

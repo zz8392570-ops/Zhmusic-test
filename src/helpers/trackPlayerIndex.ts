@@ -810,6 +810,42 @@ const deleteSongFromStoredPlayList = (playlist: IMusic.PlayList, trackId: string
 		// 可以在这里添加一些错误处理逻辑，比如显示一个错误提示给用户
 	}
 }
+const replaceStoredPlaylistSongs = (playlistId: string, songs: IMusic.IMusicItem[]) => {
+	try {
+		const nowPlayLists = playListsStore.getValue() || []
+		if (!nowPlayLists.some((playlist) => playlist.id === playlistId)) return 'not-found' as const
+		const updated = nowPlayLists.map((playlist) =>
+			playlist.id === playlistId ? { ...playlist, songs: [...songs] } : playlist,
+		)
+		playListsStore.setValue(updated)
+		PersistStatus.set('music.playLists', updated)
+		return 'success' as const
+	} catch (error) {
+		logError('Error replacing playlist songs:', error)
+		return 'error' as const
+	}
+}
+const replaceSongInStoredPlayList = (
+	playlistId: string,
+	original: IMusic.IMusicItem,
+	replacement: IMusic.IMusicItem,
+) => {
+	const playlists = playListsStore.getValue() || []
+	const playlist = playlists.find((item) => item.id === playlistId)
+	if (!playlist) return 'not-found' as const
+	const index = playlist.songs.findIndex((song) => isSameMediaItem(song, original))
+	if (index < 0) return 'not-found' as const
+	if (
+		playlist.songs.some(
+			(song, songIndex) => songIndex !== index && isSameMediaItem(song, replacement),
+		)
+	) {
+		return 'duplicate' as const
+	}
+	const songs = [...playlist.songs]
+	songs[index] = replacement
+	return replaceStoredPlaylistSongs(playlistId, songs)
+}
 const addPlayLists = (playlist: IMusic.PlayList) => {
 	try {
 		const nowPlayLists = playListsStore.getValue() || []
@@ -1426,6 +1462,8 @@ const myTrackPlayer = {
 	testMusicApiById,
 	addSongToStoredPlayList,
 	deleteSongFromStoredPlayList,
+	replaceStoredPlaylistSongs,
+	replaceSongInStoredPlayList,
 	addImportedLocalMusic,
 	deleteImportedLocalMusic,
 	isExistImportedLocalMusic,

@@ -34,6 +34,7 @@ export type TracksListItemProps = {
 	isSinger?: boolean
 	allowDelete?: boolean
 	onDeleteTrack?: (trackId: string) => void
+	onReplaceSource?: (track: Track) => void
 	isMultiSelectMode?: boolean
 	onToggleSelection?: (trackId: string) => void
 	selectedTracks?: Set<string>
@@ -52,6 +53,7 @@ const TracksListItem = ({
 	onToggleSelection,
 	selectedTracks,
 	onDeleteTrack,
+	onReplaceSource,
 	toggleMultiSelectMode,
 	showSourceBadge = false,
 }: TracksListItemProps) => {
@@ -284,6 +286,7 @@ const TracksListItem = ({
 					isSinger={isSinger}
 					allowDelete={allowDelete}
 					onDeleteTrack={onDeleteTrack}
+					onReplaceSource={onReplaceSource}
 				>
 					<TouchableOpacity
 						style={styles.shortcutsButton}
