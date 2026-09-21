@@ -195,7 +195,9 @@ const fetchData = (url, { timeout = 15000, ...options }) => {
         } else {
           try {
             resp.body = JSON.parse(resp.body)
-          } catch {}
+          } catch {
+            // Preserve non-JSON response bodies for source scripts.
+          }
           return resp
         }
       }).catch(err => {

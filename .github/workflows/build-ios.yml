@@ -38,6 +38,11 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile --non-interactive
 
+      - name: Run quality and native checks
+        run: |
+          yarn check
+          yarn check:native
+
       - name: Install locked Pods
         working-directory: ios
         run: |

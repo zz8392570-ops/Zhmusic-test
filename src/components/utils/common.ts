@@ -11,8 +11,8 @@ export const getRandom = (min: number, max: number): number => Math.floor(Math.r
 export const sizeFormate = (size: number): string => {
   // https://gist.github.com/thomseddon/3511330
   if (!size) return '0 B'
-  let units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let number = Math.floor(Math.log(size) / Math.log(1024))
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const number = Math.floor(Math.log(size) / Math.log(1024))
   return `${(size / Math.pow(1024, Math.floor(number))).toFixed(2)} ${units[number]}`
 }
 
@@ -59,14 +59,14 @@ export const dateFormat = (_date: number | string | Date, format = 'Y-M-D h:m:s'
 
 
 export const formatPlayTime = (time: number) => {
-  let m = Math.trunc(time / 60)
-  let s = Math.trunc(time % 60)
+  const m = Math.trunc(time / 60)
+  const s = Math.trunc(time % 60)
   return m == 0 && s == 0 ? '--/--' : numFix(m) + ':' + numFix(s)
 }
 
 export const formatPlayTime2 = (time: number) => {
-  let m = Math.trunc(time / 60)
-  let s = Math.trunc(time % 60)
+  const m = Math.trunc(time / 60)
+  const s = Math.trunc(time % 60)
   return numFix(m) + ':' + numFix(s)
 }
 
@@ -92,7 +92,7 @@ export const parseUrlParams = (str: string): Record<string, string> => {
   if (typeof str !== 'string') return params
   const paramsArr = str.split('&')
   for (const param of paramsArr) {
-    let [key, value] = param.split('=')
+    const [key, value] = param.split('=')
     params[key] = value
   }
   return params
@@ -149,13 +149,13 @@ export const filterFileName = (name: string): string => name.replace(fileNameRxp
 export const similar = (a: string, b: string) => {
   if (!a || !b) return 0
   if (a.length > b.length) { // 保证 a <= b
-    let t = b
+    const t = b
     b = a
     a = t
   }
-  let al = a.length
-  let bl = b.length
-  let mp = [] // 一个表
+  const al = a.length
+  const bl = b.length
+  const mp = [] // 一个表
   let i, j, ai, lt, tmp // ai：字符串a的第i个字符。 lt：左上角的值。 tmp：暂存新的值。
   for (i = 0; i <= bl; i++) mp[i] = i
   for (i = 1; i <= al; i++) {
@@ -177,12 +177,12 @@ export const similar = (a: string, b: string) => {
  * @param data
  */
 export const sortInsert = <T>(arr: Array<{ num: number, data: T }>, data: { num: number, data: T }) => {
-  let key = data.num
+  const key = data.num
   let left = 0
   let right = arr.length - 1
 
   while (left <= right) {
-    let middle = Math.trunc((left + right) / 2)
+    const middle = Math.trunc((left + right) / 2)
     if (key == arr[middle].num) {
       left = middle
       break

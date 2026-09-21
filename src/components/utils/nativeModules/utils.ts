@@ -29,7 +29,7 @@ export const getDeviceName = async(): Promise<string> => {
 export const isNotificationsEnabled = UtilsModule.isNotificationsEnabled as () => Promise<boolean>
 
 export const requestNotificationPermission = async() => new Promise<boolean>((resolve) => {
-  let subscription = AppState.addEventListener('change', (state) => {
+  const subscription = AppState.addEventListener('change', (state) => {
     if (state != 'active') return
     subscription.remove()
     setTimeout(() => {
@@ -85,7 +85,7 @@ export const isIgnoringBatteryOptimization = async(): Promise<boolean> => {
 }
 
 export const requestIgnoreBatteryOptimization = async() => new Promise<boolean>((resolve) => {
-  let subscription = AppState.addEventListener('change', (state) => {
+  const subscription = AppState.addEventListener('change', (state) => {
     if (state != 'active') return
     subscription.remove()
     setTimeout(() => {

@@ -1,7 +1,4 @@
-'use strict'
-Object.defineProperty(exports, '__esModule', { value: true })
-const axios = require('axios')
-const CryptoJs = require('crypto-js')
+import axios from 'axios'
 const pageSize = 20
 function formatMusicItem(_) {
 	var _a, _b, _c
@@ -164,7 +161,7 @@ function getQueryFromUrl(key, search) {
 			result[temp[0]] = decodeURIComponent(temp[1])
 		})
 		return key ? result[key] : result
-	} catch (err) {
+	} catch {
 		return key ? '' : {}
 	}
 }
@@ -179,28 +176,6 @@ function changeUrlQuery(obj, baseUrl) {
 		}
 	})
 	return `${url}?${queryArr.join('&')}`.replace(/\?$/, '')
-}
-const typeMap = {
-	m4a: {
-		s: 'C400',
-		e: '.m4a',
-	},
-	128: {
-		s: 'M500',
-		e: '.mp3',
-	},
-	320: {
-		s: 'M800',
-		e: '.mp3',
-	},
-	ape: {
-		s: 'A000',
-		e: '.ape',
-	},
-	flac: {
-		s: 'F000',
-		e: '.flac',
-	},
 }
 async function getAlbumInfo(albumItem) {
 	const url = changeUrlQuery(
@@ -226,7 +201,7 @@ async function getAlbumInfo(albumItem) {
 		'https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8',
 	)
 	const res = (
-		await (0, axios_1.default)({
+		await axios({
 			url: url,
 			headers: headers,
 			xsrfCookieName: 'XSRF-TOKEN',
@@ -263,7 +238,7 @@ async function getArtistSongs(artistItem, page) {
 		'http://u.y.qq.com/cgi-bin/musicu.fcg',
 	)
 	const res = (
-		await (0, axios_1.default)({
+		await axios({
 			url: url,
 			method: 'get',
 			headers: headers,
@@ -300,7 +275,7 @@ async function getArtistAlbums(artistItem, page) {
 		'http://u.y.qq.com/cgi-bin/musicu.fcg',
 	)
 	const res = (
-		await (0, axios_1.default)({
+		await axios({
 			url,
 			method: 'get',
 			headers: headers,
@@ -321,26 +296,6 @@ async function getArtistWorks(artistItem, page, type) {
 		return getArtistAlbums(artistItem, page)
 	}
 }
-async function getLyric(musicItem) {
-	const result = (
-		await (0, axios_1.default)({
-			url: `http://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${musicItem.songmid}&pcachetime=${new Date().getTime()}&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0`,
-			headers: { Referer: 'https://y.qq.com', Cookie: 'uin=' },
-			method: 'get',
-			xsrfCookieName: 'XSRF-TOKEN',
-			withCredentials: true,
-		})
-	).data
-	const res = JSON.parse(result.replace(/callback\(|MusicJsonCallback\(|jsonCallback\(|\)$/g, ''))
-	let translation
-	if (res.trans) {
-		translation = he.decode(CryptoJs.enc.Base64.parse(res.trans).toString(CryptoJs.enc.Utf8))
-	}
-	return {
-		rawLrc: he.decode(CryptoJs.enc.Base64.parse(res.lyric).toString(CryptoJs.enc.Utf8)),
-		translation,
-	}
-}
 async function importMusicSheet(urlLike) {
 	let id
 	if (!id) {
@@ -358,7 +313,7 @@ async function importMusicSheet(urlLike) {
 		return
 	}
 	const result = (
-		await (0, axios_1.default)({
+		await axios({
 			url: `http://i.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&utf8=1&disstid=${id}&loginUin=0`,
 			headers: { Referer: 'https://y.qq.com/n/yqq/playlist', Cookie: 'uin=' },
 			method: 'get',
@@ -370,7 +325,7 @@ async function importMusicSheet(urlLike) {
 	return res.cdlist[0].songlist.map(formatMusicItem)
 }
 async function getTopLists() {
-	const list = await (0, axios_1.default)({
+	const list = await axios({
 		url: 'https://u.y.qq.com/cgi-bin/musicu.fcg?_=1577086820633&data=%7B%22comm%22%3A%7B%22g_tk%22%3A5381%2C%22uin%22%3A123456%2C%22format%22%3A%22json%22%2C%22inCharset%22%3A%22utf-8%22%2C%22outCharset%22%3A%22utf-8%22%2C%22notice%22%3A0%2C%22platform%22%3A%22h5%22%2C%22needNewCode%22%3A1%2C%22ct%22%3A23%2C%22cv%22%3A0%7D%2C%22topList%22%3A%7B%22module%22%3A%22musicToplist.ToplistInfoServer%22%2C%22method%22%3A%22GetAll%22%2C%22param%22%3A%7B%7D%7D%7D',
 		method: 'get',
 		headers: {
@@ -392,7 +347,7 @@ async function getTopLists() {
 }
 async function getTopListDetail(topListItem) {
 	var _a
-	const res = await (0, axios_1.default)({
+	const res = await axios({
 		url: `https://u.y.qq.com/cgi-bin/musicu.fcg?g_tk=5381&data=%7B%22detail%22%3A%7B%22module%22%3A%22musicToplist.ToplistInfoServer%22%2C%22method%22%3A%22GetDetail%22%2C%22param%22%3A%7B%22topId%22%3A${topListItem.id}%2C%22offset%22%3A0%2C%22num%22%3A100%2C%22period%22%3A%22${(_a = topListItem.period) !== null && _a !== void 0 ? _a : ''}%22%7D%7D%2C%22comm%22%3A%7B%22ct%22%3A24%2C%22cv%22%3A0%7D%7D`,
 		method: 'get',
 		headers: {
@@ -407,7 +362,7 @@ async function getTopListDetail(topListItem) {
 }
 async function getRecommendSheetTags() {
 	const res = (
-		await axios_1.default.get(
+		await axios.get(
 			'https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_tag_conf.fcg?format=json&inCharset=utf8&outCharset=utf-8',
 			{
 				headers: {
@@ -437,7 +392,7 @@ async function getRecommendSheetTags() {
 async function getRecommendSheetsByTag(tag, page) {
 	const pageSize = 20
 	const rawRes = (
-		await axios_1.default.get('https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg', {
+		await axios.get('https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg', {
 			headers: {
 				referer: 'https://y.qq.com/',
 			},
@@ -476,34 +431,26 @@ async function getRecommendSheetsByTag(tag, page) {
 		data,
 	}
 }
-async function getMusicSheetInfo(sheet, page) {
+async function getMusicSheetInfo(sheet) {
 	const data = await importMusicSheet(sheet.id)
 	return {
 		isEnd: true,
 		musicList: data,
 	}
 }
-const qualityLevels = {
-	low: '128k',
-	standard: '320k',
-	high: '320k',
-	super: '320k',
-}
 export async function getMediaSource(musicItem, quality) {
-	console.log(`https://render.niuma666bet.buzz/url/tx/${musicItem.id}/${quality}`)
 	const res = (
-		await axios.default.get(`https://render.niuma666bet.buzz/url/tx/${musicItem.id}/${quality}`, {
+		await axios.get(`https://render.niuma666bet.buzz/url/tx/${musicItem.id}/${quality}`, {
 			headers: {
 				'X-Request-Key': 'share-v2',
 			},
 		})
 	).data
-	console.log(res)
 	return {
 		url: res.url,
 	}
 }
-module.exports = {
+const xiaoqiu = {
 	platform: '小秋音乐',
 	author: 'Huibq',
 	version: '0.2.0',
@@ -549,3 +496,5 @@ module.exports = {
 	getRecommendSheetsByTag,
 	getMusicSheetInfo,
 }
+
+export default xiaoqiu

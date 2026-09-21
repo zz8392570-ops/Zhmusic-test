@@ -45,11 +45,11 @@ export const PlayerProgressBar = React.memo(({
 		if (!isSliding.value) {
 			progress.value = duration > 0 ? position / duration : 0
 		}
-	}, [position, duration])
+	}, [duration, isSliding, position, progress])
 
 	const handleSlidingStart = useCallback(() => {
 		isSliding.value = true
-	}, [])
+	}, [isSliding])
 
 	const handleSlidingComplete = useCallback((value: number) => {
 		isSliding.value = false
@@ -60,7 +60,7 @@ export const PlayerProgressBar = React.memo(({
 		if (onSeek) {
 			onSeek(newPosition)
 		}
-	}, [duration, onSeek])
+	}, [duration, isSliding, onSeek, progress])
 
 	const handleValueChange = useCallback((value: number) => {
 		progress.value = value

@@ -40,7 +40,7 @@ export const MovingText = React.memo(({ text, animationThreshold, style }: Movin
 			cancelAnimation(translateX)
 			translateX.value = 0
 		}
-	}, [text, shouldAnimate, textWidth])
+	}, [shouldAnimate, textWidth, translateX])
 
 	const animatedStyle = useAnimatedStyle(() => {
 		return {

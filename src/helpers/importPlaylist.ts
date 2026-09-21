@@ -140,7 +140,9 @@ const importTx = async (id: string): Promise<IMusic.PlayList> => {
 			`https://c.y.qq.com/v8/fcg-bin/fcg_v8_playlist_cp.fcg?newsong=1&id=${id}&format=json&inCharset=GB2312&outCharset=utf-8`,
 		)
 		cd = data?.data?.cdlist?.[0]
-	} catch {}
+	} catch {
+		// The legacy endpoint is best-effort; fall back to the current endpoint below.
+	}
 	if (!cd?.songlist) {
 		const data = await fetchJson(
 			`https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=${id}&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`,

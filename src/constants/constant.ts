@@ -8,6 +8,8 @@ export const SPLIT_CHAR = {
 } as const
 export const SoundAsset = {
     // 静音的音频，https://github.com/anars/blank-audio/blob/master/15-seconds-of-silence.mp3
+    // React Native resolves bundled assets through a static require call.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     fakeAudio: require('@/assets/fake-audio.mp3'),
 };
 export const LIST_IDS = {

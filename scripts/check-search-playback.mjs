@@ -24,13 +24,24 @@ const legacy = {
 	albummid: '002AlbumMid',
 	albumname: '旧专辑',
 }
-const search = loadModule('src/helpers/userApi/xiaoqiu.js', {
-	axios: {
-		default: async () => ({
+const axios = async (config) => {
+	if (config.data?.req_1) {
+		return {
 			data: { req_1: { data: { meta: { sum: 2 }, body: { song: { list: [modern, legacy] } } } } },
-		}),
-	},
-	'crypto-js': {},
+		}
+	}
+	return {
+		data: {
+			albumSonglist: { data: { songList: [{ songInfo: modern }] } },
+		},
+	}
+}
+axios.get = async () => ({ data: { url: 'https://audio.example/song.flac' } })
+axios.default = axios
+axios.__esModule = true
+
+const search = loadModule('src/helpers/userApi/xiaoqiu.js', {
+	axios,
 })
 const result = await search.searchMusic('人生路漫漫', 1, 20)
 const [track, old] = result.data
@@ -50,6 +61,10 @@ assert.equal(old.songmid, legacy.songmid)
 assert.equal(old.songId, legacy.songid)
 assert.equal(old.strMediaMid, legacy.songmid)
 assert.equal(result.isEnd, true)
+const album = await search.default.getAlbumInfo({ albumMID: modern.album.mid })
+assert.equal(album.musicList[0].songmid, modern.mid)
+const media = await search.getMediaSource(track, 'flac')
+assert.equal(media.url, 'https://audio.example/song.flac')
 console.log(
-	'PASS: QQ search preserves playback MID, numeric ID, media MID and quality fields for modern and legacy responses',
+	'PASS: QQ search and legacy detail exports preserve playback fields and use the unified Axios module',
 )

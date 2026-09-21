@@ -71,7 +71,7 @@ declare global {
 
   var Buffer: typeof _Buffer
 
-  module NodeJS {
+  namespace NodeJS {
     interface ProcessVersions {
       app: string
     }

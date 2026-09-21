@@ -53,7 +53,7 @@ export const init = () => {
   const tasks = []
   for (let source of sources.sources) {
     let sm = sources[source.id]
-    sm && sm.init && tasks.push(sm.init())
+    if (sm?.init) tasks.push(sm.init())
   }
   return Promise.all(tasks)
 }

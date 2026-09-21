@@ -35,7 +35,7 @@ export const PlayerVolumeBar = React.memo(({ style }: ViewProps) => {
 			active = false
 			volumeListener.remove()
 		}
-	}, [])
+	}, [progress])
 
 	const animatedSliderStyle = useAnimatedStyle(() => {
 		return {
@@ -45,11 +45,11 @@ export const PlayerVolumeBar = React.memo(({ style }: ViewProps) => {
 
 	const handleSlidingStart = useCallback(() => {
 		isSliding.value = true
-	}, [])
+	}, [isSliding])
 
 	const handleSlidingComplete = useCallback(() => {
 		isSliding.value = false
-	}, [])
+	}, [isSliding])
 
 	const handleValueChange = useCallback(async (value: number) => {
 		try {
