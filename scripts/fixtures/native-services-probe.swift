@@ -13,6 +13,13 @@ private func requireToken(_ value: String?) throws -> String {
 
 private func now() -> Double { Date().timeIntervalSince1970 * 1000 }
 private func runLoop(_ seconds: Double) { RunLoop.main.run(until: Date().addingTimeInterval(seconds)) }
+private func waitUntil(_ condition: () -> Bool, timeout: Double) -> Bool {
+  let deadline = Date().addingTimeInterval(timeout)
+  while !condition() && Date() < deadline {
+    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+  }
+  return condition()
+}
 
 private final class NativeTaskFixture {
   var expirations: [() -> Void] = []
@@ -114,8 +121,7 @@ struct NativeServicesProbe {
         if generation == "first" { try? timer?.schedule(generation: "second", deadline: now() + 20) }
       }
       try timer?.schedule(generation: "first", deadline: now() + 20)
-      runLoop(0.10)
-      try expect(events == ["first", "second"])
+      try expect(waitUntil({ events == ["first", "second"] }, timeout: 1))
       timer?.cancel()
       timer = nil
     }
