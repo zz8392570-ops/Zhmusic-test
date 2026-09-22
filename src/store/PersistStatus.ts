@@ -51,6 +51,12 @@ export interface IPersistConfig {
 	'music.cacheDownloads': import('@/player/PlayerStore').CacheDownloadTask[]
 	'music.bundledSourcesVersion': number
 	'music.removedBuiltinSources': string[]
+	'sync.host': string
+	'sync.credentials': {
+		serverId: string
+		keyInfo: import('@/helpers/sync/lxSyncTypes').LxSyncKeyInfo
+	}
+	'sync.lastSuccessAt': number
 }
 
 function set<K extends keyof IPersistConfig>(key: K, value: IPersistConfig[K] | undefined) {

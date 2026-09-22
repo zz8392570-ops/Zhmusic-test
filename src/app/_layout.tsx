@@ -278,6 +278,15 @@ const RootNavigation = () => {
 				}}
 			/>
 			<Stack.Screen
+				name="(modals)/syncManager"
+				options={{
+					presentation: 'card',
+					headerTitle: i18n.t('sync.title'),
+					headerStyle: { backgroundColor: colors.background },
+					headerTintColor: colors.text,
+				}}
+			/>
+			<Stack.Screen
 				name="(modals)/importPlayList"
 				options={{
 					presentation: 'modal',
