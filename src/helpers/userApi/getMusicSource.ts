@@ -11,13 +11,6 @@ const { DEV_URL_PREFIX, KW_URL } = {
 	KW_URL: 'https://www.kuwo.cn/api/v1/www/music/playUrl',
 }
 
-const withTimeout = (promise, ms) => {
-	const timeout = new Promise((_, reject) =>
-		setTimeout(() => reject(new Error('Request timed out')), ms),
-	)
-	return Promise.race([promise, timeout])
-}
-
 const fetchWithTimeout = (url, options, timeout = 5000) => {
 	logInfo('----start----' + url)
 	return new Promise((resolve, reject) => {
@@ -106,13 +99,13 @@ export const myGetMusicUrl = (songInfo, type) => {
 const parseResponse = async (response) => {
 	try {
 		return await response.json()
-	} catch (e) {
+	} catch {
 		try {
 			if (response.status == 404) {
 				return '404'
 			}
 			return await response.text()
-		} catch (e) {
+		} catch {
 			logInfo('Failed to parse response')
 		}
 	}
@@ -363,11 +356,6 @@ interface Album {
 	singer_name: string
 }
 
-interface Song {
-	songname: string
-	songmid: string
-}
-
 // 获取专辑列表
 export async function getAlbumList(singerMid: string): Promise<Album[]> {
 	const url = `https://u.y.qq.com/cgi-bin/musicu.fcg?callback=getUCGI2613146679247198&g_tk=5381&jsonpCallback=getUCGI2613146679247198&loginUin=0&hostUin=0&format=jsonp&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0&data=%7B%22singerAlbum%22%3A%7B%22method%22%3A%22get_singer_album%22%2C%22param%22%3A%7B%22singermid%22%3A%22${singerMid}%22%2C%22order%22%3A%22time%22%2C%22begin%22%3A0%2C%22num%22%3A100%2C%22exstatus%22%3A1%7D%2C%22module%22%3A%22music.web_singer_info_svr%22%7D%7D`
@@ -403,7 +391,6 @@ export async function getMusicByAlbumId(albumMid: string, singerName: string): P
 	try {
 		const response = await axios.get(url, { headers })
 		const data = JSON.parse(response.data.slice(19, -1))
-		const songList: Song[] = data.data.list
 		data.data.list.flatMap((item: any) => ({
 			artist: singerName,
 			title: item.songname,
@@ -690,13 +677,6 @@ const searchTypeMap = {
 	3: 'songlist',
 	7: 'song',
 	12: 'mv',
-}
-
-const searchHeaders = {
-	referer: 'https://y.qq.com',
-	'user-agent':
-		'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-	Cookie: 'uin=',
 }
 
 interface ArtistItem {

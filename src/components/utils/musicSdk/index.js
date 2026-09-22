@@ -122,7 +122,7 @@ export const findMusic = async(musicInfo) => {
         }
       }
       return null
-    }).catch(_ => null))
+    }).catch(() => null))
   }
   const result = (await Promise.all(tasks)).filter(s => s)
   const newResult = []

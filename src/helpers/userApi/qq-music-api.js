@@ -197,7 +197,7 @@ export let getAlbumName = async (albummid, origin = false) => {
 //
 // vid: MV 的 VID
 // 本 API 返回的 Data 已是最简的 JSON，所以无论 origin 是否为 true 都直接返回 data。
-export let getMVInfo = async (vid, origin = true) => {
+export let getMVInfo = async (vid) => {
 	return await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
 		credentials: 'include',
 		headers: {

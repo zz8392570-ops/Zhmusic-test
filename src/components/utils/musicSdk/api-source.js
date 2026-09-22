@@ -15,23 +15,6 @@ import apiSourceInfo from './api-source-info'
 
 
 
-const apiList = {
-  // temp_api_kw,
-  // // test_api_bd: require('./bd/api-test'),
-  // test_api_kg,
-  // test_api_kw,
-  // test_api_tx,
-  // test_api_wy,
-  // test_api_mg,
-  // direct_api_kg,
-  // direct_api_kw,
-  // direct_api_tx,
-  // direct_api_wy,
-  // direct_api_mg,
-  // test_api_tx: require('./tx/api-test'),
-  // test_api_wy: require('./wy/api-test'),
-  // test_api_xm: require('./xm/api-test'),
-}
 const supportQuality = {}
 
 for (const api of apiSourceInfo) {

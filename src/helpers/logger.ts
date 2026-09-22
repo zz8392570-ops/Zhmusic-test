@@ -19,7 +19,7 @@ const stringifyArg = (arg: any): string => {
 	if (typeof arg === 'string') return arg
 	try {
 		return JSON.stringify(arg, null, 2)
-	} catch (error) {
+	} catch {
 		return `[Unstringifiable Object]: ${Object.prototype.toString.call(arg)}`
 	}
 }

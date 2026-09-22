@@ -11,7 +11,6 @@ const defaultHeaders = {
 const handleRequestData = async({
   method = 'get',
   headers = {},
-  format = 'json',
   credentials = 'omit',
   cache = 'default',
   ...options

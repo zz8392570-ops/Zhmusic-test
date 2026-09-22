@@ -199,7 +199,7 @@ export default {
     }
     return list
   },
-  async getBoards(retryNum = 0) {
+  async getBoards() {
     // if (++retryNum > 3) return Promise.reject(new Error('try max num'))
     // let response
     // try {

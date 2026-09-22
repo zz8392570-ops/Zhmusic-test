@@ -6,12 +6,6 @@
  * @repository https://github.com/lxmusics/lx-music-api-server
  */
 
-// 是否开启开发模式
-
-
-const DEV_ENABLE = false
-// 是否开启更新提醒
-const UPDATE_ENABLE = true
 // 服务端地址
 const API_URL = "http://110.42.111.49:1314"
 // 服务端配置的请求key
@@ -29,9 +23,6 @@ MUSIC_SOURCE.push('local')
  //const {  utils, env, version } = globalThis.lxu
 const env= 'mobile'
  const version='2.0.0'
-// MD5值,用来检查更新
-const SCRIPT_MD5 = '0b8560f99ab8c529ca220797246ff76a'
-
 async function httpFetch(url, options) {
   try {
     console.log(url);
@@ -116,39 +107,6 @@ export const handleGetMusicUrl = async (source, musicInfo, quality) => {
     default:
       console.log(`handleGetMusicUrl(${source}_${musicInfo.songmid}, ${quality}) failed, ${body.msg ? body.msg : 'unknow error'}`)
       throw new Error(body.msg ?? 'unknow error')
-  }
-}
-
-const handleGetMusicPic = async (source, musicInfo) => {
-  switch (source) {
-    case 'local': {
-      // 先从服务器检查是否有对应的类型，再响应链接
-      if (!musicInfo.songmid.startsWith('server_')) throw new Error('upsupported local file')
-      const songId = musicInfo.songmid
-      const requestBody = {
-        p: songId.replace('server_', ''),
-      }
-      var t = 'c'
-      var b = handleBase64Encode(JSON.stringify(requestBody))/* url safe*/.replace(/\+/g, '-').replace(/\//g, '_')
-      const targetUrl = `${API_URL}/local/${t}?q=${b}`
-      const request = await httpFetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': `${env ? `lx-music-${env}/${version}` : `lx-music-request/${version}`}`,
-        },
-        follow_max: 5,
-      }).promise
-      const { body } = request
-      if (body.code === 0 && body.data.cover) {
-        var t2 = 'p'
-        var b2 = handleBase64Encode(JSON.stringify(requestBody))/* url safe*/.replace(/\+/g, '-').replace(/\//g, '_')
-        return `${API_URL}/local/${t2}?q=${b2}`
-      }
-      throw new Error('get music pic failed')
-    }
-    default:
-      throw new Error('action(pic) does not support source(' + source + ')')
   }
 }
 

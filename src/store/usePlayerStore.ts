@@ -1,4 +1,3 @@
-import { createStore } from 'zustand/vanilla';
 import { create } from 'zustand';
 import type { Track } from '@/player/types';
 

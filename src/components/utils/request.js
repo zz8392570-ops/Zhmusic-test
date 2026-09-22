@@ -1,7 +1,6 @@
 
 import { createRequestTimeout } from '@/helpers/requestTimeout'
 import { requestMsg } from './message'
-import { bHh } from './musicSdk/options'
 //import { deflateRaw } from 'pako'
 import { Buffer } from 'buffer';
 const defaultHeaders = {
@@ -85,20 +84,9 @@ const fetchWithTimeout = (resource, options) => {
 } */
 
 
-const handleDeflateRaw = data => new Promise((resolve, reject) => {
-  //resolve(Buffer.from(deflateRaw(data)))
-  // deflateRaw(data, (err, buf) => {
-  //   if (err) return reject(err)
-  //   resolve(buf)
-  // })
-})
-
-const regx = /(?:\d\w)+/g
-
 const handleRequestData = async(url, {
   method = 'get',
   headers = {},
-  format = 'json',
   cache = 'no-store',
   ...options
 }) => {
@@ -120,12 +108,6 @@ const handleRequestData = async(url, {
       delete options.form
     } else if (options.formData) {
       headers['Content-Type'] = 'multipart/form-data'
-      const formBody = []
-      for (let [key, value] of Object.entries(options.form)) {
-        let encodedKey = encodeURIComponent(key)
-        let encodedValue = encodeURIComponent(value)
-        formBody.push(`${encodedKey}=${encodedValue}`)
-      }
       options.body = options.formData
       delete options.formData
     } else {
