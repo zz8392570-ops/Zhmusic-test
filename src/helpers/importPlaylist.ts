@@ -126,6 +126,9 @@ const toPlaylist = (
 ): IMusic.PlayList => ({
 	id: `${source}__${id}`,
 	platform: source,
+	sourcePlaylistId: id,
+	sourceSnapshotKeys: songs.map((song) => `${song.platform}@${song.id}`),
+	sourceLastRefreshedAt: Date.now(),
 	artist: meta.artist || '',
 	name: meta.name,
 	title: meta.name,
@@ -361,6 +364,69 @@ const importers: Record<MusicPlatform, (id: string) => Promise<IMusic.PlayList>>
 	mg: importMg,
 }
 
+const MUSIC_PLATFORM_SET = new Set<MusicPlatform>(['tx', 'kw', 'kg', 'wy', 'mg'])
+const mediaKey = (song: IMusic.IMusicItem) => `${song.platform}@${song.id}`
+
+export const getImportedPlaylistSource = (playlist: IMusic.PlayList): ParsedPlaylistLink | null => {
+	const source = playlist.platform as MusicPlatform
+	if (!MUSIC_PLATFORM_SET.has(source)) return null
+	const explicitId = typeof playlist.sourcePlaylistId === 'string' ? playlist.sourcePlaylistId : ''
+	const legacyPrefix = `${source}__`
+	const legacyId = playlist.id.startsWith(legacyPrefix)
+		? playlist.id.slice(legacyPrefix.length)
+		: ''
+	const id = explicitId || legacyId
+	return id ? { source, id } : null
+}
+
+export type RefreshedImportedPlaylist = {
+	songs: IMusic.IMusicItem[]
+	sourcePlaylistId: string
+	sourceSnapshotKeys: string[]
+	sourceLastRefreshedAt: number
+	added: number
+	removed: number
+	preserved: number
+}
+
+export const mergeImportedPlaylistRefresh = (
+	playlist: IMusic.PlayList,
+	remoteSongs: IMusic.IMusicItem[],
+	sourcePlaylistId: string,
+): RefreshedImportedPlaylist => {
+	const existingKeys = new Set(playlist.songs.map(mediaKey))
+	const remoteKeys = new Set(remoteSongs.map(mediaKey))
+	const previousSnapshot = Array.isArray(playlist.sourceSnapshotKeys)
+		? new Set(playlist.sourceSnapshotKeys.filter((key): key is string => typeof key === 'string'))
+		: null
+	// Legacy imports have no snapshot. Preserve every existing song on their first refresh so
+	// a remote deletion cannot erase a song the user may have added locally.
+	const localSongs = previousSnapshot
+		? playlist.songs.filter((song) => !previousSnapshot.has(mediaKey(song)))
+		: playlist.songs
+	const preservedSongs = localSongs.filter((song) => !remoteKeys.has(mediaKey(song)))
+	return {
+		songs: [...remoteSongs, ...preservedSongs],
+		sourcePlaylistId,
+		sourceSnapshotKeys: [...remoteKeys],
+		sourceLastRefreshedAt: Date.now(),
+		added: remoteSongs.filter((song) => !existingKeys.has(mediaKey(song))).length,
+		removed: previousSnapshot
+			? [...previousSnapshot].filter((key) => !remoteKeys.has(key)).length
+			: 0,
+		preserved: preservedSongs.length,
+	}
+}
+
+export const refreshImportedPlaylist = async (
+	playlist: IMusic.PlayList,
+): Promise<RefreshedImportedPlaylist> => {
+	const source = getImportedPlaylistSource(playlist)
+	if (!source) throw new Error('playlist is not refreshable')
+	const remote = await importers[source.source](source.id)
+	return mergeImportedPlaylistRefresh(playlist, remote.songs, source.id)
+}
+
 export const importPlaylistByLink = async (
 	input: string,
 	fallbackSource?: MusicPlatform,
@@ -368,9 +434,7 @@ export const importPlaylistByLink = async (
 	const trimmed = input.trim()
 	const parsed =
 		parsePlaylistInput(trimmed) ||
-		(/^\d+$/.test(trimmed) && fallbackSource
-			? { source: fallbackSource, id: trimmed }
-			: null)
+		(/^\d+$/.test(trimmed) && fallbackSource ? { source: fallbackSource, id: trimmed } : null)
 	if (!parsed) {
 		throw new Error('unrecognized playlist link')
 	}

@@ -40,8 +40,8 @@ jobs:
 
       - name: Run quality and native checks
         run: |
-          yarn check
-          yarn check:native
+          yarn validate
+          yarn run check:native
 
       - name: Install locked Pods
         working-directory: ios

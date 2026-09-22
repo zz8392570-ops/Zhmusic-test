@@ -871,10 +871,7 @@ const addPlayLists = (playlist: IMusic.PlayList) => {
 		return 'error' as const
 	}
 }
-const updateStoredPlaylist = (
-	playlistId: string,
-	patch: { name?: string; title?: string; artwork?: string; coverImg?: string },
-) => {
+const updateStoredPlaylist = (playlistId: string, patch: Partial<Omit<IMusic.PlayList, 'id'>>) => {
 	try {
 		if (playlistId === 'favorites' || playlistId === 'local' || playlistId === 'recent') {
 			return 'protected' as const

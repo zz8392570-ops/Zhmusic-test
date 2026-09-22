@@ -173,6 +173,11 @@
 	},
 	"playlistTools": {
 		"title": "Organize Playlist",
+		"refreshOnline": "Refresh online playlist",
+		"refreshing": "Refreshing…",
+		"refreshComplete": "Online playlist refreshed",
+		"refreshSummary": "Added %{added}, removed %{removed}, and kept %{preserved} locally added songs.",
+		"refreshFailed": "Refresh failed. Check your connection and try again.",
 		"sort": "Sort",
 		"sortFields": {
 			"title": "By title",

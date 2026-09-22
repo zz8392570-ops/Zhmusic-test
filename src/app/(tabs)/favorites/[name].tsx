@@ -10,6 +10,7 @@ import {
 	type PlaylistSortField,
 } from '@/helpers/playlistOrganizer'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
+import { getImportedPlaylistSource, refreshImportedPlaylist } from '@/helpers/importPlaylist'
 import { useDefaultStyles } from '@/styles'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import React, { useCallback, useMemo, useState } from 'react'
@@ -24,6 +25,7 @@ const PlaylistScreen = () => {
 	const playlists = playListsStore.useValue() as Playlist[] | null
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 	const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set())
+	const [isRefreshing, setIsRefreshing] = useState(false)
 
 	const playlist = useMemo(() => {
 		return playlists?.find((p) => p.id === playlistID)
@@ -92,8 +94,52 @@ const PlaylistScreen = () => {
 		)
 	}, [saveSongs, selectedTracks, songs])
 
+	const importedSource = useMemo(
+		() => (playlist ? getImportedPlaylistSource(playlist) : null),
+		[playlist],
+	)
+
+	const refreshOnlinePlaylist = useCallback(async () => {
+		if (!playlist || !importedSource || isRefreshing) return
+		setIsRefreshing(true)
+		try {
+			const refreshed = await refreshImportedPlaylist(playlist)
+			const result = myTrackPlayer.updateStoredPlaylist(playlistID, {
+				songs: refreshed.songs,
+				sourcePlaylistId: refreshed.sourcePlaylistId,
+				sourceSnapshotKeys: refreshed.sourceSnapshotKeys,
+				sourceLastRefreshedAt: refreshed.sourceLastRefreshedAt,
+			})
+			if (result !== 'success') throw new Error(result)
+			Alert.alert(
+				i18n.t('playlistTools.refreshComplete'),
+				i18n.t('playlistTools.refreshSummary', {
+					added: refreshed.added,
+					removed: refreshed.removed,
+					preserved: refreshed.preserved,
+				}),
+			)
+		} catch {
+			Alert.alert(i18n.t('playlistTools.refreshFailed'))
+		} finally {
+			setIsRefreshing(false)
+		}
+	}, [importedSource, isRefreshing, playlist, playlistID])
+
 	const managementActions = useMemo<MenuAction[]>(
 		() => [
+			...(importedSource
+				? [
+						{
+							id: 'refresh',
+							title: i18n.t(
+								isRefreshing ? 'playlistTools.refreshing' : 'playlistTools.refreshOnline',
+							),
+							image: 'arrow.clockwise',
+							attributes: { disabled: isRefreshing },
+						},
+					]
+				: []),
 			{
 				id: 'sort',
 				title: i18n.t('playlistTools.sort'),
@@ -109,11 +155,15 @@ const PlaylistScreen = () => {
 			},
 			{ id: 'select', title: i18n.t('playlistTools.selectSongs'), image: 'checkmark.circle' },
 		],
-		[],
+		[importedSource, isRefreshing],
 	)
 
 	const onManagementAction = useCallback(
 		(actionId: string) => {
+			if (actionId === 'refresh') {
+				void refreshOnlinePlaylist()
+				return
+			}
 			if (actionId.startsWith('sort-')) {
 				const field = actionId.replace('sort-', '') as PlaylistSortField
 				if (
@@ -143,7 +193,7 @@ const PlaylistScreen = () => {
 				)
 			}
 		},
-		[saveSongs, songs],
+		[refreshOnlinePlaylist, saveSongs, songs],
 	)
 
 	const replaceSource = useCallback(

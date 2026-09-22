@@ -9,7 +9,7 @@
 		"typecheck": "tsc --noEmit",
 		"check:core": "node scripts/check-core.mjs",
 		"check:native": "node scripts/check-native.mjs",
-		"check": "eslint . --max-warnings 31 && tsc --noEmit && node scripts/check-core.mjs",
+		"validate": "eslint . --max-warnings 31 && tsc --noEmit && node scripts/check-core.mjs",
 		"postinstall": "patch-package --error-on-fail"
 	},
 	"dependencies": {
