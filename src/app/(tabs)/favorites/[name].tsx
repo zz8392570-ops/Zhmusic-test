@@ -109,6 +109,7 @@ const PlaylistScreen = () => {
 				sourcePlaylistId: refreshed.sourcePlaylistId,
 				sourceSnapshotKeys: refreshed.sourceSnapshotKeys,
 				sourceLastRefreshedAt: refreshed.sourceLastRefreshedAt,
+				sourceOverrides: refreshed.sourceOverrides,
 			})
 			if (result !== 'success') throw new Error(result)
 			Alert.alert(

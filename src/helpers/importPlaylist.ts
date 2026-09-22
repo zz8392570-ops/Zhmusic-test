@@ -384,6 +384,7 @@ export type RefreshedImportedPlaylist = {
 	sourcePlaylistId: string
 	sourceSnapshotKeys: string[]
 	sourceLastRefreshedAt: number
+	sourceOverrides: Record<string, string>
 	added: number
 	removed: number
 	preserved: number
@@ -399,18 +400,27 @@ export const mergeImportedPlaylistRefresh = (
 	const previousSnapshot = Array.isArray(playlist.sourceSnapshotKeys)
 		? new Set(playlist.sourceSnapshotKeys.filter((key): key is string => typeof key === 'string'))
 		: null
+	const overrides =
+		playlist.sourceOverrides && typeof playlist.sourceOverrides === 'object'
+			? (playlist.sourceOverrides as Record<string, string>)
+			: {}
+	const activeOverrides = Object.fromEntries(
+		Object.entries(overrides).filter(([, replacementKey]) => existingKeys.has(replacementKey)),
+	)
 	// Legacy imports have no snapshot. Preserve every existing song on their first refresh so
 	// a remote deletion cannot erase a song the user may have added locally.
 	const localSongs = previousSnapshot
 		? playlist.songs.filter((song) => !previousSnapshot.has(mediaKey(song)))
 		: playlist.songs
 	const preservedSongs = localSongs.filter((song) => !remoteKeys.has(mediaKey(song)))
+	const effectiveRemoteSongs = remoteSongs.filter((song) => !activeOverrides[mediaKey(song)])
 	return {
-		songs: [...remoteSongs, ...preservedSongs],
+		songs: [...effectiveRemoteSongs, ...preservedSongs],
 		sourcePlaylistId,
 		sourceSnapshotKeys: [...remoteKeys],
 		sourceLastRefreshedAt: Date.now(),
-		added: remoteSongs.filter((song) => !existingKeys.has(mediaKey(song))).length,
+		sourceOverrides: activeOverrides,
+		added: effectiveRemoteSongs.filter((song) => !existingKeys.has(mediaKey(song))).length,
 		removed: previousSnapshot
 			? [...previousSnapshot].filter((key) => !remoteKeys.has(key)).length
 			: 0,

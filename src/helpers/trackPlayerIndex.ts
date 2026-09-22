@@ -844,7 +844,26 @@ const replaceSongInStoredPlayList = (
 	}
 	const songs = [...playlist.songs]
 	songs[index] = replacement
-	return replaceStoredPlaylistSongs(playlistId, songs)
+	const originalKey = `${original.platform}@${original.id}`
+	const replacementKey = `${replacement.platform}@${replacement.id}`
+	const snapshotKeys = Array.isArray(playlist.sourceSnapshotKeys)
+		? playlist.sourceSnapshotKeys.filter((key): key is string => typeof key === 'string')
+		: []
+	const existingOverrides =
+		playlist.sourceOverrides && typeof playlist.sourceOverrides === 'object'
+			? (playlist.sourceOverrides as Record<string, string>)
+			: {}
+	const overrides = { ...existingOverrides }
+	const overriddenSourceKey = snapshotKeys.includes(originalKey)
+		? originalKey
+		: Object.entries(overrides).find(([, value]) => value === originalKey)?.[0]
+	if (overriddenSourceKey) overrides[overriddenSourceKey] = replacementKey
+	const updated = playlists.map((item) =>
+		item.id === playlistId ? { ...item, songs, sourceOverrides: overrides } : item,
+	)
+	playListsStore.setValue(updated)
+	PersistStatus.set('music.playLists', updated)
+	return 'success' as const
 }
 const addPlayLists = (playlist: IMusic.PlayList) => {
 	try {
