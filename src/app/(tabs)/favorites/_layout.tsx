@@ -58,6 +58,15 @@ const FavoritesScreenLayout = () => {
 					}}
 				/>
 				<Stack.Screen
+					name="smartPlaylist"
+					options={{
+						headerTitle: '',
+						headerBackVisible: true,
+						headerStyle: { backgroundColor: colors.background },
+						headerTintColor: colors.primary,
+					}}
+				/>
+				<Stack.Screen
 					name="localMusic"
 					options={{
 						headerTitle: '',

@@ -13,6 +13,7 @@
 			"version": "版本号",
 			"checkUpdate": "检查更新",
 			"projectLink": "项目链接",
+			"releaseNotes": "版本更新记录",
 			"clearCache": "清理自动缓存",
 			"manageCache": "管理下载与缓存",
 			"autoCacheWifiOnly": "仅 Wi-Fi 自动缓存",
@@ -244,6 +245,33 @@
 		"favoritesSongs": "喜欢的歌曲",
 		"localOrCachedSongs": "本地与离线",
 		"recentlyPlayed": "最近播放"
+	},
+	"listeningStats": {
+		"enabled": "记录听歌统计",
+		"privateHint": "仅保存在本机，关闭后暂停记录",
+		"clear": "清空",
+		"clearTitle": "清空听歌统计",
+		"clearMessage": "播放次数、跳过次数和智能歌单将被清空，且无法恢复。",
+		"cancel": "取消",
+		"summary": "统计 %{count} 首 · 累计 %{hours} 小时",
+		"smart": {
+			"frequent": "最近常听",
+			"mostPlayed": "最多播放",
+			"recentlyAdded": "最近收听的新歌",
+			"forgotten": "很久没听"
+		},
+		"smartDescriptions": {
+			"frequent": "综合播放、完整听完和跳过情况",
+			"mostPlayed": "按有效播放次数排序",
+			"recentlyAdded": "按首次有效收听时间排序",
+			"forgotten": "超过 30 天没有播放的歌曲"
+		}
+	},
+	"releaseNotes": {
+		"title": "版本更新记录",
+		"subtitle": "看看每个版本新增和修复了什么",
+		"current": "当前版本",
+		"sections": { "new": "新增", "improved": "优化", "fixed": "修复" }
 	},
 	"library": {
 		"songCount": "%{count} 首歌曲",

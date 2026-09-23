@@ -13,6 +13,7 @@
 			"version": "Version",
 			"checkUpdate": "Check for Updates",
 			"projectLink": "Project Link",
+			"releaseNotes": "Release Notes",
 			"clearCache": "Clear automatic cache",
 			"manageCache": "Manage Downloads & Cache",
 			"autoCacheWifiOnly": "Auto-cache on Wi-Fi Only",
@@ -243,6 +244,33 @@
 		"favoritesSongs": "Favorite Songs",
 		"localOrCachedSongs": "Local & Offline",
 		"recentlyPlayed": "Recently Played"
+	},
+	"listeningStats": {
+		"enabled": "Track listening activity",
+		"privateHint": "Stored only on this device; turn off to pause tracking",
+		"clear": "Clear",
+		"clearTitle": "Clear Listening Stats",
+		"clearMessage": "Play counts, skips, and smart playlists will be permanently cleared.",
+		"cancel": "Cancel",
+		"summary": "%{count} songs · %{hours} hours",
+		"smart": {
+			"frequent": "Recently Frequent",
+			"mostPlayed": "Most Played",
+			"recentlyAdded": "Newly Discovered",
+			"forgotten": "Long Unplayed"
+		},
+		"smartDescriptions": {
+			"frequent": "Ranked by plays, completions, and skips",
+			"mostPlayed": "Sorted by effective play count",
+			"recentlyAdded": "Sorted by first effective listen",
+			"forgotten": "Songs not played for over 30 days"
+		}
+	},
+	"releaseNotes": {
+		"title": "Release Notes",
+		"subtitle": "See what changed in every version",
+		"current": "Current",
+		"sections": { "new": "New", "improved": "Improved", "fixed": "Fixed" }
 	},
 	"library": {
 		"songCount": "%{count} songs",

@@ -517,6 +517,7 @@ const SettingModal = () => {
 			data: [
 				{ id: '1', title: 'ZhMusic', type: 'link', icon: appIcon },
 				{ id: '2', title: i18n.t('settings.items.version'), type: 'value', value: CURRENT_VERSION },
+				{ id: 'release-notes', title: i18n.t('settings.items.releaseNotes'), type: 'link' },
 				{ id: '3', title: i18n.t('settings.items.checkUpdate'), type: 'value' },
 				{ id: '5', title: i18n.t('settings.items.projectLink'), type: 'value', value: '' },
 			],
@@ -778,6 +779,7 @@ const SettingModal = () => {
 					onPress={() => {
 						if (item.id === 'sync-manager') router.push('/(modals)/syncManager')
 						if (item.id === 'backup-manager') router.push('/(modals)/backupManager')
+						if (item.id === 'release-notes') router.push('/(modals)/releaseNotes')
 						if (item.id === 'cache-manager') {
 							router.push('/(modals)/cacheManager')
 						}

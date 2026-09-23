@@ -64,6 +64,49 @@ function backupFixture() {
 	})
 	return { ...backup, store }
 }
+function listeningStatsFixture() {
+	const store = persistence()
+	const stats = loadModule('src/helpers/listeningStats.ts', {
+		'@/store/PersistStatus': store,
+		'@/utils/mediaItem': {
+			isSameMediaItem: (left, right) =>
+				left?.id === right?.id && left?.platform === right?.platform,
+		},
+	})
+	return { ...stats, store }
+}
+await check(
+	'listening stats count effective plays, completions and skips without counting seeks',
+	() => {
+		const h = listeningStatsFixture()
+		const first = track('stats-one')
+		h.beginListeningSession(first)
+		for (let position = 0; position <= 30; position += 3) h.updateListeningProgress(position, 180)
+		h.updateListeningProgress(178, 180)
+		h.finishListeningSession('changed')
+		let records = h.getListeningStats()
+		assert.equal(records[0].playCount, 1)
+		assert.equal(records[0].completedCount, 1)
+		assert.equal(records[0].skippedCount, 0)
+		assert.equal(records[0].totalSeconds, 30)
+
+		const second = track('stats-two')
+		h.beginListeningSession(second)
+		for (let position = 0; position <= 12; position += 3) h.updateListeningProgress(position, 180)
+		h.finishListeningSession('changed')
+		records = h.getListeningStats()
+		const skipped = records.find((item) => item.track.id === second.id)
+		assert.equal(skipped.playCount, 0)
+		assert.equal(skipped.skippedCount, 1)
+		assert.equal(
+			h
+				.getSmartPlaylistTracks('mostPlayed', records)
+				.map((item) => item.id)
+				.join(','),
+			first.id,
+		)
+	},
+)
 await check(
 	'cancel and deadline release request wait; late completion cannot change its result',
 	async () => {
@@ -87,7 +130,16 @@ await check(
 	() => {
 		const h = backupFixture()
 		h.store.set('music.favorites', [track('one')])
-		h.store.set('music.playLists', [{ id: 'list', name: 'List', folder: '通勤', pinned: true, sortOrder: 2, songs: [track('one')] }])
+		h.store.set('music.playLists', [
+			{
+				id: 'list',
+				name: 'List',
+				folder: '通勤',
+				pinned: true,
+				sortOrder: 2,
+				songs: [track('one')],
+			},
+		])
 		h.store.set('music.quality', 'flac')
 		h.store.set('music.musicApi', [{ script: 'private source' }])
 		h.store.set('music.play-list', [track('queue')])
@@ -212,7 +264,10 @@ await check('library playlists sort by pin, folder and stable manual order', () 
 		{ id: 'a', folder: 'A', sortOrder: 1 },
 		{ id: 'p', folder: 'Z', pinned: true, sortOrder: 9 },
 	]
-	assert.deepEqual(Array.from(sortLibraryPlaylists(playlists), (item) => item.id), ['p', 'a', 'b', 'c'])
+	assert.deepEqual(
+		Array.from(sortLibraryPlaylists(playlists), (item) => item.id),
+		['p', 'a', 'b', 'c'],
+	)
 })
 function searchFixture() {
 	const qq = deferred(),
@@ -366,7 +421,10 @@ await check(
 		assert.equal(h.stores.qualityStore.getValue(), 'flac')
 		assert.equal(h.store.writes.includes('music.quality'), false)
 		assert.equal(h.progress.at(-1).stage, 'retryingQuality')
-		assert.deepEqual(h.calls.slice(0, 2).map((call) => call.quality), ['flac', 'flac'])
+		assert.deepEqual(
+			h.calls.slice(0, 2).map((call) => call.quality),
+			['flac', 'flac'],
+		)
 		await h.resolveSource(track('next'))
 		assert.equal(h.calls[3].quality, 'flac')
 	},

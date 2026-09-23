@@ -21,6 +21,8 @@ import { router } from 'expo-router'
 import { useMemo } from 'react'
 import { useIsPlaying } from '@rntp/player'
 import { Image, ScrollView, Text, View } from 'react-native'
+import PersistStatus from '@/store/PersistStatus'
+import { getSmartPlaylistTracks, type SmartPlaylistKind } from '@/helpers/listeningStats'
 
 const FavoritesScreen = () => {
 	const defaultStyles = useDefaultStyles()
@@ -38,8 +40,26 @@ const FavoritesScreen = () => {
 	const localTracks = importedLocalMusicStore.useValue()
 	const recentlyPlayed = recentlyPlayedStore.useValue()
 	const { favorites } = useFavorites()
+	const listeningStats = PersistStatus.useValue('music.listeningStats', [])
+	const smartPlaylists = useMemo(() => {
+		const records = listeningStats ?? []
+		return (['frequent', 'mostPlayed', 'recentlyAdded', 'forgotten'] as SmartPlaylistKind[]).map(
+			(kind) => {
+				const tracks = getSmartPlaylistTracks(kind, records)
+				return {
+					name: kind,
+					id: `smart:${kind}`,
+					tracks,
+					title: i18n.t(`listeningStats.smart.${kind}`),
+					coverImg: tracks[0]?.artwork || Image.resolveAssetSource(localImage).uri,
+					description: i18n.t(`listeningStats.smartDescriptions.${kind}`),
+				}
+			},
+		)
+	}, [listeningStats])
 	const playLists = useMemo(
 		() => [
+			...smartPlaylists,
 			{
 				name: 'Recent',
 				id: 'recent',
@@ -66,13 +86,18 @@ const FavoritesScreen = () => {
 			},
 			...sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[]),
 		],
-		[storedPlayLists, favorites, localTracks, recentlyPlayed],
+		[storedPlayLists, favorites, localTracks, recentlyPlayed, smartPlaylists],
 	)
 
 	const results = useMemo(() => searchPersonalLibrary(playLists, search), [playLists, search])
 	const filteredPlayLists = results.playlists as Playlist[]
 	const handlePlaylistPress = (playlist: Playlist) => {
-		if (playlist.id === 'favorites') {
+		if (playlist.id.startsWith('smart:')) {
+			router.push({
+				pathname: '/(tabs)/favorites/smartPlaylist',
+				params: { kind: playlist.id.slice(6) },
+			})
+		} else if (playlist.id === 'favorites') {
 			router.push(`/(tabs)/favorites/favoriteMusic`)
 		} else if (playlist.id === 'recent') {
 			router.push(`/(tabs)/favorites/recentMusic`)

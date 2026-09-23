@@ -75,10 +75,7 @@ import {
 	testAllMusicApis,
 	testMusicApiById,
 } from './userApi/musicApiControl'
-import {
-	appendSourceDiagnostic,
-	classifySourceError,
-} from './userApi/sourceDiagnostics'
+import { appendSourceDiagnostic, classifySourceError } from './userApi/sourceDiagnostics'
 
 import {
 	currentMusicStore,
@@ -117,6 +114,11 @@ import {
 } from '@/player/CacheManager'
 
 import { clearPreloadedSources, resolveSource, preloadSource } from '@/player/MusicSourceResolver'
+import {
+	beginListeningSession,
+	finishListeningSession,
+	updateListeningProgress,
+} from './listeningStats'
 
 const NEXT_TRACK_PRELOAD_DELAY_MS = 8000
 const createTrackSourceLoadingToken = (musicItem: IMusic.IMusicItem) =>
@@ -218,8 +220,9 @@ function handleNativeTransition(item: MediaItem | null | undefined, index: numbe
 		return
 	nativeQueue.handoffConsumed = true
 	logInfo('队列末尾，播放下一首')
-	const advance =
-		repeatModeStore.getValue() === MusicRepeatMode.SINGLE ? play(null, true) : skipToNext()
+	const repeatCurrent = repeatModeStore.getValue() === MusicRepeatMode.SINGLE
+	if (repeatCurrent) finishListeningSession('stopped')
+	const advance = repeatCurrent ? play(null, true) : skipToNext()
 	void advance.catch((error) => logError('自动切歌失败', error))
 }
 
@@ -369,6 +372,9 @@ async function setupTrackPlayer() {
 					return
 				logInfo('播放出错', { message: error.message, code: error.code })
 				void failToPlay(error).catch((failure) => logError('播放错误恢复失败', failure))
+			}),
+			ReactNativeTrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (event) => {
+				if (isCurrentProgressEvent(event)) updateListeningProgress(event.position, event.duration)
 			}),
 		)
 		logInfo('播放器初始化完成')
@@ -737,6 +743,7 @@ const pause = () => {
 
 const stop = () => {
 	setPlaybackIntent('stop')
+	finishListeningSession('stopped')
 	ReactNativeTrackPlayer.stop()
 }
 
@@ -753,6 +760,7 @@ const setTrackSource = (track: Track) => {
 	]
 	// Keep the complete resolved source in JS. v5 getter projections lose headers.
 	nativeQueue = { token, track, startedAt: Date.now(), handoffConsumed: false }
+	beginListeningSession(track as IMusic.IMusicItem)
 	ReactNativeTrackPlayer.setMediaItems(items)
 	const recentTrack =
 		requestedTrack && isSameMediaItem(requestedTrack, track as IMusic.IMusicItem)
@@ -969,8 +977,7 @@ const reorderStoredPlaylist = (playlistId: string, direction: 'up' | 'down') => 
 				String(item.folder ?? '') === String(playlist.folder ?? ''),
 		)
 		.sort(
-			(left, right) =>
-				(left.item.sortOrder ?? left.index) - (right.item.sortOrder ?? right.index),
+			(left, right) => (left.item.sortOrder ?? left.index) - (right.item.sortOrder ?? right.index),
 		)
 	const peerIndex = peers.findIndex(({ item }) => item.id === playlistId)
 	const targetPeerIndex = direction === 'up' ? peerIndex - 1 : peerIndex + 1

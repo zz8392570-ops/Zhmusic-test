@@ -33,6 +33,8 @@ export interface IPersistConfig {
 	//已导入的本地音乐
 	'music.importedLocalMusic': IMusic.IMusicItem[]
 	'music.recentlyPlayed': IMusic.IMusicItem[]
+	'music.listeningStats': import('@/helpers/listeningStats').ListeningStatsRecord[]
+	'music.listeningStatsEnabled': boolean
 	'music.autoCacheLocal': boolean
 	'music.autoCacheWifiOnly': boolean
 	'app.language': string
