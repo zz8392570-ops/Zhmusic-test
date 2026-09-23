@@ -5,6 +5,15 @@ import {
 	MAX_BACKUP_BYTES,
 	MusicBackup,
 } from '@/helpers/musicBackup'
+import {
+	downloadWebDavBackup,
+	loadWebDavBackupConfig,
+	saveWebDavBackupConfig,
+	testWebDavConnection,
+	uploadWebDavBackup,
+	type WebDavBackupConfig,
+	type WebDavErrorCode,
+} from '@/helpers/webDavBackup'
 import myTrackPlayer, { playListsStore, recentlyPlayedStore } from '@/helpers/trackPlayerIndex'
 import { useThemeColors, useThemeMode } from '@/hooks/useAppTheme'
 import { useLibraryStore } from '@/store/library'
@@ -14,8 +23,21 @@ import { shareLocalFiles } from '../../../modules/cymusic-native/sharing'
 import Constants from 'expo-constants'
 import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
-import { useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native'
+import { useEffect, useState } from 'react'
+import {
+	ActivityIndicator,
+	Alert,
+	KeyboardAvoidingView,
+	Platform,
+	Pressable,
+	ScrollView,
+	Switch,
+	Text,
+	TextInput,
+	View,
+} from 'react-native'
+
+const DEFAULT_REMOTE_PATH = 'Cymusic-backup.json'
 
 export default function BackupManagerScreen() {
 	const colors = useThemeColors()
@@ -24,6 +46,80 @@ export default function BackupManagerScreen() {
 	const [busy, setBusy] = useState(false)
 	const [mode, setMode] = useState<'merge' | 'replace'>('merge')
 	const [restoreSettings, setRestoreSettings] = useState(true)
+	const [webDavUrl, setWebDavUrl] = useState('')
+	const [webDavUsername, setWebDavUsername] = useState('')
+	const [webDavPassword, setWebDavPassword] = useState('')
+	const [webDavRemotePath, setWebDavRemotePath] = useState(DEFAULT_REMOTE_PATH)
+	const [webDavStatus, setWebDavStatus] = useState('')
+
+	useEffect(() => {
+		let mounted = true
+		void loadWebDavBackupConfig()
+			.then((config) => {
+				if (!mounted || !config) return
+				setWebDavUrl(config.url)
+				setWebDavUsername(config.username)
+				setWebDavPassword(config.password)
+				setWebDavRemotePath(config.remotePath)
+			})
+			.catch(() => {
+				if (mounted) setWebDavStatus(i18n.t('backup.webdavInvalidConfig'))
+			})
+		return () => {
+			mounted = false
+		}
+	}, [])
+
+	const webDavConfig = (): WebDavBackupConfig => ({
+		url: webDavUrl,
+		username: webDavUsername,
+		password: webDavPassword,
+		remotePath: webDavRemotePath,
+	})
+	const webDavErrorMessage = (error: unknown) => {
+		const code = (error as { code?: WebDavErrorCode })?.code
+		if (code === 'invalid-config') return i18n.t('backup.webdavInvalidConfig')
+		if (code === 'unauthorized') return i18n.t('backup.webdavUnauthorized')
+		if (code === 'not-found') return i18n.t('backup.webdavNotFound')
+		if (code === 'too-large') return i18n.t('backup.webdavTooLarge')
+		if (code === 'invalid-backup') return i18n.t('backup.webdavInvalidBackup')
+		if (code === 'timeout') return i18n.t('backup.webdavTimeout')
+		return i18n.t('backup.webdavRequestFailed')
+	}
+	const runWebDavAction = async (action: (config: WebDavBackupConfig) => Promise<void>) => {
+		setBusy(true)
+		setWebDavStatus('')
+		try {
+			const config = await saveWebDavBackupConfig(webDavConfig())
+			setWebDavUrl(config.url)
+			setWebDavUsername(config.username)
+			setWebDavRemotePath(config.remotePath)
+			await action(config)
+		} catch (error) {
+			const message = webDavErrorMessage(error)
+			setWebDavStatus(message)
+			Alert.alert(i18n.t('backup.webdavErrorTitle'), message)
+		} finally {
+			setBusy(false)
+		}
+	}
+	const saveWebDav = () =>
+		void runWebDavAction(async () => setWebDavStatus(i18n.t('backup.webdavSaved')))
+	const testWebDav = () =>
+		void runWebDavAction(async (config) => {
+			await testWebDavConnection(config)
+			setWebDavStatus(i18n.t('backup.webdavConnectionSuccess'))
+		})
+	const uploadWebDav = () =>
+		void runWebDavAction(async (config) => {
+			await uploadWebDavBackup(config, createMusicBackup(Constants.expoConfig?.version ?? ''))
+			setWebDavStatus(i18n.t('backup.webdavUploadSuccess'))
+		})
+	const downloadWebDav = () =>
+		void runWebDavAction(async (config) => {
+			setBackup(await downloadWebDavBackup(config))
+			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
+		})
 	const button = (label: string, onPress: () => void, selected = false) => (
 		<Pressable
 			accessibilityRole="button"
@@ -122,52 +218,125 @@ export default function BackupManagerScreen() {
 				},
 			],
 		)
+	const input = (
+		label: string,
+		value: string,
+		onChangeText: (value: string) => void,
+		options: {
+			placeholder?: string
+			secureTextEntry?: boolean
+			keyboardType?: 'url' | 'default'
+		} = {},
+	) => (
+		<View style={{ gap: 8 }}>
+			<Text style={{ color: colors.text, fontWeight: '600' }}>{label}</Text>
+			<TextInput
+				autoCapitalize="none"
+				autoCorrect={false}
+				editable={!busy}
+				keyboardType={options.keyboardType}
+				onChangeText={onChangeText}
+				placeholder={options.placeholder}
+				placeholderTextColor={colors.textMuted}
+				secureTextEntry={options.secureTextEntry}
+				style={{
+					minHeight: 48,
+					borderRadius: 10,
+					paddingHorizontal: 14,
+					backgroundColor: colors.surfaceElevated,
+					color: colors.text,
+				}}
+				value={value}
+			/>
+		</View>
+	)
 	return (
-		<ScrollView
-			style={{ backgroundColor: colors.background }}
-			contentContainerStyle={{ padding: 20, gap: 16 }}
+		<KeyboardAvoidingView
+			style={{ flex: 1, backgroundColor: colors.background }}
+			behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 		>
-			<Text style={{ color: colors.text, fontSize: 28, fontWeight: '700' }}>
-				{i18n.t('backup.title')}
-			</Text>
-			<Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 21 }}>
-				{i18n.t('backup.description')}
-			</Text>
-			{button(i18n.t('backup.export'), () => void exportBackup())}
-			{button(i18n.t('backup.import'), () => void selectBackup())}
-			{busy ? <ActivityIndicator color={colors.primary} /> : null}
-			{backup ? (
-				<View style={{ gap: 14 }}>
-					<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
-						{i18n.t('backup.preview')}
-					</Text>
-					<Text style={{ color: colors.textMuted, lineHeight: 22 }}>
-						{i18n.t('backup.summary', {
-							favorites: backup.library.favorites.length,
-							playlists: backup.library.playlists.length,
-							recent: backup.library.recentlyPlayed.length,
-							settings: Object.keys(backup.settings).length,
-						})}
-					</Text>
-					<Text style={{ color: colors.textMuted, fontSize: 12 }}>
-						{backup.createdAt} · {backup.appVersion}
-					</Text>
-					{button(i18n.t('backup.merge'), () => setMode('merge'), mode === 'merge')}
-					{button(i18n.t('backup.replace'), () => setMode('replace'), mode === 'replace')}
-					<View
-						style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-					>
-						<Text style={{ color: colors.text }}>{i18n.t('backup.restoreSettings')}</Text>
-						<Switch
-							disabled={busy}
-							value={restoreSettings}
-							onValueChange={setRestoreSettings}
-							accessibilityLabel={i18n.t('backup.restoreSettings')}
-						/>
-					</View>
-					{button(i18n.t('backup.restore'), confirmRestore)}
+			<ScrollView
+				keyboardShouldPersistTaps="handled"
+				contentContainerStyle={{ padding: 20, paddingBottom: 48, gap: 16 }}
+			>
+				<Text style={{ color: colors.text, fontSize: 28, fontWeight: '700' }}>
+					{i18n.t('backup.title')}
+				</Text>
+				<Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 21 }}>
+					{i18n.t('backup.description')}
+				</Text>
+				{button(i18n.t('backup.export'), () => void exportBackup())}
+				{button(i18n.t('backup.import'), () => void selectBackup())}
+				<View style={{ height: 1, backgroundColor: colors.surfaceElevated, marginVertical: 4 }} />
+				<Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
+					{i18n.t('backup.webdavTitle')}
+				</Text>
+				<Text style={{ color: colors.textMuted, fontSize: 13, lineHeight: 19 }}>
+					{i18n.t('backup.webdavDescription')}
+				</Text>
+				{input(i18n.t('backup.webdavUrl'), webDavUrl, setWebDavUrl, {
+					placeholder: 'https://dav.example.com/remote.php/dav/files/user/Backups',
+					keyboardType: 'url',
+				})}
+				{input(i18n.t('backup.webdavUsername'), webDavUsername, setWebDavUsername)}
+				{input(i18n.t('backup.webdavPassword'), webDavPassword, setWebDavPassword, {
+					secureTextEntry: true,
+				})}
+				{input(i18n.t('backup.webdavRemotePath'), webDavRemotePath, setWebDavRemotePath, {
+					placeholder: DEFAULT_REMOTE_PATH,
+				})}
+				<Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+					{i18n.t('backup.webdavSecurityNote')}
+				</Text>
+				<View style={{ flexDirection: 'row', gap: 10 }}>
+					<View style={{ flex: 1 }}>{button(i18n.t('backup.webdavSave'), saveWebDav)}</View>
+					<View style={{ flex: 1 }}>{button(i18n.t('backup.webdavTest'), testWebDav)}</View>
 				</View>
-			) : null}
-		</ScrollView>
+				{button(i18n.t('backup.webdavUpload'), uploadWebDav)}
+				{button(i18n.t('backup.webdavDownload'), downloadWebDav)}
+				{busy ? <ActivityIndicator color={colors.primary} /> : null}
+				{webDavStatus ? (
+					<Text style={{ color: colors.text, textAlign: 'center', fontSize: 13 }}>
+						{webDavStatus}
+					</Text>
+				) : null}
+				{backup ? (
+					<View style={{ gap: 14 }}>
+						<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
+							{i18n.t('backup.preview')}
+						</Text>
+						<Text style={{ color: colors.textMuted, lineHeight: 22 }}>
+							{i18n.t('backup.summary', {
+								favorites: backup.library.favorites.length,
+								playlists: backup.library.playlists.length,
+								recent: backup.library.recentlyPlayed.length,
+								settings: Object.keys(backup.settings).length,
+							})}
+						</Text>
+						<Text style={{ color: colors.textMuted, fontSize: 12 }}>
+							{backup.createdAt} · {backup.appVersion}
+						</Text>
+						{button(i18n.t('backup.merge'), () => setMode('merge'), mode === 'merge')}
+						{button(i18n.t('backup.replace'), () => setMode('replace'), mode === 'replace')}
+						<View
+							style={{
+								flexDirection: 'row',
+								justifyContent: 'space-between',
+								alignItems: 'center',
+							}}
+						>
+							<Text style={{ color: colors.text }}>{i18n.t('backup.restoreSettings')}</Text>
+							<Switch
+								disabled={busy}
+								value={restoreSettings}
+								onValueChange={setRestoreSettings}
+								accessibilityLabel={i18n.t('backup.restoreSettings')}
+							/>
+						</View>
+						{button(i18n.t('backup.restore'), confirmRestore)}
+					</View>
+				) : null}
+			</ScrollView>
+		</KeyboardAvoidingView>
 	)
 }

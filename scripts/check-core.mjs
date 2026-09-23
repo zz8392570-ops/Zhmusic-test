@@ -14,6 +14,7 @@ const checks = [
 	'check-sleep-timer.mjs',
 	'check-source-host.mjs',
 	'check-volume.mjs',
+	'check-webdav-backup.mjs',
 ]
 
 for (const check of checks) {
