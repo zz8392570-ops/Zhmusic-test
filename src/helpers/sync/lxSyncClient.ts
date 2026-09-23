@@ -141,7 +141,7 @@ const encodeMessage = (message: string) =>
 const decodeMessage = (message: string) =>
 	message.startsWith('cg_') ? ungzip(fromBase64(message.slice(3)), { to: 'string' }) : message
 
-export const syncWithLxServer = async ({ host, authCode, mode, onStatus }: SyncOptions) => {
+const performSyncWithLxServer = async ({ host, authCode, mode, onStatus }: SyncOptions) => {
 	const url = parseUrl(host)
 	onStatus?.('正在验证同步服务…')
 	const keyInfo = await authenticate(url, authCode)
@@ -215,4 +215,12 @@ export const syncWithLxServer = async ({ host, authCode, mode, onStatus }: SyncO
 			if (!settled) finish(new Error(event.reason || '同步连接已断开'))
 		})
 	})
+}
+
+let syncQueue: Promise<unknown> = Promise.resolve()
+
+export const syncWithLxServer = (options: SyncOptions) => {
+	const task = syncQueue.catch(() => undefined).then(() => performSyncWithLxServer(options))
+	syncQueue = task
+	return task
 }

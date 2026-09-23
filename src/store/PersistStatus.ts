@@ -57,6 +57,9 @@ export interface IPersistConfig {
 		keyInfo: import('@/helpers/sync/lxSyncTypes').LxSyncKeyInfo
 	}
 	'sync.lastSuccessAt': number
+	'sync.autoEnabled': boolean
+	'sync.autoWifiOnly': boolean
+	'sync.lastAutoError': string
 }
 
 function set<K extends keyof IPersistConfig>(key: K, value: IPersistConfig[K] | undefined) {

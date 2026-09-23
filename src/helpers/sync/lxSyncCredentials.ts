@@ -55,4 +55,6 @@ export const clearLxSyncCredentials = async () => {
 	PersistStatus.set('sync.credentials', undefined)
 	await SecureStore.deleteItemAsync(CREDENTIALS_KEY)
 	PersistStatus.set('sync.lastSuccessAt', undefined)
+	PersistStatus.set('sync.autoEnabled', false)
+	PersistStatus.set('sync.lastAutoError', undefined)
 }

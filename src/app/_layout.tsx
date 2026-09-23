@@ -1,6 +1,7 @@
 import { playbackService } from '@/constants/playbackService'
 import { AppThemeProvider, useAppTheme } from '@/hooks/useAppTheme'
 import LyricManager from '@/helpers/lyricManager'
+import { startLxAutoSync } from '@/helpers/sync/lxAutoSync'
 import { useLogTrackPlayerState } from '@/hooks/useLogTrackPlayerState'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import i18n, { setI18nConfig } from '@/utils/i18n'
@@ -51,6 +52,7 @@ const App = () => {
 	useEffect(() => {
 		void LyricManager.setup()
 	}, [])
+	useEffect(() => startLxAutoSync(), [])
 	return (
 		<ShareIntentProvider
 			options={{

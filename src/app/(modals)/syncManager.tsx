@@ -1,5 +1,6 @@
 import { syncWithLxServer } from '@/helpers/sync/lxSyncClient'
 import { clearLxSyncCredentials, getLxSyncCredentials } from '@/helpers/sync/lxSyncCredentials'
+import { requestLxAutoSync, stopLxAutoSyncRetries } from '@/helpers/sync/lxAutoSync'
 import type { LxSyncMode } from '@/helpers/sync/lxSyncTypes'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import PersistStatus from '@/store/PersistStatus'
@@ -12,6 +13,7 @@ import {
 	Platform,
 	Pressable,
 	ScrollView,
+	Switch,
 	Text,
 	TextInput,
 	View,
@@ -53,6 +55,9 @@ export default function SyncManagerScreen() {
 	const colors = useThemeColors()
 	const savedHost = PersistStatus.useValue('sync.host', '') ?? ''
 	const lastSuccessAt = PersistStatus.useValue('sync.lastSuccessAt')
+	const autoEnabled = PersistStatus.useValue('sync.autoEnabled', false) === true
+	const autoWifiOnly = PersistStatus.useValue('sync.autoWifiOnly', false) === true
+	const lastAutoError = PersistStatus.useValue('sync.lastAutoError')
 	const [paired, setPaired] = useState(false)
 	const [pairingError, setPairingError] = useState(false)
 	const [pairingLoaded, setPairingLoaded] = useState(false)
@@ -121,6 +126,8 @@ export default function SyncManagerScreen() {
 			setAuthCode('')
 			setPaired(true)
 			setPairingError(false)
+			stopLxAutoSyncRetries()
+			PersistStatus.set('sync.lastAutoError', undefined)
 			setStatus(i18n.t('sync.successStatus', { server: result.serverName }))
 			Alert.alert(i18n.t('sync.successTitle'), i18n.t('sync.successMessage'))
 		} catch (error) {
@@ -168,6 +175,11 @@ export default function SyncManagerScreen() {
 				onPress: () => void runSync(),
 			},
 		])
+	}
+	const setAutoEnabled = (enabled: boolean) => {
+		PersistStatus.set('sync.autoEnabled', enabled)
+		if (enabled) requestLxAutoSync()
+		else stopLxAutoSyncRetries()
 	}
 
 	const button = (label: string, onPress: () => void, destructive = false) => (
@@ -280,6 +292,43 @@ export default function SyncManagerScreen() {
 							</Pressable>
 						)
 					})}
+				</View>
+
+				<View style={{ gap: 14, padding: 14, borderRadius: 12, backgroundColor: colors.surfaceElevated }}>
+					<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+						<View style={{ flex: 1, paddingRight: 16, gap: 4 }}>
+							<Text style={{ color: colors.text, fontWeight: '700' }}>{i18n.t('sync.autoSync')}</Text>
+							<Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+								{i18n.t('sync.autoSyncDescription')}
+							</Text>
+						</View>
+						<Switch
+							disabled={!paired || busy}
+							value={autoEnabled}
+							onValueChange={setAutoEnabled}
+						/>
+					</View>
+					<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+						<View style={{ flex: 1, paddingRight: 16, gap: 4 }}>
+							<Text style={{ color: colors.text, fontWeight: '600' }}>{i18n.t('sync.wifiOnly')}</Text>
+							<Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+								{i18n.t('sync.wifiOnlyDescription')}
+							</Text>
+						</View>
+						<Switch
+							disabled={!autoEnabled || busy}
+							value={autoWifiOnly}
+							onValueChange={(enabled) => {
+								PersistStatus.set('sync.autoWifiOnly', enabled)
+								requestLxAutoSync()
+							}}
+						/>
+					</View>
+					{lastAutoError ? (
+						<Text style={{ color: '#d64545', fontSize: 12 }}>
+							{i18n.t('sync.autoError', { message: lastAutoError })}
+						</Text>
+					) : null}
 				</View>
 
 				{button(i18n.t('sync.syncNow'), requestSync)}
