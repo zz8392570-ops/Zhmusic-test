@@ -264,7 +264,7 @@ const RootNavigation = () => {
 			<Stack.Screen
 				name="(modals)/cacheManager"
 				options={{
-					presentation: 'card',
+					presentation: 'modal',
 					headerTitle: i18n.t('cacheCenter.title'),
 					headerStyle: { backgroundColor: colors.background },
 					headerTintColor: colors.text,
@@ -273,7 +273,7 @@ const RootNavigation = () => {
 			<Stack.Screen
 				name="(modals)/backupManager"
 				options={{
-					presentation: 'card',
+					presentation: 'modal',
 					headerTitle: i18n.t('backup.title'),
 					headerStyle: { backgroundColor: colors.background },
 					headerTintColor: colors.text,
@@ -282,7 +282,7 @@ const RootNavigation = () => {
 			<Stack.Screen
 				name="(modals)/syncManager"
 				options={{
-					presentation: 'card',
+					presentation: 'modal',
 					headerTitle: i18n.t('sync.title'),
 					headerStyle: { backgroundColor: colors.background },
 					headerTintColor: colors.text,
