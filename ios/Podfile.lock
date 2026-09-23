@@ -3018,7 +3018,7 @@ SPEC CHECKSUMS:
   ExpoModulesWorkletsAdapter: 13e111038fec9c5f2e92c16481ba928fa4bf5414
   ExpoNetwork: 7a7a7e0123d1ac5efc742b7b29e43102be5634bf
   ExpoRouter: e8c323faba5926e06e3909b16f3b4b12ccaccdbb
-  ExpoSecureStore: 3ac3e22d7b8f1b7692fae4486e52d3afe99a0fd9
+  ExpoSecureStore: ff1fd5e073957417ba8f9dec0bebcbd55a60e747
   ExpoShareIntentModule: a25f480ab6e1389406e65973cef42b8f75f16755
   ExpoSplashScreen: 6f422fd595600d78520c6b7dcf8a908fb8a7fec0
   ExpoSymbols: 0efd93edf0f825bf3c762582b0769dd3b296235c
