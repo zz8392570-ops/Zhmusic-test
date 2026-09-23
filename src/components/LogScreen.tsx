@@ -1,6 +1,7 @@
 import { ThemeColors, fontSize, screenPadding } from '@/constants/tokens'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { logError, useLoggerHook } from '@/helpers/logger'
+import { formatSourceDiagnostics } from '@/helpers/userApi/sourceDiagnostics'
 import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
 import React, { useMemo, useRef, useState } from 'react'
@@ -38,6 +39,10 @@ const LogScreen = () => {
 	}
 	const handleLongPress = (item: any) => {
 		handleCopy(item)
+	}
+	const handleCopyDiagnostics = () => {
+		Clipboard.setString(formatSourceDiagnostics() || i18n.t('logScreen.empty'))
+		Alert.alert(i18n.t('logScreen.copy'), i18n.t('logScreen.diagnosticsCopied'))
 	}
 
 	const handleCopy = (item: any) => {
@@ -90,6 +95,10 @@ const LogScreen = () => {
 				<View style={styles.header}>
 					<Text style={styles.title}>{i18n.t('logScreen.title')}</Text>
 					<View style={styles.headerButtons}>
+						<TouchableOpacity onPress={handleCopyDiagnostics} style={styles.iconButton}>
+							<Ionicons name="copy-outline" size={20} color={colors.text} />
+							<Text style={styles.buttonText}>{i18n.t('logScreen.actions.diagnostics')}</Text>
+						</TouchableOpacity>
 						<TouchableOpacity onPress={handleShare} style={styles.iconButton}>
 							<Ionicons name="share-social-outline" size={20} color={colors.text} />
 							<Text style={styles.buttonText}>{i18n.t('logScreen.actions.share')}</Text>

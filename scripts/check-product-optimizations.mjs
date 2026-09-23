@@ -297,6 +297,7 @@ function resolverFixture(getUrl) {
 		getMusicFailureKey: (song) => song.id,
 		getFailedApiIds: () => new Set(),
 		rememberFailedApi() {},
+		recordMusicApiAttempt() {},
 		requestMusicUrlFromApi: (api, song, quality, timeout, context, signal) => {
 			calls.push({ api, song, quality, signal })
 			return getUrl(api, quality, signal)
@@ -317,6 +318,15 @@ function resolverFixture(getUrl) {
 			'@/helpers/audioQuality': audioQuality,
 			'@/helpers/userApi/musicApiControl': controls,
 			'@/helpers/userApi/musicSourceHealth': health,
+			'@/helpers/userApi/sourceDiagnostics': {
+				appendSourceDiagnostic() {},
+				classifySourceError(error) {
+					return /timeout|超时/i.test(String(error?.message ?? error)) ? 'timeout' : 'unknown'
+				},
+				getSourceErrorMessage() {
+					return '获取音源失败，请换源或重试。'
+				},
+			},
 			'@/utils/sourceSwitchNotice': {
 				showAutomaticSourceSwitchNotice: (...args) => notices.push(args),
 			},
@@ -343,8 +353,9 @@ await check(
 		assert.equal(h.stores.qualityStore.getValue(), 'flac')
 		assert.equal(h.store.writes.includes('music.quality'), false)
 		assert.equal(h.progress.at(-1).stage, 'retryingQuality')
+		assert.deepEqual(h.calls.slice(0, 2).map((call) => call.quality), ['flac', 'flac'])
 		await h.resolveSource(track('next'))
-		assert.equal(h.calls[2].quality, 'flac')
+		assert.equal(h.calls[3].quality, 'flac')
 	},
 )
 await check(

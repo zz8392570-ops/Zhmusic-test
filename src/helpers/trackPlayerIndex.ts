@@ -67,6 +67,7 @@ import {
 	getPlaybackFailoverApis,
 	getMusicFailureKey,
 	rememberFailedApi,
+	recordMusicApiAttempt,
 	reloadMusicApi,
 	runBackgroundHealthTests,
 	seedBundledMusicSources,
@@ -74,6 +75,10 @@ import {
 	testAllMusicApis,
 	testMusicApiById,
 } from './userApi/musicApiControl'
+import {
+	appendSourceDiagnostic,
+	classifySourceError,
+} from './userApi/sourceDiagnostics'
 
 import {
 	currentMusicStore,
@@ -111,7 +116,7 @@ import {
 	ensureDirExists,
 } from '@/player/CacheManager'
 
-import { resolveSource, preloadSource } from '@/player/MusicSourceResolver'
+import { clearPreloadedSources, resolveSource, preloadSource } from '@/player/MusicSourceResolver'
 
 const NEXT_TRACK_PRELOAD_DELAY_MS = 8000
 const createTrackSourceLoadingToken = (musicItem: IMusic.IMusicItem) =>
@@ -389,6 +394,7 @@ const getFakeNextTrack = (): Track => {
 }
 
 let failoverInProgress = false
+const playbackRetryCounts = new Map<string, number>()
 
 /** 播放失败时的情况 */
 async function failToPlay(failure?: { code?: string; message?: string }) {
@@ -418,6 +424,42 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 		const selected = musicApiSelectedStore.getValue()
 		if (failedMusic && selected?.id) {
 			const failureKey = getMusicFailureKey(failedMusic)
+			const retryKey = `${failureKey}:${selected.id}`
+			const failureError = new Error(failure?.message || failure?.code || '音频加载失败')
+			recordMusicApiAttempt(selected.id, {
+				success: false,
+				durationMs: 0,
+				quality: qualityStore.getValue(),
+				error: failureError,
+			})
+			appendSourceDiagnostic({
+				requestKey: nativeQueue?.token ?? `playback_${Date.now().toString(36)}`,
+				requestType: 'current',
+				track: {
+					id: String(failedMusic.id),
+					title: failedMusic.title,
+					artist: failedMusic.artist,
+					platform: failedMusic.platform,
+				},
+				sourceId: selected.id,
+				sourceName: selected.name,
+				requestedQuality: qualityStore.getValue(),
+				actualQuality: playbackQualityStore.getValue(),
+				step: 'native-playback',
+				result: 'failure',
+				category: classifySourceError(failureError),
+				message: failureError.message,
+			})
+			const retryCount = playbackRetryCounts.get(retryKey) ?? 0
+			if (retryCount < 1) {
+				playbackRetryCounts.set(retryKey, retryCount + 1)
+				logInfo(`播放链接失败，先使用当前音源重新请求: ${selected.name}`)
+				nativeQueue = null
+				ReactNativeTrackPlayer.clear()
+				await play(failedMusic, true, undefined, true)
+				return
+			}
+			playbackRetryCounts.delete(retryKey)
 			rememberFailedApi(failureKey, selected.id)
 			const backup = getPlaybackFailoverApis(failedMusic).find((api) => api.id !== selected.id)
 			if (backup) {
@@ -488,6 +530,7 @@ const addAll = (
 	beforeIndex?: number,
 	shouldShuffle?: boolean,
 ) => {
+	clearPreloadedSources()
 	const now = Date.now()
 	let newPlayList: IMusic.IMusicItem[] = []
 	const currentPlayList = getPlayList()
@@ -546,6 +589,7 @@ const isCurrentMusic = (musicItem: IMusic.IMusicItem | null | undefined) => {
  *
  */
 const remove = async (musicItem: IMusic.IMusicItem) => {
+	clearPreloadedSources()
 	const playList = getPlayList()
 	let newPlayList: IMusic.IMusicItem[] = []
 	let currentMusic: IMusic.IMusicItem | null = currentMusicStore.getValue()
@@ -603,6 +647,7 @@ const moveQueueTrack = (fromIndex: number, toIndex: number) => {
 		toIndex >= playList.length
 	)
 		return false
+	clearPreloadedSources()
 	const next = [...playList]
 	const [item] = next.splice(fromIndex, 1)
 	next.splice(toIndex, 0, item)
@@ -628,6 +673,7 @@ function updateNextMetadata() {
  * @param mode 播放模式
  */
 const setRepeatMode = (mode: MusicRepeatMode) => {
+	clearPreloadedSources()
 	const playList = getPlayList()
 	let newPlayList
 	const prevMode = repeatModeStore.getValue()
@@ -655,6 +701,7 @@ const setRepeatMode = (mode: MusicRepeatMode) => {
 
 /** 清空播放列表 */
 const clear = async () => {
+	clearPreloadedSources()
 	setPlayList([])
 	setCurrentMusic(null)
 
@@ -664,6 +711,7 @@ const clear = async () => {
 }
 /** 清空待播列表 */
 const clearToBePlayed = async () => {
+	clearPreloadedSources()
 	// 获取当前正在播放的音乐
 	const currentMusic = currentMusicStore.getValue()
 
@@ -982,6 +1030,9 @@ const play = async (
 		// Automatic recovery must retain failed sources or A → B will retry A forever.
 		if (!isAutomaticRecovery && (!isCurrentMusic(musicItem) || forcePlay)) {
 			clearFailedApis(getMusicFailureKey(musicItem))
+			for (const key of playbackRetryCounts.keys()) {
+				if (key.startsWith(`${getMusicFailureKey(musicItem)}:`)) playbackRetryCounts.delete(key)
+			}
 		}
 		setPlaybackIntent('play')
 
@@ -1036,6 +1087,7 @@ const play = async (
 			url: sourceUrl,
 			wasCached,
 			quality: playbackQuality,
+			sourceId: resolvedSourceId,
 		} = await resolveSource(musicItem, {
 			requestType: 'current',
 			signal: sourceRequest.signal,
@@ -1064,6 +1116,12 @@ const play = async (
 		logInfo('获取音源成功：', track)
 		setTrackSource(track)
 		const appliedToken = nativeQueue.token
+		if (resolvedSourceId) {
+			const retryKey = `${getMusicFailureKey(musicItem)}:${resolvedSourceId}`
+			setTimeout(() => {
+				if (nativeQueue?.token === appliedToken) playbackRetryCounts.delete(retryKey)
+			}, 15_000)
+		}
 
 		// 7. Fetch lyrics in background (non-blocking)
 		myGetLyric(musicItem)

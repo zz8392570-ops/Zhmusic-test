@@ -51,6 +51,7 @@ export interface IPersistConfig {
 	'music.cacheDownloads': import('@/player/PlayerStore').CacheDownloadTask[]
 	'music.bundledSourcesVersion': number
 	'music.removedBuiltinSources': string[]
+	'music.sourceDiagnostics': import('@/helpers/userApi/sourceDiagnostics').SourceDiagnosticEvent[]
 	'sync.host': string
 	'sync.credentials': {
 		serverId: string

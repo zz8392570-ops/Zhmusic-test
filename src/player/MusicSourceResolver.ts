@@ -7,6 +7,7 @@ import {
 	getFailedApiIds,
 	getMusicFailureKey,
 	rememberFailedApi,
+	recordMusicApiAttempt,
 	requestMusicUrlFromApi,
 	setMusicApiAsSelectedById,
 } from '@/helpers/userApi/musicApiControl'
@@ -27,11 +28,22 @@ import {
 } from '@/helpers/audioQuality'
 import { getCachedAudioInfo, getCacheLocalPath } from './CacheManager'
 import { musicApiSelectedStore, musicApiStore, nowApiState, qualityStore } from './PlayerStore'
+import {
+	appendSourceDiagnostic,
+	classifySourceError,
+	getSourceErrorMessage,
+} from '@/helpers/userApi/sourceDiagnostics'
 
 export type SourceResult = {
 	url: string
 	wasCached: boolean
 	quality: AudioQuality | null
+	sourceId?: string
+	sourceName?: string
+	requestedQuality?: IMusic.IQualityKey
+	recoverySteps?: string[]
+	requestKey?: string
+	urlExpiresAt?: number | null
 }
 
 export type ResolveSourceRequestType = 'current' | 'preload' | 'download'
@@ -50,9 +62,11 @@ type MusicUrlRequestContext = {
 	timeoutMs: number
 }
 
-const preloadCache = new Map<string, SourceResult>()
+type PreloadEntry = { result: SourceResult; createdAt: number; expiresAt: number }
+const preloadCache = new Map<string, PreloadEntry>()
 const CURRENT_SOURCE_REQUEST_TIMEOUT_MS = 5000
 const PRELOAD_SOURCE_REQUEST_TIMEOUT_MS = 12000
+const DEFAULT_PRELOAD_TTL_MS = 5 * 60 * 1000
 
 const isCurrentSourceRequest = (requestType: ResolveSourceRequestType) => requestType === 'current'
 
@@ -82,8 +96,33 @@ function makePreloadKey(item: IMusic.IMusicItem, quality = qualityStore.getValue
 }
 
 export const getPreloadedUrl = (item: IMusic.IMusicItem): string | undefined => {
-	return preloadCache.get(makePreloadKey(item))?.url
+	const key = makePreloadKey(item)
+	const entry = preloadCache.get(key)
+	if (!entry) return undefined
+	if (entry.expiresAt <= Date.now()) {
+		preloadCache.delete(key)
+		return undefined
+	}
+	return entry.result.url
 }
+
+const inferUrlExpiry = (url: string) => {
+	try {
+		const parsed = new URL(url)
+		for (const key of ['expires', 'expire', 'expiration', 'e']) {
+			const raw = parsed.searchParams.get(key)
+			if (!raw || !/^\d+$/.test(raw)) continue
+			const value = Number(raw)
+			const milliseconds = value > 10_000_000_000 ? value : value * 1000
+			if (milliseconds > Date.now()) return milliseconds
+		}
+	} catch {
+		// The URL has already passed source validation; use a conservative TTL.
+	}
+	return Date.now() + DEFAULT_PRELOAD_TTL_MS
+}
+
+export const clearPreloadedSources = () => preloadCache.clear()
 
 export const preloadSource = async (item: IMusic.IMusicItem): Promise<void> => {
 	const key = makePreloadKey(item)
@@ -91,7 +130,12 @@ export const preloadSource = async (item: IMusic.IMusicItem): Promise<void> => {
 	try {
 		const result = await resolveSource(item, { requestType: 'preload' })
 		if (result.url && !result.url.includes('fake')) {
-			preloadCache.set(key, result)
+			const expiresAt = result.urlExpiresAt ?? inferUrlExpiry(result.url)
+			preloadCache.set(key, {
+				result: { ...result, urlExpiresAt: expiresAt },
+				createdAt: Date.now(),
+				expiresAt,
+			})
 			if (preloadCache.size > 10) {
 				const firstKey = preloadCache.keys().next().value
 				if (firstKey) preloadCache.delete(firstKey)
@@ -145,7 +189,10 @@ const resolveSourceInternal = async (
 	}
 
 	// 只在本地与磁盘缓存都未命中时，才复用预加载的远端音源
-	const preloaded = requestType === 'download' ? undefined : preloadCache.get(preloadKey)
+	const preloadedEntry = requestType === 'download' ? undefined : preloadCache.get(preloadKey)
+	const preloaded =
+		preloadedEntry && preloadedEntry.expiresAt > Date.now() ? preloadedEntry.result : undefined
+	if (preloadedEntry && !preloaded) preloadCache.delete(preloadKey)
 	if (preloaded) {
 		logInfo(`[sourceResolver][${requestType}] 使用预加载的音源:`, preloaded.url)
 		preloadCache.delete(preloadKey)
@@ -168,6 +215,7 @@ const resolveSourceInternal = async (
 		const failedIds = getFailedApiIds(failureKey)
 		const qualityOrder: IMusic.IQualityKey[] = ['flac', '320k', '128k']
 		const apisToTry: IMusic.MusicApi[] = []
+		const recoverySteps: string[] = []
 		let selectedSourceFailureReason: AutomaticSourceSwitchReason = 'noPlayableUrl'
 		if (!failedIds.has(nowMusicApi.id)) apisToTry.push(nowMusicApi)
 		if (requestType !== 'preload') {
@@ -204,45 +252,95 @@ const resolveSourceInternal = async (
 						sourceName: api.name,
 						quality: currentQuality,
 					})
-					try {
-						resp_url = await requestMusicUrlFromApi(
-							api,
-							musicItem,
-							currentQuality,
-							timeoutMs,
-							{
+					const attemptCount =
+						api.id === nowMusicApi.id && currentQuality === preferredQuality ? 2 : 1
+					for (let attemptNumber = 1; attemptNumber <= attemptCount && !resp_url; attemptNumber++) {
+						const startedAt = Date.now()
+						const step = `${api.id === nowMusicApi.id ? 'selected' : 'failover'}:${currentQuality}:attempt-${attemptNumber}`
+						recoverySteps.push(step)
+						try {
+							resp_url = await requestMusicUrlFromApi(
+								api,
+								musicItem,
+								currentQuality,
+								timeoutMs,
+								{ requestKey, requestType, timeoutMs } as MusicUrlRequestContext,
+								options.signal,
+							)
+							throwIfRequestAborted(options.signal)
+							if (!resp_url || !isValidMusicUrl(resp_url)) {
+								const error = new Error('音源未返回可播放链接')
+								recordMusicApiAttempt(api.id, {
+									success: false,
+									durationMs: Date.now() - startedAt,
+									quality: currentQuality,
+									error,
+								})
+								appendSourceDiagnostic({
+									requestKey,
+									requestType,
+									track: { id: String(musicItem.id), title: musicItem.title, artist: musicItem.artist, platform: musicItem.platform },
+									sourceId: api.id,
+									sourceName: api.name,
+									requestedQuality: currentQuality,
+									step,
+									durationMs: Date.now() - startedAt,
+									result: 'failure',
+									category: 'invalid-url',
+									message: error.message,
+								})
+								resp_url = null
+								continue
+							}
+							recordMusicApiAttempt(api.id, {
+								success: true,
+								durationMs: Date.now() - startedAt,
+								quality: currentQuality,
+							})
+							resolvedQuality = currentQuality
+							appendSourceDiagnostic({
 								requestKey,
 								requestType,
-								timeoutMs,
-							} as MusicUrlRequestContext,
-							options.signal,
-						)
-						throwIfRequestAborted(options.signal)
-						if (!resp_url || !isValidMusicUrl(resp_url)) {
-							if (isCurrentSourceRequest(requestType)) {
-								logInfo(`${logPrefix} ${api.name} ${currentQuality}音质无可用链接，尝试下一个音质`)
+								track: { id: String(musicItem.id), title: musicItem.title, artist: musicItem.artist, platform: musicItem.platform },
+								sourceId: api.id,
+								sourceName: api.name,
+								requestedQuality: preferredQuality,
+								actualQuality: currentQuality,
+								step,
+								durationMs: Date.now() - startedAt,
+								result: 'success',
+							})
+							if (isCurrentSourceRequest(requestType) && currentQuality !== preferredQuality) {
+								showToast('提示', `已自动切换至${currentQuality}音质`, 'info')
 							}
-							currentQualityIndex++
-							resp_url = null
-							continue
+							logInfo(`${logPrefix} ${api.name} 成功获取${currentQuality}音质的音乐URL`)
+						} catch (error) {
+							throwIfRequestAborted(options.signal)
+							const errMsg = error instanceof Error ? error.message : String(error)
+							apiFailureReason = /timeout|timed out|超时/i.test(errMsg) ? 'timeout' : 'requestFailed'
+							recordMusicApiAttempt(api.id, {
+								success: false,
+								durationMs: Date.now() - startedAt,
+								quality: currentQuality,
+								error,
+							})
+							appendSourceDiagnostic({
+								requestKey,
+								requestType,
+								track: { id: String(musicItem.id), title: musicItem.title, artist: musicItem.artist, platform: musicItem.platform },
+								sourceId: api.id,
+								sourceName: api.name,
+								requestedQuality: currentQuality,
+								step,
+								durationMs: Date.now() - startedAt,
+								result: 'failure',
+								category: classifySourceError(error),
+								message: errMsg,
+							})
+							if (isCurrentSourceRequest(requestType)) logError(`${logPrefix} ${step}: ${errMsg}`)
 						}
-						resolvedQuality = currentQuality
-						if (isCurrentSourceRequest(requestType) && currentQuality !== preferredQuality) {
-							showToast('提示', `已自动切换至${currentQuality}音质`, 'info')
-						}
-						logInfo(`${logPrefix} ${api.name} 成功获取${currentQuality}音质的音乐URL:`, resp_url)
-					} catch (error) {
-						throwIfRequestAborted(options.signal)
-						const errMsg = error instanceof Error ? error.message : String(error)
-						apiFailureReason = /timeout|timed out|超时/i.test(errMsg) ? 'timeout' : 'requestFailed'
-						if (isCurrentSourceRequest(requestType)) {
-							logInfo(
-								`${logPrefix} ${api.name} ${currentQuality}音质无可用链接(catch),尝试下一个音质`,
-							)
-							logError(`${logPrefix} (catch error): ${errMsg}`)
-						}
-						currentQualityIndex++
 					}
+					if (!resp_url) currentQualityIndex++
 				}
 
 				if (resp_url) {
@@ -267,7 +365,17 @@ const resolveSourceInternal = async (
 						nowApiState.setValue('正常')
 					}
 					logInfo(`${logPrefix} 最终的音乐 URL:`, resp_url)
-					return { url: resp_url, wasCached: false, quality: resolvedQuality }
+					return {
+						url: resp_url,
+						wasCached: false,
+						quality: resolvedQuality,
+						sourceId: api.id,
+						sourceName: api.name,
+						requestedQuality: preferredQuality,
+						recoverySteps,
+						requestKey,
+						urlExpiresAt: inferUrlExpiry(resp_url),
+					}
 				}
 
 				if (isCurrentSourceRequest(requestType)) {
@@ -289,10 +397,7 @@ const resolveSourceInternal = async (
 			const errMsg = error instanceof Error ? error.message : String(error)
 			if (isCurrentSourceRequest(requestType)) {
 				logError(`${logPrefix} 获取音乐 URL 失败: ${errMsg}`)
-				const errorMessage =
-					errMsg === '请求超时'
-						? '获取音乐超时，请稍后重试。'
-						: errMsg || '获取音乐失败，请稍后重试。'
+				const errorMessage = getSourceErrorMessage(classifySourceError(error))
 				showToast(errorMessage, '', 'error')
 			}
 			return { url: fakeAudioMp3Uri, wasCached: false, quality: null }

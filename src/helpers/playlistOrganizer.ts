@@ -61,7 +61,12 @@ export const findDuplicateTrackIds = (tracks: Track[]): Set<string> => {
 	return duplicates
 }
 
-export const rankReplacementSources = (current: Track, results: Track[]): Track[] => {
+export type RankedReplacement = { track: Track; score: number }
+
+export const rankReplacementSourcesWithScore = (
+	current: Track,
+	results: Track[],
+): RankedReplacement[] => {
 	const candidates = results.flatMap((item) => [item, ...(item.sourceAlternatives ?? [])])
 	const unique = new Map<string, Track>()
 	for (const candidate of candidates) {
@@ -82,5 +87,8 @@ export const rankReplacementSources = (current: Track, results: Track[]): Track[
 			return { track, index, score }
 		})
 		.sort((left, right) => right.score - left.score || left.index - right.index)
-		.map(({ track }) => track)
+		.map(({ track, score }) => ({ track, score }))
 }
+
+export const rankReplacementSources = (current: Track, results: Track[]): Track[] =>
+	rankReplacementSourcesWithScore(current, results).map(({ track }) => track)

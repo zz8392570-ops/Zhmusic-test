@@ -6,6 +6,7 @@ import { searchSongsAcrossPlatforms } from '@/helpers/crossPlatformSearch'
 import {
 	findDuplicateTrackIds,
 	rankReplacementSources,
+	rankReplacementSourcesWithScore,
 	sortPlaylistTracks,
 	type PlaylistSortField,
 } from '@/helpers/playlistOrganizer'
@@ -18,6 +19,8 @@ import { Alert, ScrollView, View } from 'react-native'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import i18n from '@/utils/i18n'
+import { resolveSource } from '@/player/MusicSourceResolver'
+import { fakeAudioMp3Uri } from '@/constants/images'
 
 const PlaylistScreen = () => {
 	const defaultStyles = useDefaultStyles()
@@ -26,6 +29,7 @@ const PlaylistScreen = () => {
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 	const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set())
 	const [isRefreshing, setIsRefreshing] = useState(false)
+	const [isRepairing, setIsRepairing] = useState(false)
 
 	const playlist = useMemo(() => {
 		return playlists?.find((p) => p.id === playlistID)
@@ -154,13 +158,85 @@ const PlaylistScreen = () => {
 				title: i18n.t('playlistTools.findDuplicates'),
 				image: 'square.on.square',
 			},
+			{
+				id: 'repair',
+				title: i18n.t(isRepairing ? 'playlistTools.repairing' : 'playlistTools.repairUnavailable'),
+				image: 'wrench.and.screwdriver',
+				attributes: { disabled: isRepairing },
+			},
 			{ id: 'select', title: i18n.t('playlistTools.selectSongs'), image: 'checkmark.circle' },
 		],
-		[importedSource, isRefreshing],
+		[importedSource, isRefreshing, isRepairing],
 	)
+
+	const repairUnavailableSongs = useCallback(async () => {
+		if (isRepairing || !songs.length) return
+		setIsRepairing(true)
+		let unavailable = 0
+		let repaired = 0
+		let needsReview = 0
+		const nextSongs = [...songs]
+		const sourcePlaylist = playlist as (Playlist & IMusic.PlayList) | undefined
+		const sourceOverrides = { ...(sourcePlaylist?.sourceOverrides ?? {}) } as Record<string, string>
+		const snapshotKeys = new Set(
+			Array.isArray(sourcePlaylist?.sourceSnapshotKeys) ? sourcePlaylist.sourceSnapshotKeys : [],
+		)
+		try {
+			for (let index = 0; index < songs.length; index++) {
+				const track = songs[index] as Track
+				const resolved = await resolveSource(track as IMusic.IMusicItem, {
+					requestType: 'download',
+					totalTimeoutMs: 8_000,
+				})
+				if (resolved.url !== fakeAudioMp3Uri && !resolved.url.includes('fake')) continue
+				unavailable++
+				const query = [track.title, track.artist].filter(Boolean).join(' ')
+				const search = await searchSongsAcrossPlatforms(query, 1, 'all')
+				const best = rankReplacementSourcesWithScore(track, search.data)[0]
+				if (!best || best.score < 14) {
+					needsReview++
+					continue
+				}
+				const replacement = await resolveSource(best.track as IMusic.IMusicItem, {
+					requestType: 'download',
+					totalTimeoutMs: 8_000,
+				})
+				if (replacement.url === fakeAudioMp3Uri || replacement.url.includes('fake')) {
+					needsReview++
+					continue
+				}
+				nextSongs[index] = best.track as IMusic.IMusicItem
+				const originalKey = `${track.platform}@${track.id}`
+				const replacementKey = `${best.track.platform}@${best.track.id}`
+				const sourceKey = snapshotKeys.has(originalKey)
+					? originalKey
+					: Object.entries(sourceOverrides).find(([, value]) => value === originalKey)?.[0]
+				if (sourceKey) sourceOverrides[sourceKey] = replacementKey
+				repaired++
+			}
+			if (
+				repaired &&
+				myTrackPlayer.updateStoredPlaylist(playlistID, { songs: nextSongs, sourceOverrides }) !==
+					'success'
+			)
+				throw new Error('save failed')
+			Alert.alert(
+				i18n.t('playlistTools.repairComplete'),
+				i18n.t('playlistTools.repairSummary', { unavailable, repaired, review: needsReview }),
+			)
+		} catch {
+			Alert.alert(i18n.t('playlistTools.repairFailed'))
+		} finally {
+			setIsRepairing(false)
+		}
+	}, [isRepairing, playlist, playlistID, songs])
 
 	const onManagementAction = useCallback(
 		(actionId: string) => {
+			if (actionId === 'repair') {
+				void repairUnavailableSongs()
+				return
+			}
 			if (actionId === 'refresh') {
 				void refreshOnlinePlaylist()
 				return
@@ -194,7 +270,7 @@ const PlaylistScreen = () => {
 				)
 			}
 		},
-		[refreshOnlinePlaylist, saveSongs, songs],
+		[refreshOnlinePlaylist, repairUnavailableSongs, saveSongs, songs],
 	)
 
 	const replaceSource = useCallback(

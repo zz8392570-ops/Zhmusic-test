@@ -13,10 +13,13 @@ import { hapticSelection } from '@/utils/haptics'
 
 type MusicSourceHealthListProps = {
 	onSelectSource: (sourceId: string) => void
+	onTestSource: (sourceId: string) => void
 	onTestAll: () => void
 }
 
-const statusLabel = (status?: IMusic.MusicApiHealthStatus) => {
+const statusLabel = (status?: IMusic.MusicApiHealthStatus, latencyMs?: number | null) => {
+	if (status === 'normal' && latencyMs != null && latencyMs >= 2500)
+		return i18n.t('settings.sourceHealth.slow')
 	switch (status) {
 		case 'normal':
 			return i18n.t('settings.sourceHealth.normal')
@@ -31,7 +34,7 @@ const statusLabel = (status?: IMusic.MusicApiHealthStatus) => {
 	}
 }
 
-const MusicSourceHealthList = ({ onSelectSource, onTestAll }: MusicSourceHealthListProps) => {
+const MusicSourceHealthList = ({ onSelectSource, onTestSource, onTestAll }: MusicSourceHealthListProps) => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const musicApis = musicApiStore.useValue() || []
@@ -74,7 +77,7 @@ const MusicSourceHealthList = ({ onSelectSource, onTestAll }: MusicSourceHealthL
 								}}
 								disabled={testing}
 								accessibilityRole="button"
-								accessibilityLabel={`${api.name}, ${statusLabel(api.health?.status)}`}
+								accessibilityLabel={`${api.name}, ${statusLabel(api.health?.status, api.health?.averageResponseMs ?? api.health?.latencyMs)}`}
 								accessibilityState={{ selected, disabled: testing }}
 							>
 								<View style={styles.titleRow}>
@@ -90,9 +93,24 @@ const MusicSourceHealthList = ({ onSelectSource, onTestAll }: MusicSourceHealthL
 									<Text style={styles.meta}>{latency}</Text>
 									<Text style={styles.meta}>{ratio}</Text>
 									<Text style={[styles.status, { color: statusColor(api.health?.status) }]}>
-										{statusLabel(api.health?.status)}
+										{statusLabel(api.health?.status, api.health?.averageResponseMs ?? api.health?.latencyMs)}
 									</Text>
 								</View>
+								<View style={styles.runtimeRow}>
+									<Text style={styles.runtimeText} numberOfLines={1}>
+										{i18n.t('settings.sourceHealth.runtime', {
+											success: api.health?.runtimeSuccessCount ?? 0,
+											failure: api.health?.runtimeFailureCount ?? 0,
+											consecutive: api.health?.consecutiveFailures ?? 0,
+										})}
+									</Text>
+									<TouchableOpacity onPress={() => onTestSource(api.id)} disabled={testing}>
+										<Text style={styles.testOneText}>{i18n.t('settings.items.test')}</Text>
+									</TouchableOpacity>
+								</View>
+								{api.health?.lastError ? (
+									<Text style={styles.lastError} numberOfLines={2}>{api.health.lastError}</Text>
+								) : null}
 							</TouchableOpacity>
 						</View>
 					)
@@ -151,11 +169,15 @@ const createStyles = (colors: ThemeColors) =>
 			alignItems: 'center',
 			gap: 12,
 		},
-		meta: {
+			meta: {
 			fontSize: 13,
 			color: colors.textMuted,
 			minWidth: 52,
-		},
+			},
+			runtimeRow: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 8 },
+			runtimeText: { flex: 1, color: colors.textMuted, fontSize: 12 },
+			testOneText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+			lastError: { marginTop: 4, color: colors.error, fontSize: 12 },
 		status: {
 			marginLeft: 'auto',
 			fontSize: 13,

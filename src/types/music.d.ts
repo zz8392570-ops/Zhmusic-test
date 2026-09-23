@@ -217,6 +217,16 @@ declare namespace IMusic {
         latencyMs: number | null
         status: MusicApiHealthStatus
         testedAt?: number
+        /** Runtime playback observations, kept separately from explicit health probes. */
+        runtimeSuccessCount?: number
+        runtimeFailureCount?: number
+        consecutiveFailures?: number
+        timeoutCount?: number
+        averageResponseMs?: number | null
+        lastSuccessAt?: number
+        lastFailureAt?: number
+        lastError?: string
+        qualitySupport?: Partial<Record<IQualityKey, boolean>>
     }
 
      export interface MusicApi {

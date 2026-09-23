@@ -619,6 +619,9 @@ const SettingModal = () => {
 	const handleTestAllSources = () => {
 		void myTrackPlayer.testAllMusicApis()
 	}
+	const handleTestSource = (sourceId: string) => {
+		void myTrackPlayer.testMusicApiById(sourceId)
+	}
 	const changeLanguageMenu = (
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => {
@@ -740,6 +743,7 @@ const SettingModal = () => {
 				<View key={item.id}>
 					<MusicSourceHealthList
 						onSelectSource={handleSelectSource}
+						onTestSource={handleTestSource}
 						onTestAll={handleTestAllSources}
 					/>
 					{index !== sectionData.length - 1 && <View style={styles.separator} />}

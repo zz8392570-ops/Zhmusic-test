@@ -27,6 +27,6 @@ export {
 	cacheDir,
 } from './CacheManager'
 
-export { resolveSource, preloadSource, getPreloadedUrl } from './MusicSourceResolver'
+export { resolveSource, preloadSource, getPreloadedUrl, clearPreloadedSources } from './MusicSourceResolver'
 
 export type { SourceResult } from './MusicSourceResolver'

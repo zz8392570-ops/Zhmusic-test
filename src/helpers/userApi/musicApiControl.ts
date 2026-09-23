@@ -80,6 +80,42 @@ const patchMusicApi = (id: string, patch: Partial<IMusic.MusicApi>, shouldSort =
 	return next.find((api) => api.id === id)
 }
 
+export const recordMusicApiAttempt = (
+	apiId: string,
+	result: { success: boolean; durationMs: number; quality: IMusic.IQualityKey; error?: unknown },
+) => {
+	const api = (musicApiStore.getValue() || []).find((item) => item.id === apiId)
+	if (!api) return
+	const previous = api.health ?? {
+		successCount: 0,
+		totalCount: 0,
+		latencyMs: null,
+		status: 'idle' as const,
+	}
+	const previousAttempts = (previous.runtimeSuccessCount ?? 0) + (previous.runtimeFailureCount ?? 0)
+	const previousAverage = previous.averageResponseMs ?? previous.latencyMs ?? result.durationMs
+	const averageResponseMs = Math.round(
+		(previousAverage * Math.min(previousAttempts, 19) + result.durationMs) /
+			(Math.min(previousAttempts, 19) + 1),
+	)
+	const message = result.error instanceof Error ? result.error.message : String(result.error ?? '')
+	const timedOut = /timeout|timed out|超时/i.test(message)
+		const health: IMusic.MusicApiHealth = {
+		...previous,
+		status: result.success && previous.status === 'dead' ? 'partial' : previous.status,
+		runtimeSuccessCount: (previous.runtimeSuccessCount ?? 0) + (result.success ? 1 : 0),
+		runtimeFailureCount: (previous.runtimeFailureCount ?? 0) + (result.success ? 0 : 1),
+		consecutiveFailures: result.success ? 0 : (previous.consecutiveFailures ?? 0) + 1,
+		timeoutCount: (previous.timeoutCount ?? 0) + (!result.success && timedOut ? 1 : 0),
+		averageResponseMs,
+		lastSuccessAt: result.success ? Date.now() : previous.lastSuccessAt,
+		lastFailureAt: result.success ? previous.lastFailureAt : Date.now(),
+		lastError: result.success ? undefined : message || '未返回可播放链接',
+		qualitySupport: { ...previous.qualitySupport, [result.quality]: result.success },
+	}
+	patchMusicApi(apiId, { health })
+}
+
 export const rememberFailedApi = (musicId: string, apiId: string) => {
 	const failed = failedApiByMusicId.get(musicId) ?? new Set<string>()
 	failed.add(apiId)
@@ -294,7 +330,8 @@ const testMusicApiInternal = async (apiId: string) => {
 				// Counted as a failed probe.
 			}
 		}
-		const health: IMusic.MusicApiHealth = {
+	const health: IMusic.MusicApiHealth = {
+			...api.health,
 			successCount,
 			totalCount: HEALTH_TEST_TRACKS.length,
 			latencyMs: latencies.length
@@ -313,6 +350,7 @@ const testMusicApiInternal = async (apiId: string) => {
 			apiId,
 			{
 				health: {
+					...api.health,
 					successCount: 0,
 					totalCount: api.health?.totalCount || 0,
 					latencyMs: null,
@@ -348,8 +386,13 @@ export const testAllMusicApis = () =>
 
 export const runBackgroundHealthTests = () =>
 	enqueueHealthWork(async () => {
+		const staleBefore = Date.now() - 24 * 60 * 60 * 1000
 		const untested = (musicApiStore.getValue() || []).filter(
-			(api) => !api.health || api.health.status === 'idle',
+			(api) =>
+				!api.health ||
+				api.health.status === 'idle' ||
+				!api.health.testedAt ||
+				api.health.testedAt < staleBefore,
 		)
 		if (!untested.length) {
 			persistApiList(musicApiStore.getValue() || [], true)

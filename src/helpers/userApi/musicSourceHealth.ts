@@ -57,11 +57,14 @@ export const getHealthPercent = (health?: IMusic.MusicApiHealth | null): number 
 
 export const sortMusicApis = (apis: IMusic.MusicApi[]): IMusic.MusicApi[] =>
 	[...apis].sort((a, b) => {
+		const failuresA = a.health?.consecutiveFailures ?? 0
+		const failuresB = b.health?.consecutiveFailures ?? 0
+		if (failuresA !== failuresB) return failuresA - failuresB
 		const rankA = STATUS_RANK[a.health?.status ?? 'idle']
 		const rankB = STATUS_RANK[b.health?.status ?? 'idle']
 		if (rankA !== rankB) return rankA - rankB
-		const latencyA = a.health?.latencyMs ?? Number.POSITIVE_INFINITY
-		const latencyB = b.health?.latencyMs ?? Number.POSITIVE_INFINITY
+		const latencyA = a.health?.averageResponseMs ?? a.health?.latencyMs ?? Number.POSITIVE_INFINITY
+		const latencyB = b.health?.averageResponseMs ?? b.health?.latencyMs ?? Number.POSITIVE_INFINITY
 		if (latencyA !== latencyB) return latencyA - latencyB
 		return String(a.name).localeCompare(String(b.name), 'zh')
 	})

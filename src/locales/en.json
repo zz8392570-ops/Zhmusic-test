@@ -30,6 +30,7 @@
 			"changeLanguage": "Change Language",
 			"theme": "Theme",
 			"normal": "Normal",
+			"slow": "Slow",
 			"exception": "Exception",
 			"test": "Test",
 			"testSources": "Test All Sources",
@@ -104,7 +105,8 @@
 			"testing": "Testing",
 			"testingAll": "Testing...",
 			"current": "Current",
-			"empty": "No sources yet"
+			"empty": "No sources yet",
+			"runtime": "Playback %{success} ok · %{failure} failed · streak %{consecutive}"
 		}
 	},
 	"cacheCenter": {
@@ -188,6 +190,11 @@
 		},
 		"sorted": "Playlist order saved",
 		"findDuplicates": "Find duplicate songs",
+		"repairUnavailable": "Scan and repair unavailable songs",
+		"repairing": "Scanning unavailable songs…",
+		"repairComplete": "Unavailable-song scan complete",
+		"repairSummary": "Found %{unavailable} unavailable, repaired %{repaired}, and left %{review} for review.",
+		"repairFailed": "The scan or repair failed. The original playlist was preserved.",
 		"noDuplicates": "No duplicate songs found",
 		"duplicatesFoundTitle": "Possible duplicates found",
 		"duplicatesFoundMessage": "%{count} duplicate songs are selected. Review them before removing.",
@@ -208,6 +215,7 @@
 		"title": "Application Logs",
 		"actions": {
 			"share": "Share",
+			"diagnostics": "Diagnostics",
 			"clear": "Clear"
 		},
 		"empty": "No logs recorded yet",
@@ -216,7 +224,8 @@
 		},
 		"copy": "Copied",
 		"copyMessage": "Log content has been copied to the clipboard",
-		"shareError": "Failed to share logs"
+		"shareError": "Failed to share logs",
+		"diagnosticsCopied": "Playback diagnostics copied to the clipboard"
 	},
 	"appTab": {
 		"songs": "Songs",

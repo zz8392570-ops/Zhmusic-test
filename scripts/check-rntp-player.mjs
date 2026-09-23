@@ -51,6 +51,11 @@ function runtime(extraOverrides = {}) {
 				return resolveSource(track, options)
 			},
 			preloadSource: async () => {},
+			clearPreloadedSources() {},
+		},
+		'@/helpers/userApi/sourceDiagnostics': {
+			appendSourceDiagnostic() {},
+			classifySourceError: () => 'playback',
 		},
 		'@/utils/delay': (milliseconds) => {
 			const pending = deferred()
@@ -847,6 +852,7 @@ await check('automatic source recovery retains failed APIs and cannot bounce A t
             getMusicFailureKey: track => track.id,
             clearFailedApis: () => failed.clear(),
             rememberFailedApi: (_, id) => failed.add(id),
+			recordMusicApiAttempt: () => {},
             getFailedApiIds: () => failed,
             getPlaybackFailoverApis: () => sources.filter(api => !failed.has(api.id)),
             setMusicApiAsSelectedById: async id => {
@@ -868,14 +874,24 @@ await check('automatic source recovery retains failed APIs and cannot bounce A t
     h.emit('PlaybackError', { message: 'broken A', code: 'network' })
     h.delays[0].resolve()
     await flush()
+	assert.equal(selected.id, 'a', 'The selected source gets one fresh-link retry first')
+	h.player.state = 'error'
+	h.emit('PlaybackError', { message: 'broken A again', code: 'network' })
+	h.delays[1].resolve()
+	await flush()
     assert.equal(selected.id, 'b')
     assert.equal(failed.has('a'), true, 'A must remain failed after the automatic forced play')
     h.player.state = 'error'
     h.emit('PlaybackError', { message: 'broken B', code: 'network' })
-    h.delays[1].resolve()
+	h.delays[2].resolve()
+	await flush()
+	assert.equal(selected.id, 'b', 'The backup source also gets one fresh-link retry')
+	h.player.state = 'error'
+	h.emit('PlaybackError', { message: 'broken B again', code: 'network' })
+	h.delays[3].resolve()
     await flush()
     assert.equal(selected.id, 'b', 'Exhaustion must not select A again')
-    assert.equal(h.sourceCalls.length, 2)
+	assert.equal(h.sourceCalls.length, 4)
     assert.equal(exhausted.length, 1)
     assert.equal(exhausted[0].triedCount, 2)
     // A user-selected fresh attempt may retry the sources.

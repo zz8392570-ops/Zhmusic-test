@@ -30,6 +30,7 @@
 			"changeLanguage": "切换语言",
 			"theme": "主题",
 			"normal": "正常",
+			"slow": "较慢",
 			"exception": "异常",
 			"test": "测试",
 			"testSources": "测试所有音源",
@@ -105,7 +106,8 @@
 			"testing": "测试中",
 			"testingAll": "测试中...",
 			"current": "当前",
-			"empty": "还没有音源，导入或等待内嵌音源加载"
+			"empty": "还没有音源，导入或等待内嵌音源加载",
+			"runtime": "播放成功 %{success} · 失败 %{failure} · 连败 %{consecutive}"
 		}
 	},
 	"cacheCenter": {
@@ -189,6 +191,11 @@
 		},
 		"sorted": "歌单排序已保存",
 		"findDuplicates": "检查重复歌曲",
+		"repairUnavailable": "扫描并修复失效歌曲",
+		"repairing": "正在扫描失效歌曲…",
+		"repairComplete": "失效歌曲扫描完成",
+		"repairSummary": "发现 %{unavailable} 首不可播放歌曲，已自动修复 %{repaired} 首，待手动确认 %{review} 首。",
+		"repairFailed": "扫描或修复失败，已保留原歌单",
 		"noDuplicates": "没有发现重复歌曲",
 		"duplicatesFoundTitle": "发现疑似重复歌曲",
 		"duplicatesFoundMessage": "已选中 %{count} 首重复歌曲，请检查后删除。",
@@ -209,6 +216,7 @@
 		"title": "应用日志",
 		"actions": {
 			"share": "分享",
+			"diagnostics": "诊断",
 			"clear": "清除"
 		},
 		"empty": "暂无日志记录",
@@ -217,7 +225,8 @@
 		},
 		"copy": "已复制",
 		"copyMessage": "日志内容已复制到剪贴板",
-		"shareError": "分享日志失败"
+		"shareError": "分享日志失败",
+		"diagnosticsCopied": "播放诊断信息已复制到剪贴板"
 	},
 	"appTab": {
 		"songs": "音乐",
