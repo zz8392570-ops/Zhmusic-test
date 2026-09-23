@@ -3,6 +3,7 @@ import { Platform } from 'react-native'
 import { createMsg2call } from 'message2call'
 import forge from 'node-forge'
 import { gzip, ungzip } from 'pako'
+import { getLxSyncCredentials, saveLxSyncCredentials } from './lxSyncCredentials'
 import { applyRemoteListAction, getLocalListData, setLocalListData } from './lxSyncData'
 import type { LxListData, LxSyncKeyInfo, LxSyncMode } from './lxSyncTypes'
 
@@ -93,7 +94,7 @@ const authenticate = async (url: UrlInfo, authCode?: string): Promise<LxSyncKeyI
 	const idResponse = await requestText(`${base}/id`)
 	if (!idResponse.text.startsWith(ID_PREFIX)) throw new Error('无法获取同步服务标识')
 	const serverId = idResponse.text.slice(ID_PREFIX.length)
-	const saved = PersistStatus.get('sync.credentials')
+	const saved = authCode ? null : await getLxSyncCredentials()
 
 	if (!authCode && saved?.serverId === serverId) {
 		const message = aesEncrypt(`${AUTH_MESSAGE}${getDeviceName()}`, saved.keyInfo.key)
@@ -130,7 +131,7 @@ const authenticate = async (url: UrlInfo, authCode?: string): Promise<LxSyncKeyI
 		throw new Error('连接码验证失败')
 	}
 	const keyInfo = JSON.parse(decrypted) as LxSyncKeyInfo
-	PersistStatus.set('sync.credentials', { serverId, keyInfo })
+	await saveLxSyncCredentials({ serverId, keyInfo })
 	return keyInfo
 }
 
@@ -171,7 +172,7 @@ export const syncWithLxServer = async ({ host, authCode, mode, onStatus }: SyncO
 				async getEnabledFeatures(_serverType: string, supported: Record<string, number>) {
 					return supported.list === 1 ? { list: { skipSnapshot: false } } : {}
 				},
-				async onListSyncAction(action: any) {
+				async onListSyncAction(action: unknown) {
 					applyRemoteListAction(action)
 				},
 				async list_sync_get_md5() {
@@ -214,9 +215,4 @@ export const syncWithLxServer = async ({ host, authCode, mode, onStatus }: SyncO
 			if (!settled) finish(new Error(event.reason || '同步连接已断开'))
 		})
 	})
-}
-
-export const clearLxSyncCredentials = () => {
-	PersistStatus.set('sync.credentials', undefined)
-	PersistStatus.set('sync.lastSuccessAt', undefined)
 }

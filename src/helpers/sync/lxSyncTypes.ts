@@ -43,7 +43,35 @@ export interface LxListData {
 	userList: LxUserList[]
 }
 
-export interface LxListAction {
-	action: string
-	data?: any
+export type LxListAction =
+	| { action: 'list_data_overwrite'; data: LxListData }
+	| {
+			action: 'list_create'
+			data: { position: number; listInfos: Array<Omit<LxUserList, 'list'>> }
+	}
+	| { action: 'list_remove'; data: string[] }
+	| { action: 'list_update'; data: Array<Partial<LxUserList> & { id: string }> }
+	| { action: 'list_update_position'; data: { position: number; ids: string[] } }
+	| { action: 'list_music_add'; data: LxListMusicAdd }
+	| { action: 'list_music_move'; data: LxListMusicMove }
+	| { action: 'list_music_remove'; data: { listId: string; ids: string[] } }
+	| { action: 'list_music_update'; data: Array<{ id: string; musicInfo: LxMusicInfo }> }
+	| {
+			action: 'list_music_update_position'
+			data: { listId: string; position: number; ids: string[] }
+	}
+	| { action: 'list_music_overwrite'; data: { listId: string; musicInfos: LxMusicInfo[] } }
+	| { action: 'list_music_clear'; data: string[] }
+
+interface LxListMusicAdd {
+	id: string
+	musicInfos: LxMusicInfo[]
+	addMusicLocationType: 'top' | 'bottom'
+}
+
+interface LxListMusicMove {
+	fromId: string
+	toId: string
+	musicInfos: LxMusicInfo[]
+	addMusicLocationType: 'top' | 'bottom'
 }

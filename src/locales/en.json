@@ -503,6 +503,8 @@
 		"syncNow": "Sync now",
 		"overwriteConfirmTitle": "Replace playlists?",
 		"overwriteConfirmMessage": "This replaces favorites and playlists on one side. Check the selected direction before continuing.",
+		"insecureTitle": "Unencrypted connection",
+		"insecureMessage": "This server uses HTTP, so playlist data may be visible in transit. HTTPS is recommended. Continue?",
 		"continue": "Continue syncing",
 		"connecting": "Connecting…",
 		"successTitle": "Sync complete",

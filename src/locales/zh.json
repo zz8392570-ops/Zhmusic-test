@@ -504,6 +504,8 @@
 		"syncNow": "立即同步",
 		"overwriteConfirmTitle": "确认覆盖歌单",
 		"overwriteConfirmMessage": "此操作会覆盖一端的收藏与歌单。请确认已选择正确的同步方向。",
+		"insecureTitle": "连接未加密",
+		"insecureMessage": "此服务器使用 HTTP，歌单数据可能在传输途中被读取。建议改用 HTTPS。仍要继续吗？",
 		"continue": "继续同步",
 		"connecting": "正在连接…",
 		"successTitle": "同步完成",

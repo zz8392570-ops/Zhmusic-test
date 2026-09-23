@@ -1,9 +1,10 @@
-import { clearLxSyncCredentials, syncWithLxServer } from '@/helpers/sync/lxSyncClient'
+import { syncWithLxServer } from '@/helpers/sync/lxSyncClient'
+import { clearLxSyncCredentials, getLxSyncCredentials } from '@/helpers/sync/lxSyncCredentials'
 import type { LxSyncMode } from '@/helpers/sync/lxSyncTypes'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import PersistStatus from '@/store/PersistStatus'
 import i18n from '@/utils/i18n'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
 	ActivityIndicator,
 	Alert,
@@ -34,28 +35,78 @@ const MODES: Array<{ id: LxSyncMode; titleKey: string; descriptionKey: string }>
 	},
 ]
 
+const isRemoteHttpHost = (host: string) => {
+	try {
+		const url = new URL(/^https?:\/\//i.test(host) ? host : `http://${host}`)
+		if (url.protocol !== 'http:') return false
+		const name = url.hostname.toLowerCase()
+		if (name === 'localhost' || name.endsWith('.local') || name === '[::1]') return false
+		if (/^127\./.test(name) || /^10\./.test(name) || /^192\.168\./.test(name)) return false
+		const secondOctet = /^172\.(\d+)\./.exec(name)?.[1]
+		return !(secondOctet && Number(secondOctet) >= 16 && Number(secondOctet) <= 31)
+	} catch {
+		return false
+	}
+}
+
 export default function SyncManagerScreen() {
 	const colors = useThemeColors()
 	const savedHost = PersistStatus.useValue('sync.host', '') ?? ''
-	const credentials = PersistStatus.useValue('sync.credentials')
 	const lastSuccessAt = PersistStatus.useValue('sync.lastSuccessAt')
+	const [paired, setPaired] = useState(false)
+	const [pairingError, setPairingError] = useState(false)
+	const [pairingLoaded, setPairingLoaded] = useState(false)
 	const [host, setHost] = useState(savedHost)
 	const [authCode, setAuthCode] = useState('')
 	const [mode, setMode] = useState<LxSyncMode>('merge_local_remote')
 	const [busy, setBusy] = useState(false)
 	const [status, setStatus] = useState('')
+	const approvedInsecureHost = useRef('')
 	const lastSuccess = useMemo(
 		() => (lastSuccessAt ? new Date(lastSuccessAt).toLocaleString() : i18n.t('sync.never')),
 		[lastSuccessAt],
 	)
+
+	useEffect(() => {
+		let mounted = true
+		void getLxSyncCredentials()
+			.then((credentials) => {
+				if (mounted) setPaired(!!credentials)
+			})
+			.catch((error: unknown) => {
+				if (mounted) {
+					setPairingError(true)
+					setStatus(error instanceof Error ? error.message : i18n.t('sync.unknownError'))
+				}
+			})
+			.finally(() => {
+				if (mounted) setPairingLoaded(true)
+			})
+		return () => {
+			mounted = false
+		}
+	}, [])
 
 	const runSync = async () => {
 		if (!host.trim()) {
 			Alert.alert(i18n.t('sync.errorTitle'), i18n.t('sync.hostRequired'))
 			return
 		}
-		if (!credentials && !authCode.trim()) {
+		if (!paired && !authCode.trim()) {
 			Alert.alert(i18n.t('sync.errorTitle'), i18n.t('sync.codeRequired'))
+			return
+		}
+		if (isRemoteHttpHost(host.trim()) && approvedInsecureHost.current !== host.trim()) {
+			Alert.alert(i18n.t('sync.insecureTitle'), i18n.t('sync.insecureMessage'), [
+				{ text: i18n.t('find.cancel'), style: 'cancel' },
+				{
+					text: i18n.t('sync.continue'),
+					onPress: () => {
+						approvedInsecureHost.current = host.trim()
+						void runSync()
+					},
+				},
+			])
 			return
 		}
 		setBusy(true)
@@ -68,6 +119,8 @@ export default function SyncManagerScreen() {
 				onStatus: setStatus,
 			})
 			setAuthCode('')
+			setPaired(true)
+			setPairingError(false)
 			setStatus(i18n.t('sync.successStatus', { server: result.serverName }))
 			Alert.alert(i18n.t('sync.successTitle'), i18n.t('sync.successMessage'))
 		} catch (error) {
@@ -86,8 +139,18 @@ export default function SyncManagerScreen() {
 				text: i18n.t('sync.clear'),
 				style: 'destructive',
 				onPress: () => {
-					clearLxSyncCredentials()
-					setStatus('')
+					void clearLxSyncCredentials()
+						.then(() => {
+							setPaired(false)
+							setPairingError(false)
+							setStatus('')
+						})
+						.catch((error: unknown) => {
+							Alert.alert(
+								i18n.t('sync.errorTitle'),
+								error instanceof Error ? error.message : i18n.t('sync.unknownError'),
+							)
+						})
 				},
 			},
 		])
@@ -110,7 +173,7 @@ export default function SyncManagerScreen() {
 	const button = (label: string, onPress: () => void, destructive = false) => (
 		<Pressable
 			accessibilityRole="button"
-			disabled={busy}
+			disabled={busy || !pairingLoaded}
 			onPress={onPress}
 			style={{
 				minHeight: 48,
@@ -171,7 +234,7 @@ export default function SyncManagerScreen() {
 						autoCorrect={false}
 						editable={!busy}
 						onChangeText={setAuthCode}
-						placeholder={credentials ? i18n.t('sync.pairedPlaceholder') : i18n.t('sync.codePlaceholder')}
+						placeholder={paired ? i18n.t('sync.pairedPlaceholder') : i18n.t('sync.codePlaceholder')}
 						placeholderTextColor={colors.textMuted}
 						secureTextEntry
 						style={{
@@ -184,7 +247,7 @@ export default function SyncManagerScreen() {
 						value={authCode}
 					/>
 					<Text style={{ color: colors.textMuted, fontSize: 12 }}>
-						{credentials ? i18n.t('sync.paired') : i18n.t('sync.firstPairing')}
+						{paired ? i18n.t('sync.paired') : i18n.t('sync.firstPairing')}
 					</Text>
 				</View>
 
@@ -225,7 +288,7 @@ export default function SyncManagerScreen() {
 				<Text style={{ color: colors.textMuted, textAlign: 'center', fontSize: 12 }}>
 					{i18n.t('sync.lastSuccess', { time: lastSuccess })}
 				</Text>
-				{credentials ? button(i18n.t('sync.clearPairing'), clearPairing, true) : null}
+				{paired || pairingError ? button(i18n.t('sync.clearPairing'), clearPairing, true) : null}
 			</ScrollView>
 		</KeyboardAvoidingView>
 	)
