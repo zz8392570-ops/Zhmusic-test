@@ -87,7 +87,7 @@ await check(
 	() => {
 		const h = backupFixture()
 		h.store.set('music.favorites', [track('one')])
-		h.store.set('music.playLists', [{ id: 'list', name: 'List', songs: [track('one')] }])
+		h.store.set('music.playLists', [{ id: 'list', name: 'List', folder: '通勤', pinned: true, sortOrder: 2, songs: [track('one')] }])
 		h.store.set('music.quality', 'flac')
 		h.store.set('music.musicApi', [{ script: 'private source' }])
 		h.store.set('music.play-list', [track('queue')])
@@ -96,6 +96,9 @@ await check(
 		const parsed = h.parseMusicBackup(text)
 		assert.equal(parsed.library.favorites[0].id, 'one')
 		assert.equal(parsed.settings['music.quality'], 'flac')
+		assert.equal(parsed.library.playlists[0].folder, '通勤')
+		assert.equal(parsed.library.playlists[0].pinned, true)
+		assert.equal(parsed.library.playlists[0].sortOrder, 2)
 		assert.equal(text.includes('private source'), false)
 		assert.equal(text.includes('unfinished'), false)
 		assert.equal(text.includes('queue'), false)
@@ -201,6 +204,16 @@ await check(
 		assert.equal(searchPersonalLibrary(collections, '不存在').tracks.length, 0)
 	},
 )
+await check('library playlists sort by pin, folder and stable manual order', () => {
+	const { sortLibraryPlaylists } = loadModule('src/helpers/playlistOrganizer.ts', {})
+	const playlists = [
+		{ id: 'c', folder: 'B', sortOrder: 0 },
+		{ id: 'b', folder: 'A', sortOrder: 2 },
+		{ id: 'a', folder: 'A', sortOrder: 1 },
+		{ id: 'p', folder: 'Z', pinned: true, sortOrder: 9 },
+	]
+	assert.deepEqual(Array.from(sortLibraryPlaylists(playlists), (item) => item.id), ['p', 'a', 'b', 'c'])
+})
 function searchFixture() {
 	const qq = deferred(),
 		http = [],

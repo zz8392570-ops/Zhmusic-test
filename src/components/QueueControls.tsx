@@ -24,6 +24,7 @@ type QueueControlsProps = {
 	exportSelectedTracks?: () => void
 	managementActions?: MenuAction[]
 	onManagementAction?: (actionId: string) => void
+	onSelectedAction?: (actionId: 'add' | 'move') => void
 } & ViewProps
 
 export const QueueControls = ({
@@ -39,6 +40,7 @@ export const QueueControls = ({
 	exportSelectedTracks,
 	managementActions,
 	onManagementAction,
+	onSelectedAction,
 	...viewProps
 }: QueueControlsProps) => {
 	const colors = useThemeColors()
@@ -223,6 +225,27 @@ export const QueueControls = ({
 						style={[styles.button, { minHeight: 48, paddingHorizontal: 12 }]}
 					>
 						<Ionicons name="options-outline" size={23} color={colors.primary} />
+					</TouchableOpacity>
+				</MenuView>
+			) : null}
+			{isMultiSelectMode && onSelectedAction ? (
+				<MenuView
+					title={i18n.t('playlistTools.organizeSelected')}
+					actions={[
+						{ id: 'add', title: i18n.t('playlistTools.addSelected'), image: 'text.badge.plus' },
+						{ id: 'move', title: i18n.t('playlistTools.moveSelected'), image: 'folder' },
+					]}
+					onPressAction={({ nativeEvent: { event } }) =>
+						onSelectedAction(event as 'add' | 'move')
+					}
+				>
+					<TouchableOpacity
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('playlistTools.organizeSelected')}
+						style={[styles.button, !hasSelection && styles.buttonDisabled]}
+						disabled={!hasSelection}
+					>
+						<Ionicons name="folder-open-outline" size={23} color={colors.primary} />
 					</TouchableOpacity>
 				</MenuView>
 			) : null}

@@ -8,7 +8,10 @@ import type { Track } from '@/player/types'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import React, { useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { repairUnavailableTracks } from '@/helpers/libraryRepair'
+import type { MenuAction } from '@react-native-menu/menu'
+import PersistStatus from '@/store/PersistStatus'
 
 type Filter = 'all' | 'offline'
 type Sort = 'recent' | 'title' | 'artist'
@@ -23,6 +26,7 @@ const RecentMusicScreen = () => {
 	const local = useMemo(() => localValue || [], [localValue])
 	const [filter, setFilter] = useState<Filter>('all')
 	const [sort, setSort] = useState<Sort>('recent')
+	const [isRepairing, setIsRepairing] = useState(false)
 	const localKeys = useMemo(
 		() => new Set(local.map((track) => `${track.platform}:${track.id}`)),
 		[local],
@@ -48,6 +52,35 @@ const RecentMusicScreen = () => {
 		coverImg: tracks[0]?.artwork || unknownTrackImageUri,
 		tracks: tracks as Track[],
 	} as Playlist
+	const repairRecent = async () => {
+		if (isRepairing || !recent.length) return
+		setIsRepairing(true)
+		try {
+			const result = await repairUnavailableTracks(recent)
+			if (result.repaired) {
+				recentlyPlayedStore.setValue(result.tracks)
+				PersistStatus.set('music.recentlyPlayed', result.tracks)
+			}
+			Alert.alert(
+				i18n.t('playlistTools.repairComplete'),
+				i18n.t('playlistTools.repairSummary', {
+					unavailable: result.unavailable,
+					repaired: result.repaired,
+					review: result.review.length,
+				}),
+			)
+		} catch {
+			Alert.alert(i18n.t('playlistTools.repairFailed'))
+		} finally {
+			setIsRepairing(false)
+		}
+	}
+	const managementActions: MenuAction[] = [{
+		id: 'repair',
+		title: i18n.t(isRepairing ? 'playlistTools.repairing' : 'playlistTools.repairUnavailable'),
+		image: 'wrench.and.screwdriver',
+		attributes: { disabled: isRepairing },
+	}]
 
 	return (
 		<View style={defaultStyles.container}>
@@ -84,7 +117,12 @@ const RecentMusicScreen = () => {
 				contentInsetAdjustmentBehavior="automatic"
 				style={{ paddingHorizontal: screenPadding.horizontal }}
 			>
-				<PlaylistTracksList playlist={playlist} tracks={tracks as Track[]} />
+				<PlaylistTracksList
+					playlist={playlist}
+					tracks={tracks as Track[]}
+					managementActions={managementActions}
+					onManagementAction={() => void repairRecent()}
+				/>
 			</ScrollView>
 		</View>
 	)

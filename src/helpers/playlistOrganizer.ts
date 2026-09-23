@@ -2,6 +2,22 @@ import type { Track } from '@/player/types'
 
 export type PlaylistSortField = 'title' | 'artist' | 'album' | 'duration' | 'source'
 
+export const sortLibraryPlaylists = <T extends { title?: string; name?: string; pinned?: boolean; folder?: string; sortOrder?: number }>(
+	playlists: T[],
+): T[] =>
+	playlists
+		.map((playlist, index) => ({ playlist, index }))
+		.sort((left, right) => {
+			if (!!left.playlist.pinned !== !!right.playlist.pinned)
+				return left.playlist.pinned ? -1 : 1
+			const folderResult = compareText(left.playlist.folder, right.playlist.folder)
+			if (folderResult) return folderResult
+			const orderResult =
+				(left.playlist.sortOrder ?? left.index) - (right.playlist.sortOrder ?? right.index)
+			return orderResult || left.index - right.index
+		})
+		.map(({ playlist }) => playlist)
+
 const text = (value: unknown) => String(value ?? '').trim()
 const normalized = (value: unknown) =>
 	text(value)

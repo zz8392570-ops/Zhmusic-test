@@ -6,7 +6,6 @@ import { searchSongsAcrossPlatforms } from '@/helpers/crossPlatformSearch'
 import {
 	findDuplicateTrackIds,
 	rankReplacementSources,
-	rankReplacementSourcesWithScore,
 	sortPlaylistTracks,
 	type PlaylistSortField,
 } from '@/helpers/playlistOrganizer'
@@ -19,8 +18,7 @@ import { Alert, ScrollView, View } from 'react-native'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import i18n from '@/utils/i18n'
-import { resolveSource } from '@/player/MusicSourceResolver'
-import { fakeAudioMp3Uri } from '@/constants/images'
+import { repairUnavailableTracks } from '@/helpers/libraryRepair'
 
 const PlaylistScreen = () => {
 	const defaultStyles = useDefaultStyles()
@@ -98,6 +96,49 @@ const PlaylistScreen = () => {
 		)
 	}, [saveSongs, selectedTracks, songs])
 
+	const organizeSelectedTracks = useCallback(
+		(action: 'add' | 'move') => {
+			const selected = songs.filter((song) => selectedTracks.has(song.id))
+			if (!selected.length) return
+			const destinations = (playlists ?? []).filter((item) => item.id !== playlistID)
+			if (!destinations.length) {
+				Alert.alert(i18n.t('playlistTools.noDestination'))
+				return
+			}
+			Alert.alert(
+				i18n.t(action === 'move' ? 'playlistTools.moveSelected' : 'playlistTools.addSelected'),
+				i18n.t('playlistTools.chooseDestination'),
+				[
+					...destinations.map((destination) => ({
+						text: destination.title || destination.name,
+						onPress: () => {
+							const result =
+								action === 'move'
+									? myTrackPlayer.moveSongsBetweenStoredPlaylists(playlistID, destination.id, selected)
+									: myTrackPlayer.addSongsToStoredPlayList(destination.id, selected)
+							if (result.status === 'success') {
+								Alert.alert(
+									i18n.t('playlistTools.organizeComplete'),
+									i18n.t('playlistTools.organizeSummary', {
+										count: 'moved' in result ? result.moved : result.added,
+									}),
+								)
+								if (action === 'move') {
+									setSelectedTracks(new Set())
+									setIsMultiSelectMode(false)
+								}
+							} else {
+								Alert.alert(i18n.t('playlistTools.organizeFailed'))
+							}
+						},
+					})),
+					{ text: i18n.t('find.cancel'), style: 'cancel' },
+				],
+			)
+		},
+		[playlistID, playlists, selectedTracks, songs],
+	)
+
 	const importedSource = useMemo(
 		() => (playlist ? getImportedPlaylistSource(playlist) : null),
 		[playlist],
@@ -172,57 +213,34 @@ const PlaylistScreen = () => {
 	const repairUnavailableSongs = useCallback(async () => {
 		if (isRepairing || !songs.length) return
 		setIsRepairing(true)
-		let unavailable = 0
-		let repaired = 0
-		let needsReview = 0
-		const nextSongs = [...songs]
 		const sourcePlaylist = playlist as (Playlist & IMusic.PlayList) | undefined
 		const sourceOverrides = { ...(sourcePlaylist?.sourceOverrides ?? {}) } as Record<string, string>
 		const snapshotKeys = new Set(
 			Array.isArray(sourcePlaylist?.sourceSnapshotKeys) ? sourcePlaylist.sourceSnapshotKeys : [],
 		)
 		try {
-			for (let index = 0; index < songs.length; index++) {
-				const track = songs[index] as Track
-				const resolved = await resolveSource(track as IMusic.IMusicItem, {
-					requestType: 'download',
-					totalTimeoutMs: 8_000,
-				})
-				if (resolved.url !== fakeAudioMp3Uri && !resolved.url.includes('fake')) continue
-				unavailable++
-				const query = [track.title, track.artist].filter(Boolean).join(' ')
-				const search = await searchSongsAcrossPlatforms(query, 1, 'all')
-				const best = rankReplacementSourcesWithScore(track, search.data)[0]
-				if (!best || best.score < 14) {
-					needsReview++
-					continue
-				}
-				const replacement = await resolveSource(best.track as IMusic.IMusicItem, {
-					requestType: 'download',
-					totalTimeoutMs: 8_000,
-				})
-				if (replacement.url === fakeAudioMp3Uri || replacement.url.includes('fake')) {
-					needsReview++
-					continue
-				}
-				nextSongs[index] = best.track as IMusic.IMusicItem
-				const originalKey = `${track.platform}@${track.id}`
-				const replacementKey = `${best.track.platform}@${best.track.id}`
+			const result = await repairUnavailableTracks(songs)
+			for (const { original, replacement } of result.replacements) {
+				const originalKey = `${original.platform}@${original.id}`
+				const replacementKey = `${replacement.platform}@${replacement.id}`
 				const sourceKey = snapshotKeys.has(originalKey)
 					? originalKey
 					: Object.entries(sourceOverrides).find(([, value]) => value === originalKey)?.[0]
 				if (sourceKey) sourceOverrides[sourceKey] = replacementKey
-				repaired++
 			}
 			if (
-				repaired &&
-				myTrackPlayer.updateStoredPlaylist(playlistID, { songs: nextSongs, sourceOverrides }) !==
+				result.repaired &&
+				myTrackPlayer.updateStoredPlaylist(playlistID, { songs: result.tracks, sourceOverrides }) !==
 					'success'
 			)
 				throw new Error('save failed')
 			Alert.alert(
 				i18n.t('playlistTools.repairComplete'),
-				i18n.t('playlistTools.repairSummary', { unavailable, repaired, review: needsReview }),
+				i18n.t('playlistTools.repairSummary', {
+					unavailable: result.unavailable,
+					repaired: result.repaired,
+					review: result.review.length,
+				}),
 			)
 		} catch {
 			Alert.alert(i18n.t('playlistTools.repairFailed'))
@@ -346,6 +364,7 @@ const PlaylistScreen = () => {
 					deleteSelectedTracks={deleteSelectedTracks}
 					managementActions={managementActions}
 					onManagementAction={onManagementAction}
+					onSelectedAction={organizeSelectedTracks}
 					onReplaceSource={replaceSource}
 				/>
 			</ScrollView>

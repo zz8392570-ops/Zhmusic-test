@@ -16,6 +16,7 @@ import { useNavigationSearch } from '@/hooks/useNavigationSearch'
 import { useFavorites } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
+import { sortLibraryPlaylists } from '@/helpers/playlistOrganizer'
 import { router } from 'expo-router'
 import { useMemo } from 'react'
 import { useIsPlaying } from '@rntp/player'
@@ -63,7 +64,7 @@ const FavoritesScreen = () => {
 				coverImg: Image.resolveAssetSource(localImage).uri,
 				description: i18n.t('appTab.localOrCachedSongs'),
 			},
-			...(storedPlayLists ?? []),
+			...sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[]),
 		],
 		[storedPlayLists, favorites, localTracks, recentlyPlayed],
 	)

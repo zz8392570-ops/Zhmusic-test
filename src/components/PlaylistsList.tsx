@@ -115,7 +115,26 @@ export const PlaylistsList = ({
 				Alert.alert(i18n.t('library.editFailed'))
 			}
 		}
+		const changeFolder = () => {
+			Alert.prompt(
+				i18n.t('library.folderTitle'),
+				i18n.t('library.folderMessage'),
+				(value) =>
+					myTrackPlayer.updateStoredPlaylist(playlist.id, {
+						folder: value?.trim() || undefined,
+					}),
+				'plain-text',
+				playlist.folder || '',
+			)
+		}
 		Alert.alert(i18n.t('library.editTitle'), playlist.title || playlist.name, [
+			{
+				text: i18n.t(playlist.pinned ? 'library.unpin' : 'library.pin'),
+				onPress: () => myTrackPlayer.updateStoredPlaylist(playlist.id, { pinned: !playlist.pinned }),
+			},
+			{ text: i18n.t('library.folder'), onPress: changeFolder },
+			{ text: i18n.t('library.moveUp'), onPress: () => myTrackPlayer.reorderStoredPlaylist(playlist.id, 'up') },
+			{ text: i18n.t('library.moveDown'), onPress: () => myTrackPlayer.reorderStoredPlaylist(playlist.id, 'down') },
 			{ text: i18n.t('library.rename'), onPress: rename },
 			{ text: i18n.t('library.changeCover'), onPress: () => void changeCover() },
 			{ text: i18n.t('find.cancel'), style: 'cancel' },

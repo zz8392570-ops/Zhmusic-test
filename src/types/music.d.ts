@@ -204,6 +204,10 @@ declare namespace IMusic {
         source?: Partial<Record<IQualityKey, IMediaSource>>;
 
         songs: IMusicItem[];
+        /** Local-only library organization metadata. */
+        folder?: string;
+        pinned?: boolean;
+        sortOrder?: number;
         /** 其他可以被序列化的信息 */
         [k: string]: any;
         /** 内部信息 */

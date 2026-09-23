@@ -956,6 +956,82 @@ const updateStoredPlaylist = (playlistId: string, patch: Partial<Omit<IMusic.Pla
 		return 'error' as const
 	}
 }
+
+const reorderStoredPlaylist = (playlistId: string, direction: 'up' | 'down') => {
+	const playlists = playListsStore.getValue() || []
+	const playlist = playlists.find((item) => item.id === playlistId)
+	if (!playlist) return 'not-found' as const
+	const peers = playlists
+		.map((item, index) => ({ item, index }))
+		.filter(
+			({ item }) =>
+				!!item.pinned === !!playlist.pinned &&
+				String(item.folder ?? '') === String(playlist.folder ?? ''),
+		)
+		.sort(
+			(left, right) =>
+				(left.item.sortOrder ?? left.index) - (right.item.sortOrder ?? right.index),
+		)
+	const peerIndex = peers.findIndex(({ item }) => item.id === playlistId)
+	const targetPeerIndex = direction === 'up' ? peerIndex - 1 : peerIndex + 1
+	if (peerIndex < 0 || targetPeerIndex < 0 || targetPeerIndex >= peers.length)
+		return 'boundary' as const
+	const current = peers[peerIndex]
+	const target = peers[targetPeerIndex]
+	const currentOrder = current.item.sortOrder ?? current.index
+	const targetOrder = target.item.sortOrder ?? target.index
+	const updated = playlists.map((item) => {
+		if (item.id === current.item.id) return { ...item, sortOrder: targetOrder }
+		if (item.id === target.item.id) return { ...item, sortOrder: currentOrder }
+		return item
+	})
+	playListsStore.setValue(updated)
+	PersistStatus.set('music.playLists', updated)
+	return 'success' as const
+}
+
+const addSongsToStoredPlayList = (playlistId: string, tracks: IMusic.IMusicItem[]) => {
+	const playlists = playListsStore.getValue() || []
+	const playlist = playlists.find((item) => item.id === playlistId)
+	if (!playlist) return { status: 'not-found' as const, added: 0 }
+	const songs = [...playlist.songs]
+	let added = 0
+	for (const track of tracks) {
+		if (songs.some((song) => isSameMediaItem(song, track))) continue
+		songs.push(track)
+		added++
+	}
+	if (!added) return { status: 'duplicate' as const, added: 0 }
+	const updated = playlists.map((item) => (item.id === playlistId ? { ...item, songs } : item))
+	playListsStore.setValue(updated)
+	PersistStatus.set('music.playLists', updated)
+	return { status: 'success' as const, added }
+}
+
+const moveSongsBetweenStoredPlaylists = (
+	fromPlaylistId: string,
+	toPlaylistId: string,
+	tracks: IMusic.IMusicItem[],
+) => {
+	if (fromPlaylistId === toPlaylistId) return { status: 'same-playlist' as const, moved: 0 }
+	const added = addSongsToStoredPlayList(toPlaylistId, tracks)
+	if (added.status !== 'success') return { status: added.status, moved: 0 }
+	const selectedKeys = new Set(tracks.map((track) => `${track.platform ?? 'unknown'}:${track.id}`))
+	const playlists = playListsStore.getValue() || []
+	const updated = playlists.map((playlist) =>
+		playlist.id === fromPlaylistId
+			? {
+					...playlist,
+					songs: playlist.songs.filter(
+						(song) => !selectedKeys.has(`${song.platform ?? 'unknown'}:${song.id}`),
+					),
+				}
+			: playlist,
+	)
+	playListsStore.setValue(updated)
+	PersistStatus.set('music.playLists', updated)
+	return { status: 'success' as const, moved: added.added }
+}
 const deletePlayLists = (playlistId: string) => {
 	try {
 		if (playlistId === 'favorites' || playlistId === 'local' || playlistId === 'recent') {
@@ -1527,6 +1603,9 @@ const myTrackPlayer = {
 	changeQuality,
 	addPlayLists,
 	updateStoredPlaylist,
+	reorderStoredPlaylist,
+	addSongsToStoredPlayList,
+	moveSongsBetweenStoredPlaylists,
 	deletePlayLists,
 	getPlayListById,
 	addMusicApi,

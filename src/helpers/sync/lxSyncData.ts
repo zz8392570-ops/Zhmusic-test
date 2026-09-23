@@ -286,7 +286,9 @@ export const fromLxMusicInfo = (track: LxMusicInfo): IMusic.IMusicItem => {
 
 const toLxUserList = (playlist: IMusic.PlayList): LxUserList => {
 	const metadata = Object.fromEntries(
-		Object.entries(playlist).filter(([key]) => key !== 'songs'),
+		Object.entries(playlist).filter(
+			([key]) => !['songs', 'folder', 'pinned', 'sortOrder'].includes(key),
+		),
 	) as Omit<IMusic.PlayList, 'songs'>
 	return {
 		id: String(playlist.id),
@@ -322,7 +324,20 @@ export const getLocalListData = (): LxListData => ({
 export const setLocalListData = (data: LxListData) => {
 	data = validateLxListData(data)
 	const favorites = data.loveList.map(fromLxMusicInfo)
-	const playlists = data.userList.map(fromLxUserList)
+	const localOrganization = new Map(
+		(playListsStore.getValue() ?? []).map((playlist) => [
+			playlist.id,
+			{
+				folder: playlist.folder,
+				pinned: playlist.pinned,
+				sortOrder: playlist.sortOrder,
+			},
+		]),
+	)
+	const playlists = data.userList.map((item) => {
+		const playlist = fromLxUserList(item)
+		return { ...playlist, ...(localOrganization.get(playlist.id) ?? {}) }
+	})
 	const previousFavorites = PersistStatus.get('music.favorites')
 	const previousPlaylists = PersistStatus.get('music.playLists')
 	const previousLibraryFavorites = useLibraryStore.getState().favorites

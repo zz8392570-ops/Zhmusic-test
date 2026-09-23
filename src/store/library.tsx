@@ -242,6 +242,11 @@ export const useFavorites = () => {
 		toggleTrackFavorite,
 	}
 }
+
+export const replaceFavorites = (favorites: IMusic.IMusicItem[]) => {
+	useLibraryStore.setState({ favorites })
+	PersistStatus.set('music.favorites', favorites)
+}
 export const useNowLyric = () => {
 	const nowLyric = useLibraryStore((state) => state.nowLyric)
 	const setNowLyric = useLibraryStore((state) => state.setNowLyric)

@@ -70,12 +70,18 @@ export const PlaylistListItem = ({
 						source={{ uri: playlist.coverImg || playlist.artwork }}
 						style={styles.playlistArtworkImage}
 					/>
-					<View style={styles.playlistInfo}>
-						<Text numberOfLines={1} style={styles.playlistNameText}>
-							{playlist.title || playlist.name}
-						</Text>
-						<Text style={styles.playlistMetaText}>
-							{i18n.t('library.songCount', { count: songCount })}
+						<View style={styles.playlistInfo}>
+							<View style={styles.titleRow}>
+								{playlist.pinned ? <Ionicons name="pin" size={14} color={colors.primary} /> : null}
+								<Text numberOfLines={1} style={styles.playlistNameText}>
+									{playlist.title || playlist.name}
+								</Text>
+							</View>
+							<Text style={styles.playlistMetaText}>
+								{[
+									playlist.folder,
+									i18n.t('library.songCount', { count: songCount }),
+								].filter(Boolean).join(' · ')}
 						</Text>
 					</View>
 					<AntDesign name="right" size={16} color={colors.icon} style={{ opacity: 0.5 }} />
@@ -136,11 +142,13 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			flex: 1,
 			rowGap: 5,
 		},
-		playlistNameText: {
-			...defaultStyles.text,
+			playlistNameText: {
+				...defaultStyles.text,
+				flex: 1,
 			fontSize: 17,
 			fontWeight: '600',
-		},
+			},
+			titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 		playlistMetaText: {
 			fontSize: 13,
 			color: colors.textMuted,

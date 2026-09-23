@@ -28,6 +28,7 @@ type PlaylistTracksListProps = {
 	exportSelectedTracks?: () => void
 	managementActions?: MenuAction[]
 	onManagementAction?: (actionId: string) => void
+	onSelectedAction?: (actionId: 'add' | 'move') => void
 	onReplaceSource?: (track: Track) => void
 	showMetadata?: boolean
 	metadata?: string
@@ -49,6 +50,7 @@ export const PlaylistTracksList = ({
 	exportSelectedTracks,
 	managementActions,
 	onManagementAction,
+	onSelectedAction,
 	onReplaceSource,
 	showMetadata = false,
 	metadata,
@@ -115,6 +117,7 @@ export const PlaylistTracksList = ({
 						exportSelectedTracks={exportSelectedTracks}
 						managementActions={managementActions}
 						onManagementAction={onManagementAction}
+						onSelectedAction={onSelectedAction}
 					/>
 				</View>
 			}

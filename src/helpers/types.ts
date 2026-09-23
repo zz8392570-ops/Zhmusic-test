@@ -16,6 +16,10 @@ export type Playlist = {
 	/** 作者 */
 	artist: string
 	songs: IMusic.IMusicItem[]
+	/** Local-only library organization metadata. */
+	folder?: string
+	pinned?: boolean
+	sortOrder?: number
 }
 
 export type Artist = {

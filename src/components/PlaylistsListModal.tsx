@@ -6,6 +6,7 @@ import { useNavigationSearch } from '@/hooks/useNavigationSearch'
 import { useFavorites } from '@/store/library'
 import { useUtilsStyles } from '@/styles'
 import i18n from '@/utils/i18n'
+import { sortLibraryPlaylists } from '@/helpers/playlistOrganizer'
 import { useMemo } from 'react'
 import { FlatList, FlatListProps, Text, View } from 'react-native'
 import { Image } from 'expo-image'
@@ -38,7 +39,10 @@ export const PlaylistsListModal = ({
 	)
 	const storedPlayLists = playListsStore.useValue()
 	const filteredPlayLists = useMemo(() => {
-		const playLists = [favoritePlayListItem, ...(storedPlayLists ?? [])]
+		const playLists = [
+			favoritePlayListItem,
+			...sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[]),
+		]
 
 		if (!search) return playLists
 
