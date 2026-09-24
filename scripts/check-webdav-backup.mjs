@@ -71,9 +71,12 @@ await check(
 		assert.equal(connection[1].options.method, 'PUT')
 		assert.match(connection[1].url, /\/music%20backups\/.zhmusic-write-test.tmp$/)
 		assert.equal(connection[2].options.method, 'DELETE')
-		nextResponse = response(201)
+		nextResponse = [response(207), response(201)]
 		await webdav.uploadWebDavBackup(config, backup)
-		const upload = requests.at(-1)
+		const uploadRequests = requests.slice(-2)
+		assert.equal(uploadRequests[0].options.method, 'PROPFIND')
+		assert.equal(uploadRequests[0].url, 'https://dav.example.test/root/music%20backups/')
+		const upload = uploadRequests[1]
 		assert.equal(upload.options.method, 'PUT')
 		assert.equal(upload.url, 'https://dav.example.test/root/music%20backups/Cymusic.json')
 		assert.equal(upload.options.headers['Content-Type'], 'application/octet-stream')
@@ -84,6 +87,19 @@ await check(
 		assert.equal(JSON.parse(upload.options.body).format, 'zhmusic-backup')
 	},
 )
+
+await check('missing directories and missing backup files have actionable error codes', async () => {
+	nextResponse = response(404)
+	await assert.rejects(
+		webdav.uploadWebDavBackup(config, backup),
+		(error) => error.code === 'directory-not-found' && error.status === 404,
+	)
+	nextResponse = response(404)
+	await assert.rejects(
+		webdav.downloadWebDavBackup(config),
+		(error) => error.code === 'backup-not-found' && error.status === 404,
+	)
+})
 
 await check('connection test rejects a readable but unwritable backup directory', async () => {
 	nextResponse = [response(207), response(403)]

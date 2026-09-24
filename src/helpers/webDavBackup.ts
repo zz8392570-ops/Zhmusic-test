@@ -16,6 +16,8 @@ export type WebDavErrorCode =
 	| 'invalid-config'
 	| 'unauthorized'
 	| 'not-found'
+	| 'directory-not-found'
+	| 'backup-not-found'
 	| 'too-large'
 	| 'invalid-backup'
 	| 'timeout'
@@ -116,11 +118,15 @@ const request = async (url: string, options: RequestInit) => {
 	}
 }
 
-const requireSuccess = (response: Response) => {
+const requireSuccess = (
+	response: Response,
+	notFoundCode: Extract<WebDavErrorCode, 'not-found' | 'directory-not-found' | 'backup-not-found'> =
+		'not-found',
+) => {
 	if (response.ok || response.status === 207) return
 	if (response.status === 401 || response.status === 403)
 		throw new WebDavBackupError('unauthorized', response.status)
-	if (response.status === 404) throw new WebDavBackupError('not-found', response.status)
+	if (response.status === 404) throw new WebDavBackupError(notFoundCode, response.status)
 	throw new WebDavBackupError('request-failed', response.status)
 }
 
@@ -131,7 +137,7 @@ export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 		method: 'PROPFIND',
 		headers: { ...authHeaders(config), Depth: '0' },
 	})
-	requireSuccess(response)
+	requireSuccess(response, 'directory-not-found')
 	// Read access to the WebDAV root does not prove that the configured backup
 	// directory is writable. Use a small reversible probe in that exact directory.
 	const probeUrl = childUrl(directoryUrl, '.zhmusic-write-test.tmp')
@@ -140,7 +146,7 @@ export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
 		body: 'ZhMusic WebDAV write test',
 	})
-	requireSuccess(probe)
+	requireSuccess(probe, 'directory-not-found')
 	const cleanup = await request(probeUrl, { method: 'DELETE', headers: authHeaders(config) })
 	requireSuccess(cleanup)
 }
@@ -153,12 +159,17 @@ export const uploadWebDavBackup = async (input: WebDavBackupConfig, backup: Musi
 	} catch {
 		throw new WebDavBackupError('invalid-backup')
 	}
+	const directory = await request(parentUrl(config), {
+		method: 'PROPFIND',
+		headers: { ...authHeaders(config), Depth: '0' },
+	})
+	requireSuccess(directory, 'directory-not-found')
 	const response = await request(remoteUrl(config), {
 		method: 'PUT',
 		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
 		body: text,
 	})
-	requireSuccess(response)
+	requireSuccess(response, 'directory-not-found')
 }
 
 export const downloadWebDavBackup = async (input: WebDavBackupConfig): Promise<MusicBackup> => {
@@ -167,7 +178,7 @@ export const downloadWebDavBackup = async (input: WebDavBackupConfig): Promise<M
 		method: 'GET',
 		headers: authHeaders(config),
 	})
-	requireSuccess(response)
+	requireSuccess(response, 'backup-not-found')
 	const contentLength = Number(response.headers.get('content-length'))
 	if (Number.isFinite(contentLength) && contentLength > MAX_BACKUP_BYTES)
 		throw new WebDavBackupError('too-large')

@@ -80,6 +80,8 @@ export default function BackupManagerScreen() {
 		const code = (error as { code?: WebDavErrorCode })?.code
 		if (code === 'invalid-config') return i18n.t('backup.webdavInvalidConfig')
 		if (code === 'unauthorized') return i18n.t('backup.webdavUnauthorized')
+		if (code === 'directory-not-found') return i18n.t('backup.webdavDirectoryNotFound')
+		if (code === 'backup-not-found') return i18n.t('backup.webdavBackupNotFound')
 		if (code === 'not-found') return i18n.t('backup.webdavNotFound')
 		if (code === 'too-large') return i18n.t('backup.webdavTooLarge')
 		if (code === 'invalid-backup') return i18n.t('backup.webdavInvalidBackup')

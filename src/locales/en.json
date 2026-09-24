@@ -580,6 +580,8 @@
 		"clear": "Clear"
 	},
 	"backup": {
+		"webdavDirectoryNotFound": "The WebDAV directory does not exist. Create it on the server first, or check the directory URL and remote path.",
+		"webdavBackupNotFound": "The remote backup does not exist yet. Upload the current backup first.",
 		"title": "Backup & Restore",
 		"description": "Back up favorites, playlists, recent plays and personal settings. Audio, source scripts and custom cover images are excluded. Import local songs, sources and covers again on a new device.",
 		"export": "Export backup file",

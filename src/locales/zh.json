@@ -581,6 +581,8 @@
 		"clear": "清除"
 	},
 	"backup": {
+		"webdavDirectoryNotFound": "WebDAV 目录不存在，请先在服务器中创建目录，或检查目录地址和远程路径",
+		"webdavBackupNotFound": "远程备份文件尚不存在，请先点击“上传当前备份”",
 		"title": "备份与恢复",
 		"description": "备份收藏、歌单、最近播放和个人设置。备份文件不包含音频、音源脚本和自定义封面图片；换机后请重新导入本地歌曲、音源和封面。",
 		"export": "导出备份文件",

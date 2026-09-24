@@ -30,7 +30,11 @@ export const releaseNotes: ReleaseNote[] = [
 			},
 			{
 				type: 'fixed',
-				items: ['连续切歌时旧请求覆盖当前歌曲', '播放失败后无法自动换源恢复'],
+				items: [
+					'WebDAV 目录不存在和远程备份未上传的错误提示',
+					'连续切歌时旧请求覆盖当前歌曲',
+					'播放失败后无法自动换源恢复',
+				],
 			},
 		],
 	},
