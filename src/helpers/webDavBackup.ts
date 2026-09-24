@@ -91,6 +91,17 @@ const remoteUrl = (config: WebDavBackupConfig) => {
 	return url.toString()
 }
 
+const parentUrl = (config: WebDavBackupConfig) => {
+	const segments = config.remotePath.split('/')
+	segments.pop()
+	if (!segments.length) return `${config.url}/`
+	const url = new URL(config.url)
+	url.pathname = `${url.pathname.replace(/\/$/, '')}/${segments.map(encodeURIComponent).join('/')}/`
+	return url.toString()
+}
+
+const childUrl = (parent: string, name: string) => new URL(encodeURIComponent(name), parent).toString()
+
 const request = async (url: string, options: RequestInit) => {
 	const controller = new AbortController()
 	const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -115,19 +126,36 @@ const requireSuccess = (response: Response) => {
 
 export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 	const config = normalizeConfig(input)
-	const response = await request(config.url, {
+	const directoryUrl = parentUrl(config)
+	const response = await request(directoryUrl, {
 		method: 'PROPFIND',
 		headers: { ...authHeaders(config), Depth: '0' },
 	})
 	requireSuccess(response)
+	// Read access to the WebDAV root does not prove that the configured backup
+	// directory is writable. Use a small reversible probe in that exact directory.
+	const probeUrl = childUrl(directoryUrl, '.zhmusic-write-test.tmp')
+	const probe = await request(probeUrl, {
+		method: 'PUT',
+		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
+		body: 'ZhMusic WebDAV write test',
+	})
+	requireSuccess(probe)
+	const cleanup = await request(probeUrl, { method: 'DELETE', headers: authHeaders(config) })
+	requireSuccess(cleanup)
 }
 
 export const uploadWebDavBackup = async (input: WebDavBackupConfig, backup: MusicBackup) => {
 	const config = normalizeConfig(input)
-	const text = JSON.stringify(parseMusicBackup(JSON.stringify(backup)), null, 2)
+	let text: string
+	try {
+		text = JSON.stringify(parseMusicBackup(JSON.stringify(backup)), null, 2)
+	} catch {
+		throw new WebDavBackupError('invalid-backup')
+	}
 	const response = await request(remoteUrl(config), {
 		method: 'PUT',
-		headers: { ...authHeaders(config), 'Content-Type': 'application/json; charset=utf-8' },
+		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
 		body: text,
 	})
 	requireSuccess(response)

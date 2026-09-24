@@ -16,7 +16,7 @@ const response = (status, text = '', headerValues = {}) => ({
 })
 const fetch = async (url, options) => {
 	requests.push({ url, options })
-	return nextResponse
+	return Array.isArray(nextResponse) ? nextResponse.shift() : nextResponse
 }
 const parseMusicBackup = (text) => {
 	if (Buffer.byteLength(text) > 100) throw new Error('Backup exceeds size limit')
@@ -62,15 +62,21 @@ await check('configuration is normalized and credentials stay in secure storage'
 await check(
 	'connection and upload use WebDAV methods, encoded paths and UTF-8 basic auth',
 	async () => {
-		nextResponse = response(207)
+		nextResponse = [response(207), response(201), response(204)]
 		await webdav.testWebDavConnection(config)
-		assert.equal(requests.at(-1).options.method, 'PROPFIND')
-		assert.equal(requests.at(-1).options.headers.Depth, '0')
+		const connection = requests.slice(-3)
+		assert.equal(connection[0].options.method, 'PROPFIND')
+		assert.equal(connection[0].options.headers.Depth, '0')
+		assert.equal(connection[0].url, 'https://dav.example.test/root/music%20backups/')
+		assert.equal(connection[1].options.method, 'PUT')
+		assert.match(connection[1].url, /\/music%20backups\/.zhmusic-write-test.tmp$/)
+		assert.equal(connection[2].options.method, 'DELETE')
 		nextResponse = response(201)
 		await webdav.uploadWebDavBackup(config, backup)
 		const upload = requests.at(-1)
 		assert.equal(upload.options.method, 'PUT')
 		assert.equal(upload.url, 'https://dav.example.test/root/music%20backups/Cymusic.json')
+		assert.equal(upload.options.headers['Content-Type'], 'application/octet-stream')
 		assert.equal(
 			upload.options.headers.Authorization,
 			`Basic ${Buffer.from('张三:secret').toString('base64')}`,
@@ -78,6 +84,14 @@ await check(
 		assert.equal(JSON.parse(upload.options.body).format, 'zhmusic-backup')
 	},
 )
+
+await check('connection test rejects a readable but unwritable backup directory', async () => {
+	nextResponse = [response(207), response(403)]
+	await assert.rejects(
+		webdav.testWebDavConnection(config),
+		(error) => error.code === 'unauthorized' && error.status === 403,
+	)
+})
 
 await check('download validates status, size and backup format before returning data', async () => {
 	nextResponse = response(200, JSON.stringify(backup))

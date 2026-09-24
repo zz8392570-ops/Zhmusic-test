@@ -84,7 +84,10 @@ export default function BackupManagerScreen() {
 		if (code === 'too-large') return i18n.t('backup.webdavTooLarge')
 		if (code === 'invalid-backup') return i18n.t('backup.webdavInvalidBackup')
 		if (code === 'timeout') return i18n.t('backup.webdavTimeout')
-		return i18n.t('backup.webdavRequestFailed')
+		const status = (error as { status?: number })?.status
+		return status
+			? i18n.t('backup.webdavRequestFailedStatus', { status })
+			: i18n.t('backup.webdavRequestFailed')
 	}
 	const runWebDavAction = async (action: (config: WebDavBackupConfig) => Promise<void>) => {
 		setBusy(true)

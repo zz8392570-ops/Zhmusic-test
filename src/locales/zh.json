@@ -618,6 +618,7 @@
 		"webdavTooLarge": "远端备份超过 10 MB，无法导入",
 		"webdavInvalidBackup": "远端文件不是有效的 Cymusic 备份",
 		"webdavTimeout": "连接超时，请检查地址和网络",
-		"webdavRequestFailed": "服务器拒绝请求或网络不可用，请检查 WebDAV 配置"
+		"webdavRequestFailed": "网络请求失败，请检查网络后重试",
+		"webdavRequestFailedStatus": "WebDAV 服务器拒绝了请求（HTTP %{status}）"
 	}
 }

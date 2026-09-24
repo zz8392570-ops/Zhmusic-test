@@ -617,6 +617,7 @@
 		"webdavTooLarge": "The remote backup exceeds 10 MB and cannot be imported",
 		"webdavInvalidBackup": "The remote file is not a valid Cymusic backup",
 		"webdavTimeout": "Connection timed out. Check the URL and network.",
-		"webdavRequestFailed": "The server rejected the request or the network is unavailable. Check the WebDAV configuration."
+		"webdavRequestFailed": "The network request failed. Check your connection and try again.",
+		"webdavRequestFailedStatus": "The WebDAV server rejected the request (HTTP %{status})."
 	}
 }
