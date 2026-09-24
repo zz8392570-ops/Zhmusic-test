@@ -19,6 +19,7 @@
 			"autoCacheWifiOnly": "Auto-cache on Wi-Fi Only",
 			"viewLogs": "View Logs",
 			"clearPlaylist": "Clear Playlist",
+			"restorePlayback": "Restore playback on startup",
 			"autoCacheLocal": "Auto-cache Played Songs",
 			"preciseSeeking": "Precise seeking",
 			"switchSource": "Switch Source",
@@ -41,6 +42,7 @@
 			"homePlaylist": "Home Chart"
 		},
 		"descriptions": {
+			"restorePlayback": "Restore the last track, queue, and position without playing automatically.",
 			"preciseSeeking": "Helps keep audio and lyrics aligned after seeking in some FLAC files. Playback may wait for the full audio file to load. Applies after changing tracks.",
 			"autoCacheLocal": "Cache online songs after playback. Older automatic files are removed at the size limit; songs saved for offline use are retained.",
 			"autoCacheWifiOnly": "Prevents automatic caching from using cellular data. Manual downloads are unaffected.",

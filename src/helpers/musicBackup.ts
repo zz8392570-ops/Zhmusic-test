@@ -5,6 +5,7 @@ const settingValidators = {
 	'music.quality': (value: unknown) =>
 		typeof value === 'string' && ['128k', '320k', 'flac'].includes(value),
 	'music.preciseSeeking': (value: unknown) => typeof value === 'boolean',
+	'music.restorePlaybackOnStartup': (value: unknown) => typeof value === 'boolean',
 	'music.autoCacheLocal': (value: unknown) => typeof value === 'boolean',
 	'music.autoCacheWifiOnly': (value: unknown) => typeof value === 'boolean',
 	'music.isCachedIconVisible': (value: unknown) => typeof value === 'boolean',

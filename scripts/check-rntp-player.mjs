@@ -285,7 +285,7 @@ await check('Settings defaults off for missing, malformed and non-Boolean persis
 		if (raw === undefined) h.disk.delete('music.preciseSeeking')
 		else h.disk.set('music.preciseSeeking', raw)
 		assert.equal(findElement(h.render(), 'Switch').props.value, expected, String(raw))
-		assert.equal(h.listeners.size, 3)
+		assert.equal(h.listeners.size, 4)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 	}
@@ -300,7 +300,7 @@ await check('the real Settings Switch saves one key, updates through the storage
 	control.props.onValueChange(true)
 	assert.deepEqual(h.storageWrites, [['music.preciseSeeking', 'true']])
 	assert.equal(findElement(h.render(), 'Switch').props.value, true)
-	assert.equal(h.listeners.size, 3)
+	assert.equal(h.listeners.size, 4)
 	h.unmount()
 	assert.equal(h.listeners.size, 0)
 	assert.equal(findElement(h.render(), 'Switch').props.value, true)
@@ -314,6 +314,20 @@ await check('the real Settings Switch saves one key, updates through the storage
 	h.reloadPersistence()
 	assert.equal(findElement(h.render(), 'Switch').props.value, false)
 	assert.deepEqual([...h.disk], [['music.quality', '"flac"'], ['music.preciseSeeking', 'false']])
+	h.unmount()
+})
+
+await check('startup playback restoration defaults on and its Settings Switch persists opt-out', () => {
+	const h = settingsRuntime()
+	const findRestoreSwitch = () => findElement(
+		h.render(),
+		'Switch',
+		(node) => node.props.testID === 'settings.restore-playback',
+	)
+	assert.equal(findRestoreSwitch().props.value, true)
+	findRestoreSwitch().props.onValueChange(false)
+	assert.equal(findRestoreSwitch().props.value, false)
+	assert.deepEqual(h.storageWrites, [['music.restorePlaybackOnStartup', 'false']])
 	h.unmount()
 })
 
@@ -456,6 +470,67 @@ await check('application setup is once per runtime and configures hybrid busines
 	assert.deepEqual(h.calls.player.filter(([name]) => name === 'repeat' || name === 'shuffle'), [['repeat', 'off'], ['shuffle', false]])
 	assert.equal(h.player.listenerCount(h.player.Event.MediaItemTransition), 1)
 	cleanups.forEach((cleanup) => cleanup())
+})
+
+await check('startup restores the exact queue, current track and position without autoplay', async () => {
+	const h = runtime()
+	const a = song('restore-a'), b = song('restore-b', { duration: 180 })
+	h.persistence.set('music.play-list', [a, b])
+	h.persistence.set('music.musicItem', b)
+	h.persistence.set('music.progress', 47)
+	h.persistence.set('music.repeatMode', 'shuffle')
+	h.persistence.set('music.restorePlaybackOnStartup', true)
+	await h.setup()
+	assert.equal(h.facade.getPlayList().map((track) => track.id).join(','), 'restore-a,restore-b')
+	assert.equal(h.facade.getCurrentMusic().id, b.id)
+	assert.equal(h.player.queue[0].title, b.title)
+	assert.equal(h.player.progress.position, 47)
+	assert.equal(h.player.isPlaying(), false)
+	assert.equal(h.stores.playbackIntentStore.getValue(), 'pause')
+	assert.equal(h.count('play'), 0)
+	assert.equal(h.stores.recentlyPlayedStore.getValue().length, 0)
+})
+
+await check('startup restore can be disabled and completed tracks restart from zero', async () => {
+	const disabled = runtime()
+	const track = song('disabled', { duration: 180 })
+	disabled.persistence.set('music.play-list', [track])
+	disabled.persistence.set('music.musicItem', track)
+	disabled.persistence.set('music.progress', 50)
+	disabled.persistence.set('music.restorePlaybackOnStartup', false)
+	await disabled.setup()
+	assert.equal(disabled.facade.getPlayList().length, 0)
+	assert.equal(disabled.facade.getCurrentMusic(), null)
+	assert.equal(disabled.sourceCalls.length, 0)
+
+	const completed = runtime()
+	completed.persistence.set('music.play-list', [track])
+	completed.persistence.set('music.musicItem', track)
+	completed.persistence.set('music.progress', 178)
+	await completed.setup()
+	assert.equal(completed.player.progress.position, 0)
+	assert.equal(completed.persistence.get('music.progress'), 0)
+})
+
+await check('trusted progress events save every ten seconds and explicit seek saves immediately', async () => {
+	const h = runtime()
+	await h.setup()
+	await h.facade.play(song('progress-save', { duration: 180 }))
+	const active = h.player.getActiveMediaItem()
+	const writesBefore = h.calls.writes.filter(({ key }) => key === 'music.progress').length
+	for (const position of [1, 5, 9, 10, 14, 19]) {
+		h.emit('PlaybackProgressUpdated', {
+			mediaId: active.mediaId,
+			position,
+			duration: 180,
+			timestamp: Date.now(),
+		})
+	}
+	const progressWrites = h.calls.writes.filter(({ key }) => key === 'music.progress')
+	assert.equal(progressWrites.length, writesBefore + 1)
+	assert.equal(progressWrites.at(-1).value, 10)
+	h.facade.seekTo(47)
+	assert.equal(h.persistence.get('music.progress'), 47)
 })
 
 await check('remote handlers register once, route next/previous to business queue and never repeat native transport or seek', async () => {

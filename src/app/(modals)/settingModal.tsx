@@ -411,6 +411,8 @@ const SettingModal = () => {
 	)
 	const homeBoardName = getHomeBoardName(homeBoardId, homeBoardSource)
 	const preciseSeeking = PersistStatus.useValue('music.preciseSeeking', false) === true
+	const restorePlaybackOnStartup =
+		PersistStatus.useValue('music.restorePlaybackOnStartup', true) !== false
 	const themeLabel = useMemo(() => {
 		switch (themeMode) {
 			case 'light':
@@ -463,6 +465,15 @@ const SettingModal = () => {
 							},
 						]
 					: []),
+				{
+					id: 'restore-playback',
+					title: i18n.t('settings.items.restorePlayback'),
+					description: i18n.t('settings.descriptions.restorePlayback'),
+					type: 'switch',
+					value: restorePlaybackOnStartup,
+					onValueChange: (value: boolean) =>
+						PersistStatus.set('music.restorePlaybackOnStartup', value),
+				},
 			],
 		},
 		{

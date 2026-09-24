@@ -14,6 +14,7 @@ export const releaseNotes: ReleaseNote[] = [
 				type: 'new',
 				items: [
 					'智能歌单与本地听歌统计',
+					'启动时恢复播放队列、歌曲和上次进度',
 					'歌单文件夹、置顶、排序和批量整理',
 					'失效歌曲扫描与高置信度自动修复',
 				],

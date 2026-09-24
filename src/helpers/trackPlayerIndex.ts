@@ -121,6 +121,7 @@ import {
 } from './listeningStats'
 
 const NEXT_TRACK_PRELOAD_DELAY_MS = 8000
+const PROGRESS_PERSIST_INTERVAL_SECONDS = 10
 const createTrackSourceLoadingToken = (musicItem: IMusic.IMusicItem) =>
 	`track_source_${musicItem.id}_${Date.now().toString(36)}_${Math.random()
 		.toString(36)
@@ -170,6 +171,26 @@ let nativeQueue: {
 	startedAt: number
 	handoffConsumed: boolean
 } | null = null
+let lastPersistedProgressBucket = -1
+
+const persistPlaybackProgress = (position: number, duration: number, force = false) => {
+	if (!Number.isFinite(position) || position < 0) return
+	const safePosition =
+		Number.isFinite(duration) && duration > 0 ? Math.min(position, duration) : position
+	const bucket = Math.floor(safePosition / PROGRESS_PERSIST_INTERVAL_SECONDS)
+	if (!force && bucket === lastPersistedProgressBucket) return
+	lastPersistedProgressBucket = bucket
+	PersistStatus.set('music.progress', Math.floor(safePosition))
+}
+
+const normalizedRestorePosition = (position: number, duration: number) => {
+	if (!Number.isFinite(position) || position <= 0) return 0
+	if (Number.isFinite(duration) && duration > 0) {
+		if (position >= duration - 5) return 0
+		return Math.min(position, Math.max(0, duration - 1))
+	}
+	return position
+}
 
 /** Validate against the current native queue, not a queued event's index alone. */
 function isCurrentNativeItem(item: MediaItem | null | undefined, placeholder = false) {
@@ -262,9 +283,11 @@ hotModule.hot?.dispose(() => {
 })
 
 function migrate() {
-	PersistStatus.set('music.rate', 1)
-	PersistStatus.set('music.repeatMode', MusicRepeatMode.QUEUE)
-	PersistStatus.set('music.progress', 0)
+	// Defaults must not overwrite the last session on every launch.
+	if (PersistStatus.get('music.rate') === null) PersistStatus.set('music.rate', 1)
+	if (PersistStatus.get('music.repeatMode') === null)
+		PersistStatus.set('music.repeatMode', MusicRepeatMode.QUEUE)
+	if (PersistStatus.get('music.progress') === null) PersistStatus.set('music.progress', 0)
 	Config.set('status.music', undefined)
 }
 
@@ -280,6 +303,9 @@ async function setupTrackPlayer() {
 	const selectedMusicApi = PersistStatus.get('music.selectedMusicApi')
 	const importedLocalMusic = PersistStatus.get('music.importedLocalMusic')
 	const recentlyPlayed = PersistStatus.get('music.recentlyPlayed') ?? []
+	const restorePlaybackOnStartup = PersistStatus.get('music.restorePlaybackOnStartup') !== false
+	const restoredMusic = PersistStatus.get('music.musicItem')
+	const restoredProgress = PersistStatus.get('music.progress') ?? 0
 	const autoCacheLocal = PersistStatus.get('music.autoCacheLocal') ?? true
 	const autoCacheWifiOnly = PersistStatus.get('music.autoCacheWifiOnly') ?? true
 	const language = PersistStatus.get('app.language') ?? 'zh'
@@ -341,8 +367,9 @@ async function setupTrackPlayer() {
 	await migrateCacheRetention()
 	restoreDownloadTasks()
 	recentlyPlayedStore.setValue(recentlyPlayed)
-	if (restoredQueue && Array.isArray(restoredQueue)) {
-		addAll(restoredQueue, undefined, repeatMode === MusicRepeatMode.SHUFFLE)
+	if (restorePlaybackOnStartup && restoredQueue && Array.isArray(restoredQueue)) {
+		// The stored queue already reflects shuffle/manual ordering; never shuffle it again.
+		addAll(restoredQueue)
 	}
 	if (autoCacheLocal == true || autoCacheLocal == false) {
 		autoCacheLocalStore.setValue(autoCacheLocal)
@@ -356,6 +383,17 @@ async function setupTrackPlayer() {
 	}
 	if (songsNumsToLoad) {
 		songsNumsToLoadStore.setValue(songsNumsToLoad)
+	}
+	if (restorePlaybackOnStartup && restoredMusic && isInPlayList(restoredMusic)) {
+		setCurrentMusic(restoredMusic)
+		setPlaybackIntent('pause')
+		await play(restoredMusic, true, undefined, false, true)
+		if (isCurrentMusic(restoredMusic) && nativeQueue) {
+			const position = normalizedRestorePosition(restoredProgress, Number(restoredMusic.duration))
+			if (position > 0) ReactNativeTrackPlayer.seekTo(position)
+			lastPersistedProgressBucket = Math.floor(position / PROGRESS_PERSIST_INTERVAL_SECONDS)
+			PersistStatus.set('music.progress', position)
+		}
 	}
 	if (playerSubscriptions.length === 0) {
 		playerSubscriptions.push(
@@ -374,7 +412,9 @@ async function setupTrackPlayer() {
 				void failToPlay(error).catch((failure) => logError('播放错误恢复失败', failure))
 			}),
 			ReactNativeTrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (event) => {
-				if (isCurrentProgressEvent(event)) updateListeningProgress(event.position, event.duration)
+				if (!isCurrentProgressEvent(event)) return
+				updateListeningProgress(event.position, event.duration)
+				persistPlaybackProgress(event.position, event.duration)
 			}),
 		)
 		logInfo('播放器初始化完成')
@@ -738,18 +778,40 @@ const clearToBePlayed = async () => {
 /** 暂停 */
 const pause = () => {
 	setPlaybackIntent('pause')
+	const progress = getProgress()
+	persistPlaybackProgress(progress.position, progress.duration, true)
 	ReactNativeTrackPlayer.pause()
 }
 
 const stop = () => {
 	setPlaybackIntent('stop')
+	const progress = getProgress()
+	persistPlaybackProgress(progress.position, progress.duration, true)
 	finishListeningSession('stopped')
 	ReactNativeTrackPlayer.stop()
 }
 
-/** 设置音源 */
-const setTrackSource = (track: Track) => {
+const seekTo = (position: number) => {
+	ReactNativeTrackPlayer.seekTo(position)
+	lastPersistedProgressBucket = -1
+	persistPlaybackProgress(position, getProgress().duration, true)
+}
+
+const markPlaybackStarted = (track: IMusic.IMusicItem) => {
+	beginListeningSession(track)
 	const requestedTrack = currentMusicStore.getValue()
+	const recentTrack =
+		requestedTrack && isSameMediaItem(requestedTrack, track) ? requestedTrack : track
+	const recent = recentlyPlayedStore
+		.getValue()
+		.filter((item) => !isSameMediaItem(item, recentTrack))
+	const nextRecent = [{ ...recentTrack, lastPlayedAt: Date.now() }, ...recent].slice(0, 100)
+	recentlyPlayedStore.setValue(nextRecent)
+	PersistStatus.set('music.recentlyPlayed', nextRecent)
+}
+
+/** 设置音源 */
+const setTrackSource = (track: Track, restoring = false) => {
 	currentIndex = getMusicIndex(track as IMusic.IMusicItem)
 	const token = createTrackSourceLoadingToken(track as IMusic.IMusicItem)
 	// Snapshot after source resolution. A preference change never reloads the active item.
@@ -760,21 +822,14 @@ const setTrackSource = (track: Track) => {
 	]
 	// Keep the complete resolved source in JS. v5 getter projections lose headers.
 	nativeQueue = { token, track, startedAt: Date.now(), handoffConsumed: false }
-	beginListeningSession(track as IMusic.IMusicItem)
+	if (!restoring) markPlaybackStarted(track as IMusic.IMusicItem)
 	ReactNativeTrackPlayer.setMediaItems(items)
-	const recentTrack =
-		requestedTrack && isSameMediaItem(requestedTrack, track as IMusic.IMusicItem)
-			? requestedTrack
-			: (track as IMusic.IMusicItem)
-	const recent = recentlyPlayedStore
-		.getValue()
-		.filter((item) => !isSameMediaItem(item, recentTrack))
-	const nextRecent = [{ ...recentTrack, lastPlayedAt: Date.now() }, ...recent].slice(0, 100)
-	recentlyPlayedStore.setValue(nextRecent)
-	PersistStatus.set('music.recentlyPlayed', nextRecent)
 	setCurrentMusic(track as IMusic.IMusicItem)
 	PersistStatus.set('music.musicItem', track as IMusic.IMusicItem)
-	PersistStatus.set('music.progress', 0)
+	if (!restoring) {
+		lastPersistedProgressBucket = 0
+		PersistStatus.set('music.progress', 0)
+	}
 
 	const intent = playbackIntentStore.getValue()
 	if (intent === 'play') {
@@ -792,6 +847,7 @@ const setTrackSource = (track: Track) => {
 const setCurrentMusic = (musicItem?: IMusic.IMusicItem | null) => {
 	if (!musicItem) {
 		currentIndex = -1
+		lastPersistedProgressBucket = -1
 		currentMusicStore.setValue(null)
 		trackSourceLoadingStore.setValue(null)
 		PersistStatus.set('music.musicItem', undefined)
@@ -1097,6 +1153,7 @@ const play = async (
 	forcePlay?: boolean,
 	skipOperation?: symbol,
 	isAutomaticRecovery = false,
+	startPaused = false,
 ) => {
 	let trackSourceLoadingToken: string | null = null
 	let sourceRequest: AbortController | null = null
@@ -1117,7 +1174,7 @@ const play = async (
 				if (key.startsWith(`${getMusicFailureKey(musicItem)}:`)) playbackRetryCounts.delete(key)
 			}
 		}
-		setPlaybackIntent('play')
+		setPlaybackIntent(startPaused ? 'pause' : 'play')
 
 		// 1. If already playing this track
 		if (isCurrentMusic(musicItem)) {
@@ -1140,6 +1197,7 @@ const play = async (
 					setTrackSource(nativeQueue.track)
 				} else {
 					// In v5, Play reloads a stopped retained item from zero, including headers.
+					markPlaybackStarted(nativeQueue.track as IMusic.IMusicItem)
 					ReactNativeTrackPlayer.play()
 				}
 				return
@@ -1197,7 +1255,7 @@ const play = async (
 			...(wasCached && playbackQuality ? { cachedQuality: playbackQuality } : {}),
 		}) as IMusic.IMusicItem
 		logInfo('获取音源成功：', track)
-		setTrackSource(track)
+		setTrackSource(track, startPaused)
 		const appliedToken = nativeQueue.token
 		if (resolvedSourceId) {
 			const retryKey = `${getMusicFailureKey(musicItem)}:${resolvedSourceId}`
@@ -1604,7 +1662,7 @@ const myTrackPlayer = {
 	setQuality,
 	getProgress,
 	useProgress: useMusicProgress,
-	seekTo: ReactNativeTrackPlayer.seekTo,
+	seekTo,
 	isCurrentNativeItem,
 	isCurrentProgressEvent,
 	changeQuality,

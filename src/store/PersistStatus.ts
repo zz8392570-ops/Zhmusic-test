@@ -9,6 +9,7 @@ const PersistConfig = {
 export interface IPersistConfig {
 	'music.musicItem': IMusic.IMusicItem //当前播放
 	'music.progress': number
+	'music.restorePlaybackOnStartup': boolean
 	'music.repeatMode': string
 	//播放列表
 	'music.play-list': IMusic.IMusicItem[]

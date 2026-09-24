@@ -19,6 +19,7 @@
 			"autoCacheWifiOnly": "仅 Wi-Fi 自动缓存",
 			"viewLogs": "查看日志",
 			"clearPlaylist": "清空待播清单",
+			"restorePlayback": "启动时恢复上次播放",
 			"autoCacheLocal": "自动缓存播放歌曲",
 			"preciseSeeking": "精确跳转",
 			"switchSource": "切换音源",
@@ -41,6 +42,7 @@
 			"homePlaylist": "首页榜单"
 		},
 		"descriptions": {
+			"restorePlayback": "恢复上次歌曲、播放队列和进度，但不会自动播放。",
 			"preciseSeeking": "改善部分 FLAC 快进后的音频与歌词不同步。开启后可能需要加载完整音频，播放前等待更久。切换歌曲后生效。",
 			"autoCacheLocal": "播放在线歌曲后自动缓存；达到容量上限时清理较早的自动缓存。主动保存的离线歌曲会保留。",
 			"autoCacheWifiOnly": "避免自动缓存消耗移动数据；手动下载不受此开关影响。",
