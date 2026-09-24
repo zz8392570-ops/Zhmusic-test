@@ -13,6 +13,7 @@ export const releaseNotes: ReleaseNote[] = [
 			{
 				type: 'new',
 				items: [
+					'Siri 快捷指令：播放、暂停、下一首和播放我喜欢',
 					'智能歌单与本地听歌统计',
 					'启动时恢复播放队列、歌曲和上次进度',
 					'歌单文件夹、置顶、排序和批量整理',
@@ -21,7 +22,11 @@ export const releaseNotes: ReleaseNote[] = [
 			},
 			{
 				type: 'improved',
-				items: ['音源健康评分、自动择优和音质降级', '下一首地址预取及过期刷新'],
+				items: [
+					'锁屏、控制中心和耳机切歌操作的状态同步',
+					'音源健康评分、自动择优和音质降级',
+					'下一首地址预取及过期刷新',
+				],
 			},
 			{
 				type: 'fixed',

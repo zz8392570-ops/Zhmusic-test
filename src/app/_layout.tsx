@@ -2,6 +2,7 @@ import { playbackService } from '@/constants/playbackService'
 import { AppThemeProvider, useAppTheme } from '@/hooks/useAppTheme'
 import LyricManager from '@/helpers/lyricManager'
 import { startLxAutoSync } from '@/helpers/sync/lxAutoSync'
+import { startSystemPlaybackCommands } from '@/helpers/systemPlaybackCommands'
 import { useLogTrackPlayerState } from '@/hooks/useLogTrackPlayerState'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import i18n, { setI18nConfig } from '@/utils/i18n'
@@ -31,6 +32,7 @@ const App = () => {
 	const [playerRetryKey, setPlayerRetryKey] = useState(0)
 	const handleTrackPlayerLoaded = useCallback(() => {
 		setPlayerStatus('ready')
+		startSystemPlaybackCommands()
 		void SplashScreen.hideAsync()
 	}, [])
 	const handleTrackPlayerError = useCallback(() => {

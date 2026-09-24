@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBC1A68108700A75B9A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB01A68108700A75B9A /* AppDelegate.swift */; };
+		F2B200000000000000000001 /* CyMusicShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B200000000000000000002 /* CyMusicShortcuts.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13F26ABB86DC475F99A0A70F /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98C611196A9E4F99BFACA50C /* ShareViewController.swift */; };
 		198AA58AD70446E8ABD91DB7 /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2D83DA423C9641E6AE2A9049 /* MainInterface.storyboard */; };
@@ -40,6 +41,7 @@
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* CyMusic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CyMusic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB01A68108700A75B9A /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = CyMusic/AppDelegate.swift; sourceTree = "<group>"; };
+		F2B200000000000000000002 /* CyMusicShortcuts.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = CyMusicShortcuts.swift; path = CyMusic/CyMusicShortcuts.swift; sourceTree = "<group>"; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CyMusic/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CyMusic/Info.plist; sourceTree = "<group>"; };
 		2B883473F5A44E4D8EE03D91 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = ShareExtension.appex; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -77,6 +79,7 @@
 			children = (
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB01A68108700A75B9A /* AppDelegate.swift */,
+				F2B200000000000000000002 /* CyMusicShortcuts.swift */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
@@ -400,6 +403,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				13B07FBC1A68108700A75B9A /* AppDelegate.swift in Sources */,
+				F2B200000000000000000001 /* CyMusicShortcuts.swift in Sources */,
 				B18059E884C0ABDD17F3DC3D /* ExpoModulesProvider.swift in Sources */,
 				D9B007EEFF094458AFBDCC2E /* noop-file.swift in Sources */,
 			);

@@ -13,6 +13,7 @@ const checks = [
 	'check-search-playback.mjs',
 	'check-sleep-timer.mjs',
 	'check-source-host.mjs',
+	'check-system-commands.mjs',
 	'check-volume.mjs',
 	'check-webdav-backup.mjs',
 ]

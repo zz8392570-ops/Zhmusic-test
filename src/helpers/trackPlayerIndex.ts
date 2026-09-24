@@ -260,6 +260,12 @@ function observeNativeTransport(intent: 'play' | 'pause' | 'stop') {
 	}
 }
 
+function observeNativeSeek(position: number) {
+	if (!Number.isFinite(position) || position < 0) return
+	lastPersistedProgressBucket = -1
+	persistPlaybackProgress(position, getProgress().duration, true)
+}
+
 function reset() {
 	activeSourceRequest?.abort(requestAbortError())
 	activeSourceRequest = null
@@ -1648,6 +1654,7 @@ const myTrackPlayer = {
 	pause,
 	stop,
 	observeNativeTransport,
+	observeNativeSeek,
 	remove,
 	moveQueueTrack,
 	clear,

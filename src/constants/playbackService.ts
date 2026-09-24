@@ -18,6 +18,9 @@ export const playbackService = () => {
 		TrackPlayer.addEventListener(Event.RemotePlay, () => myTrackPlayer.observeNativeTransport('play')),
 		TrackPlayer.addEventListener(Event.RemotePause, () => myTrackPlayer.observeNativeTransport('pause')),
 		TrackPlayer.addEventListener(Event.RemoteStop, () => myTrackPlayer.observeNativeTransport('stop')),
+		TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) =>
+			myTrackPlayer.observeNativeSeek(position),
+		),
 	]
 }
 
