@@ -48,6 +48,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 const QUALITY_OPTIONS = ['128k', '320k', 'flac']
 const CURRENT_VERSION = Constants.expoConfig?.version ?? '未知版本'
+const IOS_MODAL_DISMISS_DELAY_MS = 350
 let isMusicSourceFilePickerOpen = false
 
 type SettingItemBase = {
@@ -368,7 +369,10 @@ const importMusicSourceFromUrl = async () => {
 	)
 }
 const importMusicSourceFromFile = async () => {
-	if (isMusicSourceFilePickerOpen) return
+	if (isMusicSourceFilePickerOpen) {
+		Alert.alert('请稍候', '文件选择器正在打开')
+		return
+	}
 	isMusicSourceFilePickerOpen = true
 	try {
 		const result = await DocumentPicker.getDocumentAsync({
@@ -543,9 +547,12 @@ const SettingModal = () => {
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => {
 				switch (event) {
-					case 'file':
-						importMusicSourceFromFile()
-						break
+				case 'file':
+					setTimeout(
+						() => void importMusicSourceFromFile(),
+						Platform.OS === 'ios' ? IOS_MODAL_DISMISS_DELAY_MS : 0,
+					)
+					break
 					case 'url':
 						importMusicSourceFromUrl()
 						break
