@@ -12,6 +12,13 @@ export type MediaItemPlaybackOptions = {
 	preciseSeeking?: boolean
 }
 
+const normalizeArtworkUrl = (value: string | undefined) => {
+	const url = value?.trim()
+	if (!url) return undefined
+	if (url.startsWith('//')) return `https:${url}`
+	return url.replace(/^http:\/\//i, 'https://')
+}
+
 export function getNativeTrackIdentity(item: MediaItem | null | undefined): NativeTrackIdentity | null {
 	const identity = item?.extras?.cymusic
 	if (!identity || typeof identity !== 'object') return null
@@ -65,7 +72,7 @@ export function toMediaItem(
 		title: track.title,
 		artist: track.artist,
 		albumTitle: track.album,
-		artworkUrl: track.artwork?.trim() || undefined,
+		artworkUrl: normalizeArtworkUrl(track.artwork),
 		duration: Number.isFinite(track.duration) && track.duration >= 0 ? track.duration : undefined,
 		isLive: track.isLiveStream,
 		mimeType: track.contentType,

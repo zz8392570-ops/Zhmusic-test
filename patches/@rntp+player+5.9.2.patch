@@ -2,7 +2,7 @@ diff --git a/node_modules/@rntp/player/ios/TrackPlayer.swift b/node_modules/@rnt
 index e14f0a0..017c4b8 100644
 --- a/node_modules/@rntp/player/ios/TrackPlayer.swift
 +++ b/node_modules/@rntp/player/ios/TrackPlayer.swift
-@@ -682,8 +682,11 @@
+@@ -682,8 +682,11 @@ class TrackPlayer: RCTEventEmitter {
      RemoteCommandHandlers(
        togglePlayPause: { [weak self] in
          guard let self else { return .commandFailed }
@@ -16,7 +16,7 @@ index e14f0a0..017c4b8 100644
              self.player.pause()
            } else {
              self.player.play()
-@@ -692,23 +695,23 @@
+@@ -692,23 +695,23 @@ class TrackPlayer: RCTEventEmitter {
        },
        play: { [weak self] in
          guard let self else { return .commandFailed }
@@ -45,7 +45,7 @@ index e14f0a0..017c4b8 100644
        },
        changePosition: { [weak self] position in
          guard let self else { return .commandFailed }
-@@ -738,17 +741,16 @@
+@@ -738,17 +741,16 @@ class TrackPlayer: RCTEventEmitter {
      }
    }
 
@@ -62,8 +62,7 @@ index e14f0a0..017c4b8 100644
 -    } else {
 -      emitRemoteEventIfNeeded(command: command)
 -      return .success
--    }
-+    }
+     }
 +    // Hybrid transport observers update JS intent without repeating the native action.
 +    if !handleNatively || (remoteControlHandling == .hybrid && (command == .PlayPause || command == .Stop)) {
 +      emitEvent(event: event)
@@ -72,7 +71,7 @@ index e14f0a0..017c4b8 100644
    }
 
    private func handleRemoteSeek(position: TimeInterval) -> MPRemoteCommandHandlerStatus {
-@@ -805,35 +807,6 @@
+@@ -805,35 +807,6 @@ class TrackPlayer: RCTEventEmitter {
      }
    }
 
@@ -109,7 +108,7 @@ index e14f0a0..017c4b8 100644
 
  extension TrackPlayer {
 diff --git a/node_modules/@rntp/player/ios/models/MediaItem.swift b/node_modules/@rntp/player/ios/models/MediaItem.swift
-index c38942a..1a752f6 100644
+index c38942a..d430568 100644
 --- a/node_modules/@rntp/player/ios/models/MediaItem.swift
 +++ b/node_modules/@rntp/player/ios/models/MediaItem.swift
 @@ -4,6 +4,7 @@
@@ -133,6 +132,21 @@ index c38942a..1a752f6 100644
 
    func getArtwork(_ handler: @escaping (UIImage?) -> Void) {
      guard let artworkUrl = artworkUrl?.value else {
+@@ -112,7 +119,13 @@ extension MediaItem: AudioItem {
+         handler(nil)
+       }
+     } else {
+-      URLSession.shared.dataTask(with: artworkUrl) { data, response, error in
++      var request = URLRequest(url: artworkUrl)
++      request.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
++      request.setValue(
++        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
++        forHTTPHeaderField: "User-Agent"
++      )
++      URLSession.shared.dataTask(with: request) { data, response, error in
+         guard let data = data, error == nil, let artwork = UIImage(data: data) else {
+           handler(nil)
+           return
 diff --git a/node_modules/@rntp/player/ios/player/AVPlayerEngine.swift b/node_modules/@rntp/player/ios/player/AVPlayerEngine.swift
 index edc06f0..f9e5053 100644
 --- a/node_modules/@rntp/player/ios/player/AVPlayerEngine.swift
@@ -332,7 +346,7 @@ diff --git a/node_modules/@rntp/player/src/trackPlayerModule.ts b/node_modules/@
 index 3093274..362db37 100644
 --- a/node_modules/@rntp/player/src/trackPlayerModule.ts
 +++ b/node_modules/@rntp/player/src/trackPlayerModule.ts
-@@ -11,7 +11,6 @@
+@@ -11,7 +11,6 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
  // does not exist in browser ESM bundlers like Vite/webpack) out of the web
  // bundle entirely.
 

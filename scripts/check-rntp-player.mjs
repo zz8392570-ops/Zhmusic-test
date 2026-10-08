@@ -231,6 +231,14 @@ await check('MediaItem keeps opaque app identity, metadata and source headers wi
 	assert.notEqual(native.mediaId, toMediaItem(track, 'queue-A', true).mediaId)
 	assert.equal(JSON.stringify(native.extras).includes('fixture-token'), false)
 	assert.equal(toMediaItem(song('ua', { userAgent: 'app-agent' }), 'queue-A').url.headers['User-Agent'], 'app-agent')
+	assert.equal(
+		toMediaItem(song('http-cover', { artwork: 'http://img.example/cover.jpg' }), 'queue-A').artworkUrl,
+		'https://img.example/cover.jpg',
+	)
+	assert.equal(
+		toMediaItem(song('protocol-cover', { artwork: '//img.example/cover.jpg' }), 'queue-A').artworkUrl,
+		'https://img.example/cover.jpg',
+	)
 })
 
 await check('invalid source URLs are rejected before reaching the native fatalError path', () => {
