@@ -62,21 +62,15 @@ await check('configuration is normalized and credentials stay in secure storage'
 await check(
 	'connection and upload use WebDAV methods, encoded paths and UTF-8 basic auth',
 	async () => {
-		nextResponse = [response(207), response(201), response(204)]
+		nextResponse = [response(201), response(204)]
 		await webdav.testWebDavConnection(config)
-		const connection = requests.slice(-3)
-		assert.equal(connection[0].options.method, 'PROPFIND')
-		assert.equal(connection[0].options.headers.Depth, '0')
-		assert.equal(connection[0].url, 'https://dav.example.test/root/music%20backups/')
-		assert.equal(connection[1].options.method, 'PUT')
-		assert.match(connection[1].url, /\/music%20backups\/ZhMusic-write-test-\d+.tmp$/)
-		assert.equal(connection[2].options.method, 'DELETE')
-		nextResponse = [response(207), response(201)]
+		const connection = requests.slice(-2)
+		assert.equal(connection[0].options.method, 'PUT')
+		assert.match(connection[0].url, /\/music%20backups\/ZhMusic-write-test-\d+.tmp$/)
+		assert.equal(connection[1].options.method, 'DELETE')
+		nextResponse = response(201)
 		await webdav.uploadWebDavBackup(config, backup)
-		const uploadRequests = requests.slice(-2)
-		assert.equal(uploadRequests[0].options.method, 'PROPFIND')
-		assert.equal(uploadRequests[0].url, 'https://dav.example.test/root/music%20backups/')
-		const upload = uploadRequests[1]
+		const upload = requests.at(-1)
 		assert.equal(upload.options.method, 'PUT')
 		assert.equal(upload.url, 'https://dav.example.test/root/music%20backups/Cymusic.json')
 		assert.equal(upload.options.headers['Content-Type'], 'application/octet-stream')
@@ -101,8 +95,8 @@ await check('missing directories and missing backup files have actionable error 
 	)
 })
 
-await check('connection test rejects a readable but unwritable backup directory', async () => {
-	nextResponse = [response(207), response(403)]
+await check('connection test rejects an unwritable backup directory', async () => {
+	nextResponse = response(403)
 	await assert.rejects(
 		webdav.testWebDavConnection(config),
 		(error) => error.code === 'unauthorized' && error.status === 403,

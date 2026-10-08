@@ -133,13 +133,8 @@ const requireSuccess = (
 export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 	const config = normalizeConfig(input)
 	const directoryUrl = parentUrl(config)
-	const response = await request(directoryUrl, {
-		method: 'PROPFIND',
-		headers: { ...authHeaders(config), Depth: '0' },
-	})
-	requireSuccess(response, 'directory-not-found')
-	// Read access to the WebDAV root does not prove that the configured backup
-	// directory is writable. Use a small reversible probe in that exact directory.
+	// Test the operation the backup actually needs. Some providers return 404 for
+	// PROPFIND on an existing collection while still accepting PUT in that folder.
 	// Some WebDAV providers, including Nutstore, reject dot-prefixed files even
 	// when the parent directory exists and is writable.
 	const probeUrl = childUrl(directoryUrl, `ZhMusic-write-test-${Date.now()}.tmp`)
@@ -148,7 +143,7 @@ export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
 		body: 'ZhMusic WebDAV write test',
 	})
-	requireSuccess(probe)
+	requireSuccess(probe, 'directory-not-found')
 	const cleanup = await request(probeUrl, { method: 'DELETE', headers: authHeaders(config) })
 	requireSuccess(cleanup)
 }
@@ -161,11 +156,6 @@ export const uploadWebDavBackup = async (input: WebDavBackupConfig, backup: Musi
 	} catch {
 		throw new WebDavBackupError('invalid-backup')
 	}
-	const directory = await request(parentUrl(config), {
-		method: 'PROPFIND',
-		headers: { ...authHeaders(config), Depth: '0' },
-	})
-	requireSuccess(directory, 'directory-not-found')
 	const response = await request(remoteUrl(config), {
 		method: 'PUT',
 		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
