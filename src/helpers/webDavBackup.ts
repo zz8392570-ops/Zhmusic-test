@@ -126,8 +126,45 @@ const requireSuccess = (
 	if (response.ok || response.status === 207) return
 	if (response.status === 401 || response.status === 403)
 		throw new WebDavBackupError('unauthorized', response.status)
-	if (response.status === 404) throw new WebDavBackupError(notFoundCode, response.status)
+	if (
+		response.status === 404 ||
+		(response.status === 409 && notFoundCode === 'directory-not-found')
+	)
+		throw new WebDavBackupError(notFoundCode, response.status)
 	throw new WebDavBackupError('request-failed', response.status)
+}
+
+const ensureParentDirectories = async (config: WebDavBackupConfig) => {
+	const segments = config.remotePath.split('/')
+	segments.pop()
+	let current = `${config.url}/`
+	for (const segment of segments) {
+		current = new URL(`${encodeURIComponent(segment)}/`, current).toString()
+		const response = await request(current, {
+			method: 'MKCOL',
+			headers: authHeaders(config),
+		})
+		// RFC 4918 servers normally use 405 when the collection already exists.
+		if (response.ok || response.status === 405) continue
+		requireSuccess(response, 'directory-not-found')
+	}
+}
+
+const putWithDirectoryRecovery = async (
+	config: WebDavBackupConfig,
+	url: string,
+	body: string,
+) => {
+	const options: RequestInit = {
+		method: 'PUT',
+		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
+		body,
+	}
+	let response = await request(url, options)
+	if (response.status !== 409) return response
+	await ensureParentDirectories(config)
+	response = await request(url, options)
+	return response
 }
 
 export const testWebDavConnection = async (input: WebDavBackupConfig) => {
@@ -138,11 +175,7 @@ export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 	// Some WebDAV providers, including Nutstore, reject dot-prefixed files even
 	// when the parent directory exists and is writable.
 	const probeUrl = childUrl(directoryUrl, `ZhMusic-write-test-${Date.now()}.tmp`)
-	const probe = await request(probeUrl, {
-		method: 'PUT',
-		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
-		body: 'ZhMusic WebDAV write test',
-	})
+	const probe = await putWithDirectoryRecovery(config, probeUrl, 'ZhMusic WebDAV write test')
 	requireSuccess(probe, 'directory-not-found')
 	const cleanup = await request(probeUrl, { method: 'DELETE', headers: authHeaders(config) })
 	requireSuccess(cleanup)
@@ -156,11 +189,7 @@ export const uploadWebDavBackup = async (input: WebDavBackupConfig, backup: Musi
 	} catch {
 		throw new WebDavBackupError('invalid-backup')
 	}
-	const response = await request(remoteUrl(config), {
-		method: 'PUT',
-		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
-		body: text,
-	})
+	const response = await putWithDirectoryRecovery(config, remoteUrl(config), text)
 	requireSuccess(response, 'directory-not-found')
 }
 

@@ -103,6 +103,17 @@ await check('connection test rejects an unwritable backup directory', async () =
 	)
 })
 
+await check('HTTP 409 creates the parent collection and retries the write', async () => {
+	nextResponse = [response(409), response(201), response(201), response(204)]
+	await webdav.testWebDavConnection(config)
+	const recovery = requests.slice(-4)
+	assert.equal(recovery[0].options.method, 'PUT')
+	assert.equal(recovery[1].options.method, 'MKCOL')
+	assert.equal(recovery[1].url, 'https://dav.example.test/root/music%20backups/')
+	assert.equal(recovery[2].options.method, 'PUT')
+	assert.equal(recovery[3].options.method, 'DELETE')
+})
+
 await check('download validates status, size and backup format before returning data', async () => {
 	nextResponse = response(200, JSON.stringify(backup))
 	assert.equal((await webdav.downloadWebDavBackup(config)).format, 'zhmusic-backup')
