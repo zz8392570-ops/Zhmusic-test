@@ -601,7 +601,7 @@
 		"mergeMessage": "将备份与现有收藏、歌单和最近播放记录合并，同平台同歌曲 ID 去重。是否恢复设置取决于上方开关。",
 		"restore": "恢复备份",
 		"webdavTitle": "WebDAV 备份",
-		"webdavDescription": "将同一份备份文件上传到 WebDAV，或下载后预览并选择合并或覆盖恢复。WebDAV 目录需要提前存在。",
+		"webdavDescription": "每次上传会更新最新备份，并在 daily 目录保留当天快照。配置完成后，App 每天首次打开或回到前台时自动备份一次。",
 		"webdavUrl": "WebDAV 目录地址",
 		"webdavUsername": "用户名",
 		"webdavPassword": "密码或应用专用密码",

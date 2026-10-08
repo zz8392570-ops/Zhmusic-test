@@ -10,7 +10,7 @@ import {
 	loadWebDavBackupConfig,
 	saveWebDavBackupConfig,
 	testWebDavConnection,
-	uploadWebDavBackup,
+	uploadWebDavBackupSnapshots,
 	type WebDavBackupConfig,
 	type WebDavErrorCode,
 } from '@/helpers/webDavBackup'
@@ -37,7 +37,7 @@ import {
 	View,
 } from 'react-native'
 
-const DEFAULT_REMOTE_PATH = 'Cymusic-backup.json'
+const DEFAULT_REMOTE_PATH = 'Zhmusic/Backups/latest.json'
 
 export default function BackupManagerScreen() {
 	const colors = useThemeColors()
@@ -117,7 +117,10 @@ export default function BackupManagerScreen() {
 		})
 	const uploadWebDav = () =>
 		void runWebDavAction(async (config) => {
-			await uploadWebDavBackup(config, createMusicBackup(Constants.expoConfig?.version ?? ''))
+				await uploadWebDavBackupSnapshots(
+					config,
+					createMusicBackup(Constants.expoConfig?.version ?? ''),
+				)
 			setWebDavStatus(i18n.t('backup.webdavUploadSuccess'))
 		})
 	const downloadWebDav = () =>

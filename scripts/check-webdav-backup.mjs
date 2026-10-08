@@ -114,6 +114,27 @@ await check('HTTP 409 creates the parent collection and retries the write', asyn
 	assert.equal(recovery[3].options.method, 'DELETE')
 })
 
+await check('snapshot upload writes latest and one dated daily file', async () => {
+	const now = new Date(2026, 9, 8, 12, 30)
+	nextResponse = [response(201), response(201)]
+	await webdav.uploadWebDavBackupSnapshots(config, backup, now)
+	const snapshots = requests.slice(-2)
+	assert.equal(snapshots[0].url, 'https://dav.example.test/root/music%20backups/Cymusic.json')
+	assert.equal(
+		snapshots[1].url,
+		'https://dav.example.test/root/music%20backups/daily/ZhMusic-2026-10-08.json',
+	)
+	const requestCount = requests.length
+	assert.equal(await webdav.runDailyWebDavBackup(backup, now), 'skipped')
+	assert.equal(requests.length, requestCount)
+	nextResponse = [response(201), response(201)]
+	assert.equal(
+		await webdav.runDailyWebDavBackup(backup, new Date(2026, 9, 9, 9, 0)),
+		'uploaded',
+	)
+	assert.match(requests.at(-1).url, /\/daily\/ZhMusic-2026-10-09.json$/)
+})
+
 await check('download validates status, size and backup format before returning data', async () => {
 	nextResponse = response(200, JSON.stringify(backup))
 	assert.equal((await webdav.downloadWebDavBackup(config)).format, 'zhmusic-backup')

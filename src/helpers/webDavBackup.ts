@@ -3,6 +3,7 @@ import { Buffer } from 'buffer'
 import * as SecureStore from 'expo-secure-store'
 
 const CONFIG_KEY = 'cymusic.webdav.backup'
+const LAST_DAILY_BACKUP_KEY = 'cymusic.webdav.last-daily-backup'
 const REQUEST_TIMEOUT_MS = 20_000
 
 export interface WebDavBackupConfig {
@@ -191,6 +192,59 @@ export const uploadWebDavBackup = async (input: WebDavBackupConfig, backup: Musi
 	}
 	const response = await putWithDirectoryRecovery(config, remoteUrl(config), text)
 	requireSuccess(response, 'directory-not-found')
+}
+
+const localDateKey = (date: Date) =>
+	[
+		date.getFullYear(),
+		String(date.getMonth() + 1).padStart(2, '0'),
+		String(date.getDate()).padStart(2, '0'),
+	].join('-')
+
+const dailyBackupConfig = (config: WebDavBackupConfig, dateKey: string): WebDavBackupConfig => {
+	const segments = config.remotePath.split('/')
+	segments.pop()
+	return {
+		...config,
+		remotePath: [...segments, 'daily', `ZhMusic-${dateKey}.json`].join('/'),
+	}
+}
+
+const dailyBackupTarget = (config: WebDavBackupConfig) =>
+	`${config.url}|${config.username}|${config.remotePath}`
+
+export const uploadWebDavBackupSnapshots = async (
+	input: WebDavBackupConfig,
+	backup: MusicBackup,
+	now = new Date(),
+) => {
+	const config = normalizeConfig(input)
+	const date = localDateKey(now)
+	await uploadWebDavBackup(config, backup)
+	await uploadWebDavBackup(dailyBackupConfig(config, date), backup)
+	await SecureStore.setItemAsync(
+		LAST_DAILY_BACKUP_KEY,
+		JSON.stringify({ date, target: dailyBackupTarget(config) }),
+	)
+	return date
+}
+
+export const runDailyWebDavBackup = async (backup: MusicBackup, now = new Date()) => {
+	const config = await loadWebDavBackupConfig()
+	if (!config) return 'not-configured' as const
+	const date = localDateKey(now)
+	const target = dailyBackupTarget(config)
+	const rawLastBackup = await SecureStore.getItemAsync(LAST_DAILY_BACKUP_KEY)
+	if (rawLastBackup) {
+		try {
+			const lastBackup = JSON.parse(rawLastBackup) as { date?: unknown; target?: unknown }
+			if (lastBackup.date === date && lastBackup.target === target) return 'skipped' as const
+		} catch {
+			// Invalid metadata must not prevent a fresh backup.
+		}
+	}
+	await uploadWebDavBackupSnapshots(config, backup, now)
+	return 'uploaded' as const
 }
 
 export const downloadWebDavBackup = async (input: WebDavBackupConfig): Promise<MusicBackup> => {

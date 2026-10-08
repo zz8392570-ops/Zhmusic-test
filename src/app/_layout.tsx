@@ -3,6 +3,7 @@ import { AppThemeProvider, useAppTheme } from '@/hooks/useAppTheme'
 import LyricManager from '@/helpers/lyricManager'
 import { startLxAutoSync } from '@/helpers/sync/lxAutoSync'
 import { startSystemPlaybackCommands } from '@/helpers/systemPlaybackCommands'
+import { startWebDavAutoBackup } from '@/helpers/webDavAutoBackup'
 import { useLogTrackPlayerState } from '@/hooks/useLogTrackPlayerState'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
 import i18n, { setI18nConfig } from '@/utils/i18n'
@@ -55,6 +56,10 @@ const App = () => {
 		void LyricManager.setup()
 	}, [])
 	useEffect(() => startLxAutoSync(), [])
+	useEffect(() => {
+		if (playerStatus !== 'ready') return
+		return startWebDavAutoBackup()
+	}, [playerStatus])
 	return (
 		<ShareIntentProvider
 			options={{

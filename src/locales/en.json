@@ -600,7 +600,7 @@
 		"mergeMessage": "Merge favorites, playlists and recent plays. Matching platform and song IDs are deduplicated. The switch above controls whether settings are restored.",
 		"restore": "Restore backup",
 		"webdavTitle": "WebDAV Backup",
-		"webdavDescription": "Upload the same backup file to WebDAV, or download it for preview before choosing merge or replace. The WebDAV directory must already exist.",
+		"webdavDescription": "Each upload updates the latest backup and keeps a dated snapshot in the daily folder. Once configured, the app automatically backs up on the first launch or foreground visit each day.",
 		"webdavUrl": "WebDAV directory URL",
 		"webdavUsername": "Username",
 		"webdavPassword": "Password or app password",
