@@ -10,7 +10,6 @@ import { showToast } from '@/utils/utils'
 import { showAutomaticSourceSwitchNotice } from '@/utils/sourceSwitchNotice'
 import { Alert } from 'react-native'
 import { logError, logInfo } from '../logger'
-import { BUNDLED_SOURCES_VERSION, loadBundledMusicApiStubs } from './builtinMusicSources'
 import {
 	HEALTH_TEST_QUALITY,
 	HEALTH_TEST_TIMEOUT_MS,
@@ -510,27 +509,21 @@ export const getPlaybackFailoverApis = (musicItem: IMusic.IMusicItem) => {
 	)
 }
 
-export const seedBundledMusicSources = async () => {
-	const existing = musicApiStore.getValue() || []
-	const version = PersistStatus.get('music.bundledSourcesVersion') ?? 0
-	const shouldReseedEmpty = existing.length === 0
-	if (version >= BUNDLED_SOURCES_VERSION && !shouldReseedEmpty) return
+const isBundledMusicApi = (api?: IMusic.MusicApi | null) =>
+	Boolean(api?.builtinKey || api?.id?.startsWith('builtin_'))
 
-	const bundled = await loadBundledMusicApiStubs()
-	const removed = PersistStatus.get('music.removedBuiltinSources') ?? []
-	const next = [...existing]
-	for (const stub of bundled) {
-		const alreadyHas = next.some(
-			(api) => api.builtinKey === stub.builtinKey || api.id === stub.id || api.name === stub.name,
-		)
-		if (alreadyHas) continue
-		if (!shouldReseedEmpty && stub.builtinKey && removed.includes(stub.builtinKey)) continue
-		next.push(stub)
+export const removeBundledMusicSources = () => {
+	const existing = musicApiStore.getValue() || []
+	const next = existing.filter((api) => !isBundledMusicApi(api))
+	if (next.length !== existing.length) persistApiList(next)
+
+	const selected = musicApiSelectedStore.getValue()
+	if (isBundledMusicApi(selected)) {
+		musicApiSelectedStore.setValue(null)
+		PersistStatus.set('music.selectedMusicApi', undefined)
+		loadedRuntimeId = null
 	}
-	persistApiList(next)
-	PersistStatus.set('music.bundledSourcesVersion', BUNDLED_SOURCES_VERSION)
-	if (shouldReseedEmpty) {
-		PersistStatus.set('music.removedBuiltinSources', [])
-	}
-	logInfo(`已注入内嵌音源，当前共 ${next.length} 个`)
+	PersistStatus.set('music.bundledSourcesVersion', 0)
+	PersistStatus.set('music.removedBuiltinSources', [])
+	logInfo(`已移除内置音源，保留 ${next.length} 个用户音源`)
 }

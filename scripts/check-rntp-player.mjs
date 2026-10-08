@@ -924,6 +924,7 @@ await check('automatic source recovery retains failed APIs and cannot bounce A t
     h = runtime({
         '@/helpers/userApi/musicApiControl': {
             runBackgroundHealthTests: async () => {},
+			removeBundledMusicSources: () => {},
             getMusicFailureKey: track => track.id,
             clearFailedApis: () => failed.clear(),
             rememberFailedApi: (_, id) => failed.add(id),

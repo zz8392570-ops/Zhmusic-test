@@ -48,6 +48,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 const QUALITY_OPTIONS = ['128k', '320k', 'flac']
 const CURRENT_VERSION = Constants.expoConfig?.version ?? '未知版本'
+let isMusicSourceFilePickerOpen = false
 
 type SettingItemBase = {
 	id: string
@@ -367,6 +368,8 @@ const importMusicSourceFromUrl = async () => {
 	)
 }
 const importMusicSourceFromFile = async () => {
+	if (isMusicSourceFilePickerOpen) return
+	isMusicSourceFilePickerOpen = true
 	try {
 		const result = await DocumentPicker.getDocumentAsync({
 			type: 'text/javascript',
@@ -389,6 +392,8 @@ const importMusicSourceFromFile = async () => {
 		logError('Error importing music source:', errMsg)
 		Alert.alert('导入失败', `无法导入音源: ${errMsg}`)
 		logError('导入音源失败: ' + errMsg)
+	} finally {
+		isMusicSourceFilePickerOpen = false
 	}
 }
 const SettingModal = () => {

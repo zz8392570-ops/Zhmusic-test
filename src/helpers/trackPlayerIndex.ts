@@ -70,7 +70,7 @@ import {
 	recordMusicApiAttempt,
 	reloadMusicApi,
 	runBackgroundHealthTests,
-	seedBundledMusicSources,
+	removeBundledMusicSources,
 	setMusicApiAsSelectedById,
 	testAllMusicApis,
 	testMusicApiById,
@@ -354,17 +354,16 @@ async function setupTrackPlayer() {
 	if (musicApiLists) {
 		musicApiStore.setValue(musicApiLists)
 	}
-	try {
-		await seedBundledMusicSources()
-	} catch (error) {
-		logError('注入内嵌音源失败:', error)
-	}
-	const seededApis = musicApiStore.getValue() || []
-	if (selectedMusicApi) {
-		musicApiSelectedStore.setValue(selectedMusicApi)
+	removeBundledMusicSources()
+	const availableApis = musicApiStore.getValue() || []
+	const restoredSelectedMusicApi = selectedMusicApi
+		? availableApis.find((api) => api.id === selectedMusicApi.id)
+		: undefined
+	if (restoredSelectedMusicApi) {
+		musicApiSelectedStore.setValue(restoredSelectedMusicApi)
 		await reloadNowSelectedMusicApi()
-	} else if (seededApis.length) {
-		await setMusicApiAsSelectedById(seededApis[0].id, { silent: true, notify: false })
+	} else if (availableApis.length) {
+		await setMusicApiAsSelectedById(availableApis[0].id, { silent: true, notify: false })
 	}
 	void runBackgroundHealthTests()
 	if (importedLocalMusic) {

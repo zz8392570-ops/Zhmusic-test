@@ -359,6 +359,13 @@ async function main() {
 		true,
 		ts.ScriptKind.TSX,
 	)
+	const pickerStateStatement = source.statements.find(
+		(node) =>
+			ts.isVariableStatement(node) &&
+			node.declarationList.declarations.some(
+				(declaration) => declaration.name.getText(source) === 'isMusicSourceFilePickerOpen',
+			),
+	)
 	const statement = source.statements.find(
 		(node) =>
 			ts.isVariableStatement(node) &&
@@ -366,10 +373,14 @@ async function main() {
 				(declaration) => declaration.name.getText(source) === 'importMusicSourceFromFile',
 			),
 	)
+	assert(pickerStateStatement, 'The source picker concurrency guard must remain present')
 	assert(statement, 'The existing picker handler must remain present')
-	const code = ts.transpileModule(statement.getText(source), {
+	const code = ts.transpileModule(
+		`${pickerStateStatement.getText(source)}\n${statement.getText(source)}`,
+		{
 		compilerOptions: { target: ts.ScriptTarget.ES2022 },
-	}).outputText
+		},
+	).outputText
 	for (const outcome of ['unicode', 'cancel', 'read-error'])
 		await test(`source picker: ${outcome} preserves the original URI and error flow`, async () => {
 			const h = httpRuntime(),
@@ -419,6 +430,43 @@ async function main() {
 			if (outcome === 'read-error')
 				assert.deepEqual(alerts[0], ['导入失败', '无法导入音源: Fixture read failed'])
 		})
+
+	await test('source picker: ignores a second request while the first picker is open', async () => {
+		let pickerCalls = 0
+		let releasePicker
+		const pickerResult = new Promise((resolve) => {
+			releasePicker = resolve
+		})
+		const handler = new Function(
+			'DocumentPicker',
+			'File',
+			'logInfo',
+			'logError',
+			'createMusicApiFromScript',
+			'myTrackPlayer',
+			'Alert',
+			`${code}\nreturn importMusicSourceFromFile`,
+		)(
+			{
+				getDocumentAsync: async () => {
+					pickerCalls += 1
+					return pickerResult
+				},
+			},
+			class {},
+			() => {},
+			() => {},
+			async () => ({ id: 'unused' }),
+			{ addMusicApi() {} },
+			{ alert() {} },
+		)
+		const first = handler()
+		await Promise.resolve()
+		await handler()
+		assert.equal(pickerCalls, 1)
+		releasePicker({ canceled: true })
+		await first
+	})
 }
 
 main()

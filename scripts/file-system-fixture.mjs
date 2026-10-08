@@ -474,10 +474,6 @@ export function createFixture() {
 				reloadLxMusicScript: async (api) => api,
 				disposeLxMusicScript() {},
 			},
-			'@/helpers/userApi/builtinMusicSources': {
-				BUNDLED_SOURCES_VERSION: 'fixture',
-				loadBundledMusicApiStubs: () => [],
-			},
 			'expo-router': { router: { push() {} } },
 		}
 		if (!realCache) overrides['@/player/CacheManager'] = cache
