@@ -140,13 +140,15 @@ export const testWebDavConnection = async (input: WebDavBackupConfig) => {
 	requireSuccess(response, 'directory-not-found')
 	// Read access to the WebDAV root does not prove that the configured backup
 	// directory is writable. Use a small reversible probe in that exact directory.
-	const probeUrl = childUrl(directoryUrl, '.zhmusic-write-test.tmp')
+	// Some WebDAV providers, including Nutstore, reject dot-prefixed files even
+	// when the parent directory exists and is writable.
+	const probeUrl = childUrl(directoryUrl, `ZhMusic-write-test-${Date.now()}.tmp`)
 	const probe = await request(probeUrl, {
 		method: 'PUT',
 		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
 		body: 'ZhMusic WebDAV write test',
 	})
-	requireSuccess(probe, 'directory-not-found')
+	requireSuccess(probe)
 	const cleanup = await request(probeUrl, { method: 'DELETE', headers: authHeaders(config) })
 	requireSuccess(cleanup)
 }

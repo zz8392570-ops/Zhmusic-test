@@ -69,7 +69,7 @@ await check(
 		assert.equal(connection[0].options.headers.Depth, '0')
 		assert.equal(connection[0].url, 'https://dav.example.test/root/music%20backups/')
 		assert.equal(connection[1].options.method, 'PUT')
-		assert.match(connection[1].url, /\/music%20backups\/.zhmusic-write-test.tmp$/)
+		assert.match(connection[1].url, /\/music%20backups\/ZhMusic-write-test-\d+.tmp$/)
 		assert.equal(connection[2].options.method, 'DELETE')
 		nextResponse = [response(207), response(201)]
 		await webdav.uploadWebDavBackup(config, backup)
