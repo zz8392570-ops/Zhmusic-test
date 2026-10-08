@@ -192,7 +192,10 @@ const PlayerScreenContent = () => {
 				trackToDisplay.artwork,
 			)
 				.then((uri) => {
-					if (active) setResolvedArtwork(uri || null)
+					if (active) {
+						setResolvedArtwork(uri || null)
+						if (uri) setArtworkFailed(false)
+					}
 				})
 				.catch(() => {})
 		return () => {
@@ -504,6 +507,7 @@ const PlayerScreenContent = () => {
 							}}
 						>
 							<Image
+								key={artworkUri}
 								source={artworkSource}
 								onError={() => setArtworkFailed(true)}
 								placeholder={unknownTrackImageUri}
