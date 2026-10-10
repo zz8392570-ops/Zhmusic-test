@@ -1,4 +1,5 @@
 import type { MediaItem } from '@rntp/player'
+import { getFullArtwork } from '@/utils/imageUtils'
 import type { Track } from './types'
 
 export type NativeTrackIdentity = {
@@ -15,8 +16,8 @@ export type MediaItemPlaybackOptions = {
 const normalizeArtworkUrl = (value: string | undefined) => {
 	const url = value?.trim()
 	if (!url) return undefined
-	if (url.startsWith('//')) return `https:${url}`
-	return url.replace(/^http:\/\//i, 'https://')
+	const secureUrl = url.startsWith('//') ? `https:${url}` : url.replace(/^http:\/\//i, 'https://')
+	return getFullArtwork(secureUrl)
 }
 
 export function getNativeTrackIdentity(item: MediaItem | null | undefined): NativeTrackIdentity | null {

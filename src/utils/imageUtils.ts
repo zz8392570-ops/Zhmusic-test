@@ -12,6 +12,7 @@ export function getThumbnailArtwork(artworkUrl: string | undefined, size: 150 | 
 export function getFullArtwork(artworkUrl: string | undefined): string | undefined {
 	if (!artworkUrl) return artworkUrl
 	return artworkUrl
-		.replace(/T002R150x150M000/, 'T002R500x500M000')
-		.replace(/T002R300x300M000/, 'T002R500x500M000')
+		.replace(/T002R150x150M000/, 'T002R800x800M000')
+		.replace(/T002R300x300M000/, 'T002R800x800M000')
+		.replace(/T002R500x500M000/, 'T002R800x800M000')
 }

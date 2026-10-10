@@ -239,6 +239,12 @@ await check('MediaItem keeps opaque app identity, metadata and source headers wi
 		toMediaItem(song('protocol-cover', { artwork: '//img.example/cover.jpg' }), 'queue-A').artworkUrl,
 		'https://img.example/cover.jpg',
 	)
+	assert.equal(
+		toMediaItem(song('qq-thumbnail', {
+			artwork: 'https://y.gtimg.cn/music/photo_new/T002R150x150M000album.jpg',
+		}), 'queue-A').artworkUrl,
+		'https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg',
+	)
 })
 
 await check('invalid source URLs are rejected before reaching the native fatalError path', () => {

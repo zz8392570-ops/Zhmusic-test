@@ -5,6 +5,7 @@ import type { Playlist } from '@/helpers/types'
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
+import { getFullArtwork } from '@/utils/imageUtils'
 
 export type LeaderboardSource = MusicPlatform
 
@@ -88,11 +89,11 @@ const toHttps = (url?: string | null) => {
 }
 
 const normalizeArtworkUrl = (url: unknown) =>
-	String(url || '')
+	getFullArtwork(String(url || '')
 		.trim()
 		.replace(/^http:\/\/img1\.kwcdn\.kuwo\.cn\//, 'https://img1.kuwo.cn/')
 		.replace(/^http:/, 'https:')
-		.replace('{size}', '400')
+		.replace('{size}', '800')) ?? ''
 
 const getEmbeddedTrackArtwork = (track: any, source: LeaderboardSource) => {
 	const candidates = [
@@ -138,7 +139,7 @@ export const resolveLeaderboardArtwork = async (
 		const timeout = setTimeout(() => controller.abort(), 8_000)
 		try {
 			const response = await fetch(
-				`https://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=url&size=150&rid=${encodeURIComponent(String(trackId))}`,
+				`https://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=url&size=500&rid=${encodeURIComponent(String(trackId))}`,
 				{ signal: controller.signal },
 			)
 			if (!response.ok) return undefined
