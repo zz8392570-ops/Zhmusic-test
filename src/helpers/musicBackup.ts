@@ -12,7 +12,7 @@ const settingValidators = {
 	'music.songsNumsToLoad': (value: unknown) =>
 		typeof value === 'number' && [100, 200, 300].includes(value),
 	'music.cacheLimitMB': (value: unknown) =>
-		typeof value === 'number' && [256, 512, 1024, 2048].includes(value),
+		typeof value === 'number' && [256, 512, 1024, 2048, 4096, 8192].includes(value),
 	'music.homeBoardId': (value: unknown) =>
 		typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)),
 	'music.homeBoardSource': (value: unknown) =>

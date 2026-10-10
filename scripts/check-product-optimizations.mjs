@@ -141,6 +141,7 @@ await check(
 			},
 		])
 		h.store.set('music.quality', 'flac')
+		h.store.set('music.cacheLimitMB', 8192)
 		h.store.set('music.restorePlaybackOnStartup', false)
 		h.store.set('music.musicApi', [{ script: 'private source' }])
 		h.store.set('music.play-list', [track('queue')])
@@ -149,6 +150,7 @@ await check(
 		const parsed = h.parseMusicBackup(text)
 		assert.equal(parsed.library.favorites[0].id, 'one')
 		assert.equal(parsed.settings['music.quality'], 'flac')
+		assert.equal(parsed.settings['music.cacheLimitMB'], 8192)
 		assert.equal(parsed.settings['music.restorePlaybackOnStartup'], false)
 		assert.equal(parsed.library.playlists[0].folder, '通勤')
 		assert.equal(parsed.library.playlists[0].pinned, true)

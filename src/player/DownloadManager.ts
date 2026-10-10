@@ -315,7 +315,7 @@ export const downloadPlaylist = async (tracks: IMusic.IMusicItem[]) => {
 }
 
 export const setCacheLimitMB = async (limit: number) => {
-	if (![256, 512, 1024, 2048].includes(limit)) return
+	if (![256, 512, 1024, 2048, 4096, 8192].includes(limit)) return
 	PersistStatus.set('music.cacheLimitMB', limit)
 	await withCacheMaintenance(() => enforceAutomaticCacheLimit(protectedPaths))
 }

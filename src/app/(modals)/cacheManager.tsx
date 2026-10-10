@@ -20,6 +20,10 @@ const formatBytes = (bytes: number) => {
 	return `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`
 }
 
+const CACHE_LIMIT_OPTIONS_MB = [256, 512, 1024, 2048, 4096, 8192]
+const formatCacheLimit = (limitMB: number) =>
+	limitMB >= 1024 ? `${limitMB / 1024} GB` : `${limitMB} MB`
+
 const taskStatusText = (task: CacheDownloadTask) => {
 	if (task.status === 'downloading') {
 		return i18n.t('cacheCenter.downloading', { progress: Math.round(task.progress * 100) })
@@ -81,9 +85,9 @@ const CacheManagerScreen = () => {
 			</View>
 			<View style={styles.section}>
 				<MenuView
-					actions={[256, 512, 1024, 2048].map((limit) => ({
+					actions={CACHE_LIMIT_OPTIONS_MB.map((limit) => ({
 						id: String(limit),
-						title: `${limit} MB`,
+						title: formatCacheLimit(limit),
 						state: limit === cacheLimitMB ? 'on' : 'off',
 					}))}
 					onPressAction={({ nativeEvent: { event } }) =>
@@ -98,7 +102,7 @@ const CacheManagerScreen = () => {
 						accessibilityLabel={i18n.t('cacheCenter.limit')}
 					>
 						<Text style={[styles.title, { flex: 1 }]}>{i18n.t('cacheCenter.limit')}</Text>
-						<Text style={styles.meta}>{cacheLimitMB} MB ›</Text>
+						<Text style={styles.meta}>{formatCacheLimit(cacheLimitMB)} ›</Text>
 					</Pressable>
 				</MenuView>
 				<Text style={[styles.meta, { paddingBottom: 14 }]}>
