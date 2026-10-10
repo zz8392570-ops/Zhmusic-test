@@ -4,7 +4,7 @@ import myTrackPlayer, {
 	cacheRevisionStore,
 	importedLocalMusicStore,
 } from '@/helpers/trackPlayerIndex'
-import { getCacheSize } from '@/player/CacheManager'
+import { getCacheUsage } from '@/player/CacheManager'
 import type { CacheDownloadTask } from '@/player/PlayerStore'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
@@ -17,6 +17,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 const formatBytes = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+	if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
 	return `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`
 }
 
@@ -38,7 +39,7 @@ const CacheManagerScreen = () => {
 	const importedTracksValue = importedLocalMusicStore.useValue()
 	const importedTracks = useMemo(() => importedTracksValue || [], [importedTracksValue])
 	const revision = cacheRevisionStore.useValue()
-	const [cacheSize, setCacheSize] = useState(0)
+	const [cacheUsage, setCacheUsage] = useState({ automatic: 0, saved: 0, total: 0 })
 	const cacheLimitMB = PersistStatus.useValue('music.cacheLimitMB', 1024) ?? 1024
 	const cachedTracks = useMemo(
 		() => importedTracks.filter((track) => String(track.url || '').includes('/musicCache/')),
@@ -46,9 +47,9 @@ const CacheManagerScreen = () => {
 	)
 
 	const refreshSize = useCallback(() => {
-		void getCacheSize()
-			.then(setCacheSize)
-			.catch(() => setCacheSize(0))
+		void getCacheUsage()
+			.then(setCacheUsage)
+			.catch(() => {})
 	}, [])
 
 	useEffect(refreshSize, [refreshSize, revision, cachedTracks.length])
@@ -78,7 +79,11 @@ const CacheManagerScreen = () => {
 	return (
 		<ScrollView style={styles.container} contentContainerStyle={styles.content}>
 			<View style={styles.summary}>
-				<Text style={styles.summaryValue}>{formatBytes(cacheSize)}</Text>
+				<Text style={styles.summaryValue}>{formatBytes(cacheUsage.total)}</Text>
+				<Text style={styles.summaryLabel}>
+					{i18n.t('cacheCenter.automatic')} {formatBytes(cacheUsage.automatic)} ·{' '}
+					{i18n.t('cacheCenter.saved')} {formatBytes(cacheUsage.saved)}
+				</Text>
 				<Text style={styles.summaryLabel}>
 					{i18n.t('cacheCenter.summary', { count: cachedTracks.length })}
 				</Text>

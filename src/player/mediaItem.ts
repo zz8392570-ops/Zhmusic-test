@@ -13,7 +13,7 @@ export type MediaItemPlaybackOptions = {
 	preciseSeeking?: boolean
 }
 
-const normalizeArtworkUrl = (value: string | undefined) => {
+export const normalizeArtworkUrl = (value: string | undefined) => {
 	const url = value?.trim()
 	if (!url) return undefined
 	const secureUrl = url.startsWith('//') ? `https:${url}` : url.replace(/^http:\/\//i, 'https://')

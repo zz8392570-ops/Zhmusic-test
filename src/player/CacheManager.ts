@@ -179,6 +179,21 @@ export const getCacheSize = async () => {
 	)
 }
 
+export const getCacheUsage = async () => {
+	await migrateCacheRetention()
+	const saved = PersistStatus.get('music.savedOffline') ?? {}
+	const usage = { automatic: 0, saved: 0, total: 0 }
+	if (!(await FileSystem.getInfoAsync(cacheDir)).exists) return usage
+	for (const entry of await FileSystem.readDirectoryAsync(cacheDir)) {
+		const info = await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`))
+		if (!info.exists || info.isDirectory) continue
+		const size = info.size ?? 0
+		usage[saved[entry] ? 'saved' : 'automatic'] += size
+		usage.total += size
+	}
+	return usage
+}
+
 export const markSavedOffline = (localPath: string) => {
 	if (!localPath.startsWith(cacheDir)) throw new Error('Invalid cache address')
 	const key = localPath.slice(cacheDir.length)
@@ -257,6 +272,31 @@ const isPreserved = (entry: string, paths: ProtectedCachePaths) =>
 	(typeof paths === 'function' ? paths() : paths).some(
 		(value) => value === `${cacheDir}${entry}` || value === getCacheFileUri(`${cacheDir}${entry}`),
 	)
+
+/** Leave room for the system and the two concurrent download workers. */
+export const ensureCacheDiskSpace = async (
+	preservePaths: ProtectedCachePaths = [],
+	expectedBytes = 128 * 1024 * 1024,
+) => {
+	const required = 512 * 1024 * 1024 + Math.max(0, expectedBytes)
+	if (await FileSystem.getFreeDiskStorageAsync() >= required) return
+	await migrateCacheRetention()
+	if ((await FileSystem.getInfoAsync(cacheDir)).exists) {
+		const files = await Promise.all((await FileSystem.readDirectoryAsync(cacheDir)).map(async (entry) => ({
+			entry,
+			info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
+		})))
+		files.sort((a, b) =>
+			(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
+			(b.info.exists ? b.info.modificationTime ?? 0 : 0))
+		for (const file of files) {
+			if (await FileSystem.getFreeDiskStorageAsync() >= required) return
+			await removeAutomaticCacheFile(file.entry, () => isPreserved(file.entry, preservePaths))
+		}
+	}
+	if (await FileSystem.getFreeDiskStorageAsync() < required)
+		throw new Error('设备剩余空间不足，请释放空间后重试')
+}
 
 export const enforceAutomaticCacheLimit = async (preservePaths: ProtectedCachePaths = []) => {
 	const dirInfo = await FileSystem.getInfoAsync(cacheDir)

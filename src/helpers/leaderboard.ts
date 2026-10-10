@@ -5,7 +5,8 @@ import type { Playlist } from '@/helpers/types'
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
-import { getFullArtwork } from '@/utils/imageUtils'
+import { normalizeArtworkUrl } from '@/helpers/artworkResolver'
+export { resolveLeaderboardArtwork } from '@/helpers/artworkResolver'
 
 export type LeaderboardSource = MusicPlatform
 
@@ -88,13 +89,6 @@ const toHttps = (url?: string | null) => {
 	return normalizeArtworkUrl(url)
 }
 
-const normalizeArtworkUrl = (url: unknown) =>
-	getFullArtwork(String(url || '')
-		.trim()
-		.replace(/^http:\/\/img1\.kwcdn\.kuwo\.cn\//, 'https://img1.kuwo.cn/')
-		.replace(/^http:/, 'https:')
-		.replace('{size}', '800')) ?? ''
-
 const getEmbeddedTrackArtwork = (track: any, source: LeaderboardSource) => {
 	const candidates = [
 		track.artwork,
@@ -116,47 +110,6 @@ const getEmbeddedTrackArtwork = (track: any, source: LeaderboardSource) => {
 		return `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumId}.jpg`
 	}
 	return unknownTrackImageUri
-}
-
-const artworkCache = new Map<string, string | null>()
-const artworkRequests = new Map<string, Promise<string | undefined>>()
-
-export const resolveLeaderboardArtwork = async (
-	platform: unknown,
-	trackId: unknown,
-	artwork?: string,
-): Promise<string | undefined> => {
-	if (artwork && artwork !== unknownTrackImageUri) return normalizeArtworkUrl(artwork)
-	if (platform !== 'kw' || !trackId) return undefined
-
-	const key = `kw:${trackId}`
-	if (artworkCache.has(key)) return artworkCache.get(key) ?? undefined
-	const pendingRequest = artworkRequests.get(key)
-	if (pendingRequest) return pendingRequest
-
-	const request = (async () => {
-		const controller = new AbortController()
-		const timeout = setTimeout(() => controller.abort(), 8_000)
-		try {
-			const response = await fetch(
-				`https://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=url&size=500&rid=${encodeURIComponent(String(trackId))}`,
-				{ signal: controller.signal },
-			)
-			if (!response.ok) return undefined
-			const resolvedUrl = normalizeArtworkUrl(await response.text())
-			return /^https?:\/\//.test(resolvedUrl) ? resolvedUrl : undefined
-		} catch {
-			return undefined
-		} finally {
-			clearTimeout(timeout)
-		}
-	})().then((resolvedUrl) => {
-		artworkCache.set(key, resolvedUrl ?? null)
-		artworkRequests.delete(key)
-		return resolvedUrl
-	})
-	artworkRequests.set(key, request)
-	return request
 }
 
 const toRadioPlaylist = (

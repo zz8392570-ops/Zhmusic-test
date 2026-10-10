@@ -19,6 +19,30 @@ const check = async (name, action) => {
 }
 const song = (id, extra = {}) => item(id, `https://media.example/${id}.mp3`, extra)
 
+await check('failed cover lookup expires and concurrent retries share one request', async () => {
+	let now = 0, requests = 0
+	const resolver = loadModule('src/helpers/artworkResolver.ts', {
+		'@/constants/images': { unknownTrackImageUri: 'unknown-cover' },
+		'@/utils/imageUtils': loadModule('src/utils/imageUtils.ts', {}),
+	}, {
+		Date: { now: () => now },
+		fetch: async () => {
+			requests++
+			return { ok: requests > 1, text: async () => 'http://img.example/cover.jpg' }
+		},
+	})
+	assert.equal(await resolver.resolveLeaderboardArtwork('kw', 'retry'), undefined)
+	assert.equal(await resolver.resolveLeaderboardArtwork('kw', 'retry'), undefined)
+	assert.equal(requests, 1)
+	now = 31_000
+	const covers = await Promise.all([
+		resolver.resolveLeaderboardArtwork('kw', 'retry'),
+		resolver.resolveLeaderboardArtwork('kw', 'retry'),
+	])
+	assert.deepEqual(covers, ['https://img.example/cover.jpg', 'https://img.example/cover.jpg'])
+	assert.equal(requests, 2)
+})
+
 function runtime(extraOverrides = {}) {
 	const sourceCalls = []
 	const delays = []
@@ -45,6 +69,7 @@ function runtime(extraOverrides = {}) {
 	const h = fixture.runtime({ moduleOverrides: {
 		react,
 		'react-native': nativeViews,
+		'@/helpers/artworkResolver': { resolveLeaderboardArtwork: async (_platform, _id, artwork) => artwork },
 		'@/player/MusicSourceResolver': {
 			resolveSource: (track, options) => {
 				sourceCalls.push({ track, options })
@@ -171,7 +196,7 @@ function settingsRuntime() {
 			useThemeMode: () => ({ themeMode: 'system', setThemeMode() {} }),
 		},
 		'@/helpers/userApi/importMusicSource': {},
-		'@/helpers/leaderboard': { DEFAULT_HOME_BOARD_ID: 'fixture', DEFAULT_HOME_SOURCE: 'tx', normalizeLeaderboardSource: (value) => value || 'tx', setHomeLeaderboard() {} },
+		'@/helpers/leaderboard': { DEFAULT_HOME_BOARD_ID: 'fixture', DEFAULT_HOME_SOURCE: 'tx', normalizeLeaderboardSource: (value) => value || 'tx', setHomeLeaderboard() {}, resolveLeaderboardArtwork: async (_platform, _id, artwork) => artwork },
 		'@/store/library': { getHomeBoardName: () => 'Fixture', getHomeBoards: () => [] },
 		'@/components/MusicSourceHealthList': 'MusicSourceHealthList',
 		'@/store/PersistStatus': h.persistence,
@@ -462,6 +487,25 @@ await check('Play/Pause and Stop to Play retain the snapshot while explicit reco
 	assert.equal(repeated.extras.cymusicPlayback.preciseSeeking, false)
 	assert.equal(h.sourceCalls.length, 2)
 	assert.equal(h.count('items'), 4)
+})
+
+await check('resolved artwork reaches lockscreen and a retired cover cannot replace the next song', async () => {
+	const oldCover = deferred()
+	const h = runtime({
+		'@/helpers/artworkResolver': {
+			resolveLeaderboardArtwork: async (_platform, id) =>
+				id === 'old-cover' ? oldCover.promise : 'http://img.example/new.jpg',
+		},
+	})
+	await h.setup()
+	await h.facade.play(song('old-cover'))
+	await h.facade.play(song('new-cover'))
+	await flush()
+	assert.equal(h.player.queue[0].artworkUrl, 'https://img.example/new.jpg')
+	oldCover.resolve('https://img.example/old.jpg')
+	await flush()
+	assert.equal(h.player.queue[0].artworkUrl, 'https://img.example/new.jpg')
+	assert.equal(h.persistence.get('music.musicItem').id, 'new-cover')
 })
 
 await check('application setup is once per runtime and configures hybrid business navigation before playback', async () => {

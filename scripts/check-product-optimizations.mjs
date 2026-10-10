@@ -518,6 +518,7 @@ function downloadFixture() {
 		migrateCacheRetention: async () => {},
 		markSavedOffline: (value) => pins.push(value),
 		enforceAutomaticCacheLimit: async () => {},
+		ensureCacheDiskSpace: async () => {},
 		downloadToCache: (song, quality, progress, id) => {
 			const job = deferred()
 			jobs.push({ song, quality, progress, id, ...job })
@@ -676,6 +677,7 @@ function retentionFixture() {
 		path = (name) => `${cacheDir}${name}`
 	const fs = {
 		documentDirectory: 'file:///Documents/',
+		getFreeDiskStorageAsync: async () => 1024 ** 3 - [...files.values()].reduce((sum, file) => sum + file.size, 0),
 		getInfoAsync: async (value) =>
 			value === cacheDir
 				? { exists: true, isDirectory: true }
@@ -763,4 +765,24 @@ await check(
 		assert.equal(cached.quality, 'mp3')
 	},
 )
+await check('low disk space removes only unprotected automatic files and reports retained usage', async () => {
+	const h = retentionFixture(), mb = 1024 * 1024
+	h.files.set(h.path('saved.mp3'), { size: 100 * mb, modificationTime: 0 })
+	h.files.set(h.path('playing.mp3'), { size: 100 * mb, modificationTime: 1 })
+	h.files.set(h.path('old.mp3'), { size: 300 * mb, modificationTime: 2 })
+	h.markSavedOffline(h.path('saved.mp3'))
+	await h.ensureCacheDiskSpace([h.path('playing.mp3')])
+	assert.deepEqual(h.deleted, [h.path('old.mp3')])
+	const usage = await h.getCacheUsage()
+	assert.equal(usage.automatic, 100 * mb)
+	assert.equal(usage.saved, 100 * mb)
+	assert.equal(usage.total, 200 * mb)
+})
+await check('low disk space refuses download when only offline saves remain', async () => {
+	const h = retentionFixture()
+	h.files.set(h.path('saved.mp3'), { size: 800 * 1024 * 1024 })
+	h.markSavedOffline(h.path('saved.mp3'))
+	await assert.rejects(h.ensureCacheDiskSpace(), /剩余空间不足/)
+	assert.equal(h.deleted.length, 0)
+})
 finish()

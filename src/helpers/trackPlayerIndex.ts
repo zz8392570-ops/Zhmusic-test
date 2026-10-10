@@ -17,7 +17,8 @@ import ReactNativeTrackPlayer, {
 	useProgress,
 } from '@rntp/player'
 import type { Track } from '@/player/types'
-import { getNativeTrackIdentity, toMediaItem } from '@/player/mediaItem'
+import { getNativeTrackIdentity, normalizeArtworkUrl, toMediaItem } from '@/player/mediaItem'
+import { resolveLeaderboardArtwork } from '@/helpers/artworkResolver'
 
 import { MusicRepeatMode } from '@/helpers/types'
 import type { AudioQuality } from '@/helpers/audioQuality'
@@ -715,7 +716,7 @@ function updateNextMetadata() {
 		title: next.title ?? '',
 		artist: next.artist ?? '',
 		albumTitle: next.album ?? '',
-		artworkUrl: next.artwork?.trim() || '',
+		artworkUrl: normalizeArtworkUrl(next.artwork) || '',
 	})
 }
 
@@ -829,6 +830,7 @@ const setTrackSource = (track: Track, restoring = false) => {
 	nativeQueue = { token, track, startedAt: Date.now(), handoffConsumed: false }
 	if (!restoring) markPlaybackStarted(track as IMusic.IMusicItem)
 	ReactNativeTrackPlayer.setMediaItems(items)
+	void refreshNativeArtwork(track, token)
 	setCurrentMusic(track as IMusic.IMusicItem)
 	PersistStatus.set('music.musicItem', track as IMusic.IMusicItem)
 	if (!restoring) {
@@ -843,6 +845,32 @@ const setTrackSource = (track: Track, restoring = false) => {
 		// A source may finish resolving after Stop. Retain it for a later Play,
 		// without letting setMediaItems change the requested stopped state.
 		ReactNativeTrackPlayer.stop()
+	}
+}
+
+const refreshNativeArtwork = async (track: Track, token: string) => {
+	for (let attempt = 0; attempt < 3; attempt++) {
+		if (attempt) await new Promise<void>((resolve) => setTimeout(resolve, 31_000))
+		if (nativeQueue?.token !== token) return
+		try {
+			const artwork = await resolveLeaderboardArtwork(track.platform, track.id, track.artwork)
+			if (nativeQueue?.token !== token) return
+			if (!artwork) {
+				if (track.platform !== 'kw') return
+				continue
+			}
+			ReactNativeTrackPlayer.updateMetadata(0, { artworkUrl: normalizeArtworkUrl(artwork) })
+			nativeQueue.track = { ...nativeQueue.track, artwork }
+			const current = currentMusicStore.getValue()
+			if (current && isSameMediaItem(current, track as IMusic.IMusicItem)) {
+				const updated = { ...current, artwork }
+				currentMusicStore.setValue(updated)
+				PersistStatus.set('music.musicItem', updated)
+			}
+			return
+		} catch (error) {
+			logError('更新锁屏封面失败:', error)
+		}
 	}
 }
 /**

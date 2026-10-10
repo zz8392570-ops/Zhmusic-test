@@ -190,6 +190,7 @@ export function createFixture() {
 		}
 		const progressListeners = new Set()
 		const legacyNative = {
+			getFreeDiskStorageAsync: async () => 16 * 1024 ** 3,
 			documentDirectory: uri(documents),
 			cacheDirectory: uri(`${library}/Caches`),
 			getInfoAsync: async (address) => {
@@ -406,6 +407,7 @@ export function createFixture() {
 				throw new Error('Unexpected cache clearing')
 			},
 			migrateCacheRetention: async () => {},
+			ensureCacheDiskSpace: async () => {},
 			forgetCachedFile() {},
 			getCacheLocalPath: async (value) => value,
 		}
@@ -430,6 +432,7 @@ export function createFixture() {
 			'@/player/PlayerStore': stores,
 			'@/store/PersistStatus': persistence,
 			'@/helpers/logger': logger,
+			'@/helpers/artworkResolver': { resolveLeaderboardArtwork: async (_platform, _id, artwork) => artwork },
 			'react-native-mmkv': {
 				createMMKV: (options) => {
 					calls.mmkv.push(options)
