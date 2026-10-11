@@ -592,6 +592,14 @@
 		"clear": "清除"
 	},
 	"backup": {
+		"snapshotHistory": "查看历史快照",
+		"historyDescription": "按备份日期选择快照，下载并校验后预览；不会自动恢复。",
+		"noSnapshots": "尚未找到每日快照",
+		"previewSnapshot": "预览 %{date} 的备份",
+		"latestSnapshot": "最新备份",
+		"invalidListing": "服务器返回的快照列表无效，请检查 WebDAV 服务。",
+		"validationPassed": "备份校验通过：格式、大小、歌曲和设置字段有效。",
+		"restoreFilesNote": "备份不包含音频、音源脚本和封面图片；换机后这些文件需重新导入。恢复前请确认日期和数据数量。",
 		"failureReminder": "自动备份连续失败，点此查看并重试",
 		"httpsRequired": "WebDAV 备份需要 HTTPS 地址，请更换为 https:// 后重试。",
 		"lastSuccess": "最近备份成功：%{time}",

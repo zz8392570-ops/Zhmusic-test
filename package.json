@@ -19,6 +19,7 @@
 		"@react-native-menu/menu": "2.0.0",
 		"@rntp/player": "5.9.2",
 		"@shopify/flash-list": "2.0.2",
+		"@xmldom/xmldom": "0.8.15",
 		"axios": "1.7.2",
 		"base-64": "0.1.0",
 		"buffer": "5.7.1",

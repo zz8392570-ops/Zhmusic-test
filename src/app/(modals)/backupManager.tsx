@@ -7,6 +7,8 @@ import {
 } from '@/helpers/musicBackup'
 import {
 	downloadWebDavBackup,
+	listWebDavSnapshots,
+	type WebDavSnapshot,
 	loadWebDavBackupConfig,
 	saveWebDavBackupConfig,
 	testWebDavConnection,
@@ -53,6 +55,8 @@ export default function BackupManagerScreen() {
 	const [webDavPassword, setWebDavPassword] = useState('')
 	const [webDavRemotePath, setWebDavRemotePath] = useState(DEFAULT_REMOTE_PATH)
 	const [webDavStatus, setWebDavStatus] = useState('')
+	const [snapshots, setSnapshots] = useState<WebDavSnapshot[] | null>(null)
+	const [previewSource, setPreviewSource] = useState('')
 	const backupStatus = PersistStatus.useValue('backup.webdavStatus')
 
 	useEffect(() => {
@@ -89,6 +93,7 @@ export default function BackupManagerScreen() {
 		if (code === 'not-found') return i18n.t('backup.webdavNotFound')
 		if (code === 'too-large') return i18n.t('backup.webdavTooLarge')
 		if (code === 'invalid-backup') return i18n.t('backup.webdavInvalidBackup')
+		if (code === 'invalid-listing') return i18n.t('backup.invalidListing')
 		if (code === 'timeout') return i18n.t('backup.webdavTimeout')
 		const status = (error as { status?: number })?.status
 		return status
@@ -135,9 +140,26 @@ export default function BackupManagerScreen() {
 		})
 	const downloadWebDav = () =>
 		void runWebDavAction(async (config) => {
+			setBackup(null)
 			setBackup(await downloadWebDavBackup(config))
+			setPreviewSource(i18n.t('backup.latestSnapshot'))
 			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
 		})
+	const listSnapshots = () =>
+		void runWebDavAction(async (config) => {
+			setSnapshots(null)
+			setSnapshots(await listWebDavSnapshots(config))
+		})
+	const selectSnapshot = (date: string) =>
+		void runWebDavAction(async (config) => {
+			setBackup(null)
+			setBackup(await downloadWebDavBackup(config, date))
+			setPreviewSource(date)
+			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
+		})
+	useEffect(() => {
+		setSnapshots(null)
+	}, [webDavUrl, webDavUsername, webDavPassword, webDavRemotePath])
 	const button = (label: string, onPress: () => void, selected = false) => (
 		<Pressable
 			accessibilityRole="button"
@@ -185,6 +207,7 @@ export default function BackupManagerScreen() {
 			const file = new File(result.assets[0].uri)
 			if (file.size > MAX_BACKUP_BYTES) throw new Error('Backup exceeds size limit')
 			setBackup(parseMusicBackup(await file.text()))
+			setPreviewSource(result.assets[0].name)
 		} catch {
 			setBackup(null)
 			Alert.alert(i18n.t('backup.invalid'))
@@ -330,6 +353,27 @@ export default function BackupManagerScreen() {
 				{button(i18n.t('backup.webdavUpload'), uploadWebDav)}
 				{backupStatus?.errorCode ? button(i18n.t('backup.retryNow'), uploadWebDav) : null}
 				{button(i18n.t('backup.webdavDownload'), downloadWebDav)}
+				{button(i18n.t('backup.snapshotHistory'), listSnapshots)}
+				{snapshots !== null ? (
+					<View style={{ gap: 8 }}>
+						<Text style={{ color: colors.textMuted }}>{i18n.t('backup.historyDescription')}</Text>
+						{snapshots.length === 0 ? (
+							<Text style={{ color: colors.textMuted }}>{i18n.t('backup.noSnapshots')}</Text>
+						) : null}
+						{snapshots.map((snapshot) => (
+							<View key={snapshot.date}>
+								{button(i18n.t('backup.previewSnapshot', { date: snapshot.date }), () =>
+									selectSnapshot(snapshot.date),
+								)}
+								{snapshot.sizeBytes !== undefined ? (
+									<Text style={{ color: colors.textMuted }}>
+										{(snapshot.sizeBytes / 1024).toFixed(1)} KB
+									</Text>
+								) : null}
+							</View>
+						))}
+					</View>
+				) : null}
 				{busy ? <ActivityIndicator color={colors.primary} /> : null}
 				{webDavStatus ? (
 					<Text style={{ color: colors.text, textAlign: 'center', fontSize: 13 }}>
@@ -341,6 +385,9 @@ export default function BackupManagerScreen() {
 						<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
 							{i18n.t('backup.preview')}
 						</Text>
+						<Text style={{ color: colors.success }}>{i18n.t('backup.validationPassed')}</Text>
+						<Text style={{ color: colors.textMuted }}>{previewSource}</Text>
+						<Text style={{ color: colors.textMuted }}>{i18n.t('backup.restoreFilesNote')}</Text>
 						<Text style={{ color: colors.textMuted, lineHeight: 22 }}>
 							{i18n.t('backup.summary', {
 								favorites: backup.library.favorites.length,

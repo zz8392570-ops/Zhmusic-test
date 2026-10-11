@@ -2,10 +2,13 @@ import { MAX_BACKUP_BYTES, parseMusicBackup, type MusicBackup } from '@/helpers/
 import { Buffer } from 'buffer'
 import * as SecureStore from 'expo-secure-store'
 import { fetch } from 'expo/fetch'
+import { parseWebDavSnapshots, snapshotFileName } from '@/helpers/webDavSnapshots'
+export type { WebDavSnapshot } from '@/helpers/webDavSnapshots'
 
 const CONFIG_KEY = 'cymusic.webdav.backup'
 const LAST_DAILY_BACKUP_KEY = 'cymusic.webdav.last-daily-backup'
 const REQUEST_TIMEOUT_MS = 20_000
+const MAX_LISTING_BYTES = 2 * 1024 * 1024
 
 export interface WebDavBackupConfig {
 	url: string
@@ -23,6 +26,7 @@ export type WebDavErrorCode =
 	| 'backup-not-found'
 	| 'too-large'
 	| 'invalid-backup'
+	| 'invalid-listing'
 	| 'timeout'
 	| 'request-failed'
 
@@ -107,7 +111,8 @@ const parentUrl = (config: WebDavBackupConfig) => {
 	return url.toString()
 }
 
-const childUrl = (parent: string, name: string) => new URL(encodeURIComponent(name), parent).toString()
+const childUrl = (parent: string, name: string) =>
+	new URL(encodeURIComponent(name), parent).toString()
 
 const request = async (url: string, options: RequestInit) => {
 	const controller = new AbortController()
@@ -125,8 +130,10 @@ const request = async (url: string, options: RequestInit) => {
 
 const requireSuccess = (
 	response: Response,
-	notFoundCode: Extract<WebDavErrorCode, 'not-found' | 'directory-not-found' | 'backup-not-found'> =
-		'not-found',
+	notFoundCode: Extract<
+		WebDavErrorCode,
+		'not-found' | 'directory-not-found' | 'backup-not-found'
+	> = 'not-found',
 ) => {
 	if (response.ok || response.status === 207) return
 	if (response.status === 401 || response.status === 403)
@@ -155,11 +162,7 @@ const ensureParentDirectories = async (config: WebDavBackupConfig) => {
 	}
 }
 
-const putWithDirectoryRecovery = async (
-	config: WebDavBackupConfig,
-	url: string,
-	body: string,
-) => {
+const putWithDirectoryRecovery = async (config: WebDavBackupConfig, url: string, body: string) => {
 	const options: RequestInit = {
 		method: 'PUT',
 		headers: { ...authHeaders(config), 'Content-Type': 'application/octet-stream' },
@@ -251,9 +254,47 @@ export const runDailyWebDavBackup = async (backup: MusicBackup, now = new Date()
 	return 'uploaded' as const
 }
 
-export const downloadWebDavBackup = async (input: WebDavBackupConfig): Promise<MusicBackup> => {
+export const listWebDavSnapshots = async (input: WebDavBackupConfig) => {
 	const config = normalizeConfig(input)
-	const response = await request(remoteUrl(config), {
+	const directory = new URL('daily/', parentUrl(config)).toString()
+	const response = await request(directory, {
+		method: 'PROPFIND',
+		headers: {
+			...authHeaders(config),
+			Depth: '1',
+			'Content-Type': 'application/xml; charset=utf-8',
+		},
+		body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>',
+	})
+	if (response.status === 404) return []
+	requireSuccess(response)
+	const contentLength = Number(response.headers.get('content-length'))
+	if (Number.isFinite(contentLength) && contentLength > MAX_LISTING_BYTES)
+		throw new WebDavBackupError('too-large')
+	const text = await response.text()
+	if (Buffer.byteLength(text, 'utf8') > MAX_LISTING_BYTES) throw new WebDavBackupError('too-large')
+	try {
+		return parseWebDavSnapshots(text, directory)
+	} catch {
+		throw new WebDavBackupError('invalid-listing')
+	}
+}
+
+export const downloadWebDavBackup = async (
+	input: WebDavBackupConfig,
+	snapshotDate?: string,
+): Promise<MusicBackup> => {
+	const config = normalizeConfig(input)
+	let target = config
+	if (snapshotDate !== undefined) {
+		try {
+			snapshotFileName(snapshotDate)
+		} catch {
+			throw new WebDavBackupError('invalid-config')
+		}
+		target = dailyBackupConfig(config, snapshotDate)
+	}
+	const response = await request(remoteUrl(target), {
 		method: 'GET',
 		headers: authHeaders(config),
 	})

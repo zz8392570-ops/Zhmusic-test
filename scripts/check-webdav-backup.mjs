@@ -1,7 +1,13 @@
 import { Buffer } from 'node:buffer'
+import { DOMParser } from '@xmldom/xmldom'
 import { assert, checks, loadModule } from './native-services-fixture.mjs'
 
 const { check, finish } = checks()
+const snapshots = loadModule(
+	'src/helpers/webDavSnapshots.ts',
+	{ '@xmldom/xmldom': { DOMParser } },
+	{ URL },
+)
 const secureValues = new Map()
 const requests = []
 let nextResponse
@@ -30,6 +36,7 @@ const webdav = loadModule(
 		'@/helpers/musicBackup': { MAX_BACKUP_BYTES: 100, parseMusicBackup },
 		buffer: { Buffer },
 		'expo/fetch': { fetch },
+		'@/helpers/webDavSnapshots': snapshots,
 		'expo-secure-store': {
 			getItemAsync: async (key) => secureValues.get(key) ?? null,
 			setItemAsync: async (key, value) => secureValues.set(key, value),
@@ -46,18 +53,25 @@ const config = {
 }
 const backup = { format: 'zhmusic-backup', version: 1 }
 
-await check('HTTP credentials cannot be saved or sent; legacy config remains editable', async () => {
-	const insecure = { ...config, url: 'http://dav.example.test/root' }
-	const count = requests.length
-	for (const operation of [webdav.saveWebDavBackupConfig, webdav.testWebDavConnection,
-		(value) => webdav.uploadWebDavBackup(value, backup), webdav.downloadWebDavBackup]) {
-		await assert.rejects(operation(insecure), error => error.code === 'https-required')
-	}
-	assert.equal(requests.length, count)
-	secureValues.set('cymusic.webdav.backup', JSON.stringify(insecure))
-	assert.equal((await webdav.loadWebDavBackupConfig()).url, insecure.url)
-	secureValues.clear()
-})
+await check(
+	'HTTP credentials cannot be saved or sent; legacy config remains editable',
+	async () => {
+		const insecure = { ...config, url: 'http://dav.example.test/root' }
+		const count = requests.length
+		for (const operation of [
+			webdav.saveWebDavBackupConfig,
+			webdav.testWebDavConnection,
+			(value) => webdav.uploadWebDavBackup(value, backup),
+			webdav.downloadWebDavBackup,
+		]) {
+			await assert.rejects(operation(insecure), (error) => error.code === 'https-required')
+		}
+		assert.equal(requests.length, count)
+		secureValues.set('cymusic.webdav.backup', JSON.stringify(insecure))
+		assert.equal((await webdav.loadWebDavBackupConfig()).url, insecure.url)
+		secureValues.clear()
+	},
+)
 
 await check('configuration is normalized and credentials stay in secure storage', async () => {
 	const saved = await webdav.saveWebDavBackupConfig(config)
@@ -97,18 +111,21 @@ await check(
 	},
 )
 
-await check('missing directories and missing backup files have actionable error codes', async () => {
-	nextResponse = response(404)
-	await assert.rejects(
-		webdav.uploadWebDavBackup(config, backup),
-		(error) => error.code === 'directory-not-found' && error.status === 404,
-	)
-	nextResponse = response(404)
-	await assert.rejects(
-		webdav.downloadWebDavBackup(config),
-		(error) => error.code === 'backup-not-found' && error.status === 404,
-	)
-})
+await check(
+	'missing directories and missing backup files have actionable error codes',
+	async () => {
+		nextResponse = response(404)
+		await assert.rejects(
+			webdav.uploadWebDavBackup(config, backup),
+			(error) => error.code === 'directory-not-found' && error.status === 404,
+		)
+		nextResponse = response(404)
+		await assert.rejects(
+			webdav.downloadWebDavBackup(config),
+			(error) => error.code === 'backup-not-found' && error.status === 404,
+		)
+	},
+)
 
 await check('connection test rejects an unwritable backup directory', async () => {
 	nextResponse = response(403)
@@ -143,10 +160,7 @@ await check('snapshot upload writes latest and one dated daily file', async () =
 	assert.equal(await webdav.runDailyWebDavBackup(backup, now), 'skipped')
 	assert.equal(requests.length, requestCount)
 	nextResponse = [response(201), response(201)]
-	assert.equal(
-		await webdav.runDailyWebDavBackup(backup, new Date(2026, 9, 9, 9, 0)),
-		'uploaded',
-	)
+	assert.equal(await webdav.runDailyWebDavBackup(backup, new Date(2026, 9, 9, 9, 0)), 'uploaded')
 	assert.match(requests.at(-1).url, /\/daily\/ZhMusic-2026-10-09.json$/)
 })
 
@@ -166,5 +180,84 @@ await check('download validates status, size and backup format before returning 
 		(error) => error.code === 'invalid-backup',
 	)
 })
+
+const listing = (rows) => `<d:multistatus xmlns:d="DAV:">${rows}</d:multistatus>`
+const entry = (href, status = '200 OK', size = '42', collection = '') =>
+	`<d:response><d:href>${href}</d:href><d:propstat><d:prop><d:getcontentlength>${size}</d:getcontentlength>${collection}</d:prop><d:status>HTTP/1.1 ${status}</d:status></d:propstat></d:response>`
+const directory = 'https://dav.example.test/root/music%20backups/daily/'
+
+await check(
+	'DAV listing handles namespaces, encoded paths, failed properties and date sorting',
+	async () => {
+		nextResponse = response(
+			207,
+			listing(
+				entry('/root/music%20backups/daily/ZhMusic-2026-10-08.json') +
+					entry('ZhMusic-2026-10-10.json') +
+					entry('ZhMusic-2026-10-10.json') +
+					entry('ZhMusic-2026-10-09.json', '404 Not Found') +
+					entry(
+						'ZhMusic-2026-10-11.json',
+						'200 OK',
+						'0',
+						'<d:resourcetype><d:collection/></d:resourcetype>',
+					) +
+					entry('https://evil.test/ZhMusic-2026-10-07.json') +
+					entry('../ZhMusic-2026-10-06.json') +
+					entry('ZhMusic-2026-02-30.json') +
+					entry('sub/ZhMusic-2026-10-05.json'),
+			),
+		)
+		const result = await webdav.listWebDavSnapshots(config)
+		assert.equal(result.map((item) => item.date).join(','), '2026-10-10,2026-10-08')
+		assert.equal(result[0].sizeBytes, 42)
+		assert.equal(requests.at(-1).options.method, 'PROPFIND')
+		assert.equal(requests.at(-1).options.headers.Depth, '1')
+		assert.equal(requests.at(-1).url, directory)
+	},
+)
+
+await check(
+	'snapshot listing rejects malformed XML and treats missing daily directory as empty',
+	async () => {
+		nextResponse = response(404)
+		assert.equal((await webdav.listWebDavSnapshots(config)).length, 0)
+		nextResponse = response(207, '<html/>')
+		await assert.rejects(
+			webdav.listWebDavSnapshots(config),
+			(error) => error.code === 'invalid-listing',
+		)
+		assert.throws(() =>
+			snapshots.parseWebDavSnapshots('<!DOCTYPE x><d:multistatus xmlns:d="DAV:"/>', directory),
+		)
+		assert.throws(() =>
+			snapshots.parseWebDavSnapshots('<d:multistatus xmlns:d="DAV:"><bad>', directory),
+		)
+		const plain = snapshots.parseWebDavSnapshots('<multistatus xmlns="DAV:"/>', directory)
+		assert.equal(plain.length, 0)
+	},
+)
+
+await check(
+	'historical download constructs a trusted path and rejects date traversal before requests',
+	async () => {
+		nextResponse = response(200, JSON.stringify(backup))
+		assert.equal((await webdav.downloadWebDavBackup(config, '2026-10-08')).format, 'zhmusic-backup')
+		assert.equal(requests.at(-1).url, `${directory}ZhMusic-2026-10-08.json`)
+		const count = requests.length
+		for (const date of ['../latest', '2026-02-30', '2026-99-99', '2026-10-08?token=x']) {
+			await assert.rejects(
+				webdav.downloadWebDavBackup(config, date),
+				(error) => error.code === 'invalid-config',
+			)
+		}
+		assert.equal(requests.length, count)
+		nextResponse = response(200, '{"bad":true}')
+		await assert.rejects(
+			webdav.downloadWebDavBackup(config, '2026-10-08'),
+			(error) => error.code === 'invalid-backup',
+		)
+	},
+)
 
 finish()

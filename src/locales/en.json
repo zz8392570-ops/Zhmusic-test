@@ -591,6 +591,14 @@
 		"clear": "Clear"
 	},
 	"backup": {
+		"snapshotHistory": "View snapshot history",
+		"historyDescription": "Choose a date to download, validate and preview a snapshot. This does not restore it automatically.",
+		"noSnapshots": "No daily snapshots found",
+		"previewSnapshot": "Preview backup from %{date}",
+		"latestSnapshot": "Latest backup",
+		"invalidListing": "The server returned an invalid snapshot list. Check your WebDAV service.",
+		"validationPassed": "Validation passed: format, size, songs and settings are valid.",
+		"restoreFilesNote": "Audio, source scripts and cover images are not included. Import these files again on a new device. Check the date and data counts before restoring.",
 		"failureReminder": "Automatic backups have failed repeatedly. Tap to review and retry.",
 		"httpsRequired": "WebDAV backups require an HTTPS URL. Update the address to https:// and try again.",
 		"lastSuccess": "Last successful backup: %{time}",
