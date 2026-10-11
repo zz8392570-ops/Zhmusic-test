@@ -378,7 +378,7 @@ async function main() {
 	const code = ts.transpileModule(
 		`${pickerStateStatement.getText(source)}\n${statement.getText(source)}`,
 		{
-		compilerOptions: { target: ts.ScriptTarget.ES2022 },
+			compilerOptions: { target: ts.ScriptTarget.ES2022 },
 		},
 	).outputText
 	for (const outcome of ['unicode', 'cancel', 'read-error'])
@@ -402,6 +402,7 @@ async function main() {
 				'createMusicApiFromScript',
 				'myTrackPlayer',
 				'Alert',
+				'i18n',
 				`${code}\nreturn importMusicSourceFromFile`,
 			)(
 				{
@@ -421,6 +422,7 @@ async function main() {
 				},
 				{ addMusicApi: (api) => imported.push(api) },
 				{ alert: (...args) => alerts.push(args) },
+				{ t: (key) => key },
 			)
 			await handler()
 			assert.deepEqual(h.calls.text, outcome === 'cancel' ? [] : [selected])
@@ -428,7 +430,7 @@ async function main() {
 			assert.equal(imported.length, outcome === 'unicode' ? 1 : 0)
 			assert.equal(alerts.length, outcome === 'read-error' ? 1 : 0)
 			if (outcome === 'read-error')
-				assert.deepEqual(alerts[0], ['导入失败', '无法导入音源: Fixture read failed'])
+				assert.deepEqual(alerts[0], ['common.error', 'sourceImport.failed'])
 		})
 
 	await test('source picker: ignores a second request while the first picker is open', async () => {
@@ -445,6 +447,7 @@ async function main() {
 			'createMusicApiFromScript',
 			'myTrackPlayer',
 			'Alert',
+			'i18n',
 			`${code}\nreturn importMusicSourceFromFile`,
 		)(
 			{
@@ -459,6 +462,7 @@ async function main() {
 			async () => ({ id: 'unused' }),
 			{ addMusicApi() {} },
 			{ alert() {} },
+			{ t: (key) => key },
 		)
 		const first = handler()
 		await Promise.resolve()

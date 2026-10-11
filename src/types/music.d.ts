@@ -216,6 +216,7 @@ declare namespace IMusic {
     export type MusicApiHealthStatus = 'normal' | 'partial' | 'dead' | 'testing' | 'idle'
 
     export interface MusicApiHealth {
+        lastProbeIssue?: 'network' | 'catalog';
         successCount: number
         totalCount: number
         latencyMs: number | null

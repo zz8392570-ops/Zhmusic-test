@@ -1,3 +1,4 @@
+import i18n from '@/utils/i18n'
 import PersistStatus from '@/store/PersistStatus'
 import type { AudioQuality } from '@/helpers/audioQuality'
 
@@ -41,24 +42,8 @@ export const classifySourceError = (error: unknown): SourceErrorCategory => {
 	return 'unknown'
 }
 
-export const getSourceErrorMessage = (category: SourceErrorCategory) => {
-	switch (category) {
-		case 'timeout':
-			return '获取音源超时，请换源或重试。'
-		case 'invalid-url':
-			return '播放链接已失效，请换源或重试。'
-		case 'network':
-			return '网络连接异常，请检查网络后重试。'
-		case 'unsupported-format':
-			return '当前音频格式暂不支持，请尝试其他音源。'
-		case 'playback':
-			return '音频加载失败，请换源或重试。'
-		case 'cancelled':
-			return '已取消获取音源。'
-		default:
-			return '获取音源失败，请换源或重试。'
-	}
-}
+export const getSourceErrorMessage = (category: SourceErrorCategory) =>
+	i18n.t(`sourceErrors.${category}`)
 
 export const appendSourceDiagnostic = (event: Omit<SourceDiagnosticEvent, 'id' | 'timestamp'>) => {
 	const current = PersistStatus.get('music.sourceDiagnostics') ?? []

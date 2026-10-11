@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { DOMParser } from '@xmldom/xmldom'
-import { assert, checks, loadModule } from './native-services-fixture.mjs'
+import { assert, checks, loadModule, deferred, flush } from './native-services-fixture.mjs'
 
 const { check, finish } = checks()
 const snapshots = loadModule(
@@ -11,6 +11,8 @@ const snapshots = loadModule(
 const secureValues = new Map()
 const requests = []
 let nextResponse
+const timers = new Map()
+let timerId = 0
 const headers = (values = {}) => ({
 	get: (name) => values[name.toLowerCase()] ?? null,
 })
@@ -42,7 +44,16 @@ const webdav = loadModule(
 			setItemAsync: async (key, value) => secureValues.set(key, value),
 		},
 	},
-	{ fetch, URL },
+	{
+		fetch,
+		URL,
+		setTimeout: (callback) => {
+			const id = ++timerId
+			timers.set(id, callback)
+			return id
+		},
+		clearTimeout: (id) => timers.delete(id),
+	},
 )
 
 const config = {
@@ -259,5 +270,52 @@ await check(
 		)
 	},
 )
+
+await check('deadline covers a stalled response body and retires timers', async () => {
+	const stalled = deferred()
+	nextResponse = { ...response(200), text: () => stalled.promise }
+	const pending = webdav.downloadWebDavBackup(config)
+	const rejected = assert.rejects(pending, (error) => error.code === 'timeout')
+	await flush()
+	assert.equal(timers.size, 1)
+	for (const callback of timers.values()) callback()
+	await rejected
+	assert.equal(timers.size, 0)
+	assert.equal(requests.at(-1).options.signal.aborted, true)
+	stalled.resolve(JSON.stringify(backup))
+	await flush()
+})
+
+await check('download and listing cancel after headers even if body ignores abort', async () => {
+	for (const operation of [
+		(signal) => webdav.downloadWebDavBackup(config, undefined, signal),
+		(signal) => webdav.listWebDavSnapshots(config, signal),
+	]) {
+		const controller = new AbortController()
+		const stalled = deferred()
+		nextResponse = { ...response(200), text: () => stalled.promise }
+		const pending = operation(controller.signal)
+		const rejected = assert.rejects(pending, (error) => error.code === 'cancelled')
+		await flush()
+		controller.abort()
+		await rejected
+		assert.equal(timers.size, 0)
+		assert.equal(requests.at(-1).options.signal.aborted, true)
+		stalled.resolve('invalid late response')
+		await flush()
+	}
+})
+
+await check('pre-cancelled download sends no request', async () => {
+	const controller = new AbortController()
+	controller.abort()
+	const count = requests.length
+	await assert.rejects(
+		webdav.downloadWebDavBackup(config, undefined, controller.signal),
+		(error) => error.code === 'cancelled',
+	)
+	assert.equal(requests.length, count)
+	assert.equal(timers.size, 0)
+})
 
 finish()

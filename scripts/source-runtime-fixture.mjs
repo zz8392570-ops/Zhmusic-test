@@ -117,6 +117,10 @@ export function createSourceFixture({ fetch: fetchImpl = globalThis.fetch } = {}
 				return native
 			} }
 			if (specifier === 'buffer') return require('buffer')
+			if (specifier === '@/utils/i18n') {
+				const translations = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'src/locales/en.json'), 'utf8'))
+				return { t: (key) => key.split('.').reduce((value, part) => value?.[part], translations) ?? key }
+			}
 			const target = specifier.startsWith('@/') ? `src/${specifier.slice(2)}`
 				: path.posix.normalize(path.posix.join(path.posix.dirname(key), specifier))
 			if (target === 'src/helpers/logger') return {

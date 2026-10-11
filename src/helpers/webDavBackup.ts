@@ -28,6 +28,7 @@ export type WebDavErrorCode =
 	| 'invalid-backup'
 	| 'invalid-listing'
 	| 'timeout'
+	| 'cancelled'
 	| 'request-failed'
 
 export class WebDavBackupError extends Error {
@@ -114,17 +115,48 @@ const parentUrl = (config: WebDavBackupConfig) => {
 const childUrl = (parent: string, name: string) =>
 	new URL(encodeURIComponent(name), parent).toString()
 
-const request = async (url: string, options: RequestInit) => {
+const request = async <T = Response>(
+	url: string,
+	options: RequestInit,
+	consume: (response: Response) => Promise<T> = async (response) => response as T,
+	signal?: AbortSignal,
+) => {
 	const controller = new AbortController()
-	const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+	let timer: ReturnType<typeof setTimeout> | undefined
+	let onAbort: () => void = () => {}
+	const interrupted = new Promise<never>((_, reject) => {
+		onAbort = () => {
+			controller.abort()
+			reject(new WebDavBackupError('cancelled'))
+		}
+		if (signal?.aborted) onAbort()
+		else signal?.addEventListener('abort', onAbort, { once: true })
+		timer = setTimeout(() => {
+			controller.abort()
+			reject(new WebDavBackupError('timeout'))
+		}, REQUEST_TIMEOUT_MS)
+	})
 	try {
-		return await fetch(url, { ...options, redirect: 'error', signal: controller.signal })
+		return await Promise.race([
+			interrupted,
+			Promise.resolve().then(async () => {
+				if (controller.signal.aborted) throw new WebDavBackupError('cancelled')
+				const response = await fetch(url, {
+					...options,
+					redirect: 'error',
+					signal: controller.signal,
+				})
+				return consume(response)
+			}),
+		])
 	} catch (error) {
+		if (error instanceof WebDavBackupError) throw error
 		if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError'))
 			throw new WebDavBackupError('timeout')
 		throw new WebDavBackupError('request-failed')
 	} finally {
 		clearTimeout(timer)
+		signal?.removeEventListener('abort', onAbort)
 	}
 }
 
@@ -254,35 +286,43 @@ export const runDailyWebDavBackup = async (backup: MusicBackup, now = new Date()
 	return 'uploaded' as const
 }
 
-export const listWebDavSnapshots = async (input: WebDavBackupConfig) => {
+export const listWebDavSnapshots = async (input: WebDavBackupConfig, signal?: AbortSignal) => {
 	const config = normalizeConfig(input)
 	const directory = new URL('daily/', parentUrl(config)).toString()
-	const response = await request(directory, {
-		method: 'PROPFIND',
-		headers: {
-			...authHeaders(config),
-			Depth: '1',
-			'Content-Type': 'application/xml; charset=utf-8',
+	return request(
+		directory,
+		{
+			method: 'PROPFIND',
+			headers: {
+				...authHeaders(config),
+				Depth: '1',
+				'Content-Type': 'application/xml; charset=utf-8',
+			},
+			body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>',
 		},
-		body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>',
-	})
-	if (response.status === 404) return []
-	requireSuccess(response)
-	const contentLength = Number(response.headers.get('content-length'))
-	if (Number.isFinite(contentLength) && contentLength > MAX_LISTING_BYTES)
-		throw new WebDavBackupError('too-large')
-	const text = await response.text()
-	if (Buffer.byteLength(text, 'utf8') > MAX_LISTING_BYTES) throw new WebDavBackupError('too-large')
-	try {
-		return parseWebDavSnapshots(text, directory)
-	} catch {
-		throw new WebDavBackupError('invalid-listing')
-	}
+		async (response) => {
+			if (response.status === 404) return []
+			requireSuccess(response)
+			const contentLength = Number(response.headers.get('content-length'))
+			if (Number.isFinite(contentLength) && contentLength > MAX_LISTING_BYTES)
+				throw new WebDavBackupError('too-large')
+			const text = await response.text()
+			if (Buffer.byteLength(text, 'utf8') > MAX_LISTING_BYTES)
+				throw new WebDavBackupError('too-large')
+			try {
+				return parseWebDavSnapshots(text, directory)
+			} catch {
+				throw new WebDavBackupError('invalid-listing')
+			}
+		},
+		signal,
+	)
 }
 
 export const downloadWebDavBackup = async (
 	input: WebDavBackupConfig,
 	snapshotDate?: string,
+	signal?: AbortSignal,
 ): Promise<MusicBackup> => {
 	const config = normalizeConfig(input)
 	let target = config
@@ -294,19 +334,26 @@ export const downloadWebDavBackup = async (
 		}
 		target = dailyBackupConfig(config, snapshotDate)
 	}
-	const response = await request(remoteUrl(target), {
-		method: 'GET',
-		headers: authHeaders(config),
-	})
-	requireSuccess(response, 'backup-not-found')
-	const contentLength = Number(response.headers.get('content-length'))
-	if (Number.isFinite(contentLength) && contentLength > MAX_BACKUP_BYTES)
-		throw new WebDavBackupError('too-large')
-	const text = await response.text()
-	if (Buffer.byteLength(text, 'utf8') > MAX_BACKUP_BYTES) throw new WebDavBackupError('too-large')
-	try {
-		return parseMusicBackup(text)
-	} catch {
-		throw new WebDavBackupError('invalid-backup')
-	}
+	return request(
+		remoteUrl(target),
+		{
+			method: 'GET',
+			headers: authHeaders(config),
+		},
+		async (response) => {
+			requireSuccess(response, 'backup-not-found')
+			const contentLength = Number(response.headers.get('content-length'))
+			if (Number.isFinite(contentLength) && contentLength > MAX_BACKUP_BYTES)
+				throw new WebDavBackupError('too-large')
+			const text = await response.text()
+			if (Buffer.byteLength(text, 'utf8') > MAX_BACKUP_BYTES)
+				throw new WebDavBackupError('too-large')
+			try {
+				return parseMusicBackup(text)
+			} catch {
+				throw new WebDavBackupError('invalid-backup')
+			}
+		},
+		signal,
+	)
 }

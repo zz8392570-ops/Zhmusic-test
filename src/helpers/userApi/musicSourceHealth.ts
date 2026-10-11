@@ -1,3 +1,5 @@
+import { waitForRequest } from '@/helpers/requestControl'
+
 export const HEALTH_TEST_TIMEOUT_MS = 4000
 export const HEALTH_TEST_QUALITY: IMusic.IQualityKey = '128k'
 export const MAX_FAILOVER_SOURCES = 3
@@ -12,6 +14,46 @@ export const HEALTH_TEST_TRACKS = [
 	{ title: '简单爱', artist: '周杰伦', id: '002bRNpg3Fq3SD' },
 	{ title: '告白气球', artist: '周杰伦', id: '003OUlho2PUYGF' },
 ]
+
+/** Prefer actual catalog IDs, keeping the original metadata required by LX scripts. */
+export const selectHealthTestTracks = (
+	tracks: IMusic.IMusicItem[],
+	multiPlatform = true,
+): IMusic.IMusicItem[] => {
+	const selected: IMusic.IMusicItem[] = []
+	const seen = new Set<string>()
+	const artists = new Set<string>()
+	const platforms = new Set<string>()
+	const candidates = tracks.filter(
+		(track) =>
+			track.id &&
+			track.title &&
+			track.artist &&
+			['tx', 'kw', 'kg', 'wy', 'mg'].includes(track.platform) &&
+			(multiPlatform || track.platform === 'tx'),
+	)
+	for (const diverseOnly of [true, false]) {
+		for (const track of candidates) {
+			const key = `${track.platform}:${track.id}`
+			if (
+				seen.has(key) ||
+				(diverseOnly && artists.has(track.artist) && platforms.has(track.platform))
+			)
+				continue
+			selected.push(track)
+			seen.add(key)
+			artists.add(track.artist)
+			platforms.add(track.platform)
+			if (selected.length === 8) return selected
+		}
+	}
+	for (const track of HEALTH_TEST_TRACKS) {
+		if (selected.length >= 8) break
+		if (!seen.has(`tx:${track.id}`))
+			selected.push({ ...track, platform: 'tx' } as IMusic.IMusicItem)
+	}
+	return selected
+}
 
 const STATUS_RANK: Record<IMusic.MusicApiHealthStatus, number> = {
 	normal: 0,
@@ -41,6 +83,7 @@ export const createIdleHealth = (): IMusic.MusicApiHealth => ({
 })
 
 export const createTestingHealth = (prev?: IMusic.MusicApiHealth): IMusic.MusicApiHealth => ({
+	...prev,
 	successCount: prev?.successCount ?? 0,
 	totalCount: prev?.totalCount ?? HEALTH_TEST_TRACKS.length,
 	latencyMs: prev?.latencyMs ?? null,
@@ -75,19 +118,18 @@ export const getFailoverCandidates = (
 	excludeIds: Iterable<string> = [],
 ): IMusic.MusicApi[] => {
 	const excluded = new Set(excludeIds)
-	const sorted = sortMusicApis(apis).filter(
-		(api) => api.id && !excluded.has(api.id) && api.health?.status !== 'dead',
-	)
+	const sorted = sortMusicApis(apis).filter((api) => api.id && !excluded.has(api.id))
 	if (!selectedId) return sorted.slice(0, MAX_FAILOVER_SOURCES)
-	const selected = sorted.find((api) => api.id === selectedId)
-	const rest = sorted.filter((api) => api.id !== selectedId)
+	const selected = sorted.find((api) => api.id === selectedId && api.health?.status !== 'dead')
+	const rest = sorted.filter((api) => api.id !== selected?.id)
 	return (selected ? [selected, ...rest] : rest).slice(0, MAX_FAILOVER_SOURCES)
 }
 
 export async function probeMusicApi(
 	getMusicUrl: IMusic.MusicApi['getMusicUrl'],
+	tracks = selectHealthTestTracks([]),
 ): Promise<IMusic.MusicApiHealth> {
-	const totalCount = HEALTH_TEST_TRACKS.length
+	const totalCount = tracks.length
 	if (typeof getMusicUrl !== 'function') {
 		return {
 			successCount: 0,
@@ -99,23 +141,34 @@ export async function probeMusicApi(
 	}
 
 	let successCount = 0
+	let networkFailures = 0
 	const latencies: number[] = []
+	const qualitySupport: Partial<Record<IMusic.IQualityKey, boolean>> = {}
 
-	for (const track of HEALTH_TEST_TRACKS) {
+	for (const track of tracks) {
 		const startedAt = Date.now()
-		try {
-			const url = await Promise.race([
-				getMusicUrl(track.title, track.artist, track.id, HEALTH_TEST_QUALITY),
-				new Promise<never>((_, reject) => {
-					setTimeout(() => reject(new Error('请求超时')), HEALTH_TEST_TIMEOUT_MS)
-				}),
-			])
-			if (isValidMusicUrl(url)) {
-				successCount += 1
-				latencies.push(Date.now() - startedAt)
+		for (const quality of [HEALTH_TEST_QUALITY, '320k'] as IMusic.IQualityKey[]) {
+			try {
+				const url = await waitForRequest(
+					() =>
+						getMusicUrl(track.title, track.artist, track.id, quality, {
+							platform: track.platform,
+							musicItem: track,
+						}),
+					HEALTH_TEST_TIMEOUT_MS,
+				)
+				if (isValidMusicUrl(url)) {
+					successCount += 1
+					qualitySupport[quality] = true
+					latencies.push(Date.now() - startedAt)
+					break
+				}
+			} catch (error) {
+				if (/timeout|timed out|超时|network|offline|socket|dns|网络/i.test(String(error))) {
+					networkFailures++
+					break
+				}
 			}
-		} catch {
-			// Counted as a failed probe.
 		}
 	}
 
@@ -125,7 +178,10 @@ export async function probeMusicApi(
 		latencyMs: latencies.length
 			? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length)
 			: null,
-		status: classifyMusicApiHealth(successCount, totalCount),
+		// A small sample cannot prove an entire catalog is unavailable.
+		status: successCount ? classifyMusicApiHealth(successCount, totalCount) : 'idle',
+		lastProbeIssue: successCount ? undefined : networkFailures ? 'network' : 'catalog',
+		qualitySupport,
 		testedAt: Date.now(),
 	}
 }

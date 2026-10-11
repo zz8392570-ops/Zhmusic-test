@@ -27,7 +27,7 @@ import PersistStatus from '@/store/PersistStatus'
 import { recordWebDavBackupFailure, recordWebDavBackupSuccess } from '@/helpers/webDavBackupStatus'
 import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
 	ActivityIndicator,
 	Alert,
@@ -48,6 +48,16 @@ export default function BackupManagerScreen() {
 	const { setThemeMode } = useThemeMode()
 	const [backup, setBackup] = useState<MusicBackup | null>(null)
 	const [busy, setBusy] = useState(false)
+	const [canCancel, setCanCancel] = useState(false)
+	const activeRequest = useRef<AbortController | null>(null)
+	const mounted = useRef(true)
+	useEffect(() => {
+		mounted.current = true
+		return () => {
+			mounted.current = false
+			activeRequest.current?.abort()
+		}
+	}, [])
 	const [mode, setMode] = useState<'merge' | 'replace'>('merge')
 	const [restoreSettings, setRestoreSettings] = useState(true)
 	const [webDavUrl, setWebDavUrl] = useState('')
@@ -95,26 +105,43 @@ export default function BackupManagerScreen() {
 		if (code === 'invalid-backup') return i18n.t('backup.webdavInvalidBackup')
 		if (code === 'invalid-listing') return i18n.t('backup.invalidListing')
 		if (code === 'timeout') return i18n.t('backup.webdavTimeout')
+		if (code === 'cancelled') return i18n.t('backup.cancelled')
 		const status = (error as { status?: number })?.status
 		return status
 			? i18n.t('backup.webdavRequestFailedStatus', { status })
 			: i18n.t('backup.webdavRequestFailed')
 	}
-	const runWebDavAction = async (action: (config: WebDavBackupConfig) => Promise<void>) => {
+	const runWebDavAction = async (
+		action: (config: WebDavBackupConfig, signal: AbortSignal) => Promise<void>,
+		cancellable = false,
+	) => {
+		if (activeRequest.current) return
+		const controller = new AbortController()
+		activeRequest.current = controller
+		setCanCancel(cancellable)
 		setBusy(true)
 		setWebDavStatus('')
 		try {
 			const config = await saveWebDavBackupConfig(webDavConfig())
+			if (controller.signal.aborted) {
+				if (mounted.current) setWebDavStatus(i18n.t('backup.cancelled'))
+				return
+			}
 			setWebDavUrl(config.url)
 			setWebDavUsername(config.username)
 			setWebDavRemotePath(config.remotePath)
-			await action(config)
+			await action(config, controller.signal)
 		} catch (error) {
+			if (!mounted.current) return
 			const message = webDavErrorMessage(error)
 			setWebDavStatus(message)
-			Alert.alert(i18n.t('backup.webdavErrorTitle'), message)
+			if (!controller.signal.aborted) Alert.alert(i18n.t('backup.webdavErrorTitle'), message)
 		} finally {
-			setBusy(false)
+			activeRequest.current = null
+			if (mounted.current) {
+				setCanCancel(false)
+				setBusy(false)
+			}
 		}
 	}
 	const saveWebDav = () =>
@@ -139,24 +166,29 @@ export default function BackupManagerScreen() {
 			setWebDavStatus(i18n.t('backup.webdavUploadSuccess'))
 		})
 	const downloadWebDav = () =>
-		void runWebDavAction(async (config) => {
+		void runWebDavAction(async (config, signal) => {
 			setBackup(null)
-			setBackup(await downloadWebDavBackup(config))
+			const downloaded = await downloadWebDavBackup(config, undefined, signal)
+			if (signal.aborted) return
+			setBackup(downloaded)
 			setPreviewSource(i18n.t('backup.latestSnapshot'))
 			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
-		})
+		}, true)
 	const listSnapshots = () =>
-		void runWebDavAction(async (config) => {
+		void runWebDavAction(async (config, signal) => {
 			setSnapshots(null)
-			setSnapshots(await listWebDavSnapshots(config))
-		})
+			const listed = await listWebDavSnapshots(config, signal)
+			if (!signal.aborted) setSnapshots(listed)
+		}, true)
 	const selectSnapshot = (date: string) =>
-		void runWebDavAction(async (config) => {
+		void runWebDavAction(async (config, signal) => {
 			setBackup(null)
-			setBackup(await downloadWebDavBackup(config, date))
+			const downloaded = await downloadWebDavBackup(config, date, signal)
+			if (signal.aborted) return
+			setBackup(downloaded)
 			setPreviewSource(date)
 			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
-		})
+		}, true)
 	useEffect(() => {
 		setSnapshots(null)
 	}, [webDavUrl, webDavUsername, webDavPassword, webDavRemotePath])
@@ -375,6 +407,17 @@ export default function BackupManagerScreen() {
 					</View>
 				) : null}
 				{busy ? <ActivityIndicator color={colors.primary} /> : null}
+				{canCancel ? (
+					<Pressable
+						accessibilityRole="button"
+						onPress={() => activeRequest.current?.abort()}
+						style={{ padding: 14 }}
+					>
+						<Text style={{ color: colors.primary, textAlign: 'center' }}>
+							{i18n.t('find.cancel')}
+						</Text>
+					</Pressable>
+				) : null}
 				{webDavStatus ? (
 					<Text style={{ color: colors.text, textAlign: 'center', fontSize: 13 }}>
 						{webDavStatus}

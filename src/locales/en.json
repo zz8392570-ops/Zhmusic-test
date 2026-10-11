@@ -1,4 +1,54 @@
 {
+	"common": {
+		"error": "Error",
+		"success": "Success",
+		"confirm": "OK",
+		"notice": "Notice",
+		"back": "Back"
+	},
+	"sourceImport": {
+		"title": "Import music source",
+		"urlPrompt": "Enter the source URL",
+		"urlEmpty": "URL cannot be empty",
+		"failed": "Unable to import source. Check the script or URL; details are available in logs.",
+		"success": "Music source imported successfully",
+		"importing": "Importing...",
+		"import": "Import",
+		"empty": "No importable JS music source script",
+		"scriptText": "Script text",
+		"sharedText": "Shared text",
+		"noSource": "No source available",
+		"file": "Source: file",
+		"textSource": "Source: script text",
+		"urlSource": "Source: URL",
+		"hint": "Share a .js file, script URL or script text",
+		"size": "Size: %{size} KB",
+		"pickerBusy": "The file picker is opening. Please wait.",
+		"scriptEmpty": "The source script is empty",
+		"missingGetter": "The script is missing getMusicUrl",
+		"notFound": "Music source not found",
+		"selected": "Source “%{name}” selected and reloaded",
+		"switched": "Switched to %{name}",
+		"selectionFailed": "Unable to select this source",
+		"overwrite": "Replace source?",
+		"overwriteMessage": "This source already exists. Replace it?",
+		"updated": "Music source updated",
+		"deleted": "Music source deleted"
+	},
+	"sourceErrors": {
+		"timeout": "Source request timed out. Switch source or retry.",
+		"invalid-url": "Playback URL is invalid. Switch source or retry.",
+		"network": "Network connection failed. Check your connection and retry.",
+		"unsupported-format": "This audio format is not supported. Try another source.",
+		"playback": "Audio could not be loaded. Switch source or retry.",
+		"cancelled": "Source request cancelled.",
+		"unknown": "Source request failed. Switch source or retry.",
+		"localMissing": "Local file is missing. Remove it and cache or import it again.",
+		"noSource": "Import a music source before playing music.",
+		"downgraded": "Automatically switched to %{quality} quality",
+		"probeNetwork": "Network error; source status is uncertain",
+		"probeCatalog": "Sample tracks unavailable; other tracks may still play"
+	},
 	"onboarding": {
 		"title": "Start listening",
 		"description": "Choose a source, test it, then search for a song. You can also import local audio in My Music.",
@@ -591,6 +641,7 @@
 		"clear": "Clear"
 	},
 	"backup": {
+		"cancelled": "Download cancelled",
 		"snapshotHistory": "View snapshot history",
 		"historyDescription": "Choose a date to download, validate and preview a snapshot. This does not restore it automatically.",
 		"noSnapshots": "No daily snapshots found",

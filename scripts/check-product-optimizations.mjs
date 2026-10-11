@@ -390,6 +390,7 @@ function resolverFixture(getUrl) {
 			'@/helpers/audioQuality': audioQuality,
 			'@/helpers/userApi/musicApiControl': controls,
 			'@/helpers/userApi/musicSourceHealth': health,
+			'@/utils/i18n': { t: (key) => key },
 			'@/helpers/userApi/sourceDiagnostics': {
 				appendSourceDiagnostic() {},
 				classifySourceError(error) {

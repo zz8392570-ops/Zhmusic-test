@@ -1,4 +1,54 @@
 {
+	"common": {
+		"error": "错误",
+		"success": "成功",
+		"confirm": "确定",
+		"notice": "提示",
+		"back": "返回"
+	},
+	"sourceImport": {
+		"title": "导入音源",
+		"urlPrompt": "请输入音源 URL",
+		"urlEmpty": "URL 不能为空",
+		"failed": "无法导入音源，请检查脚本或链接。详细错误可在日志中查看。",
+		"success": "音源脚本已成功导入",
+		"importing": "导入中...",
+		"import": "导入",
+		"empty": "没有可导入的 JS 音源脚本",
+		"scriptText": "脚本文本",
+		"sharedText": "分享文本",
+		"noSource": "无可用来源",
+		"file": "来源: 文件",
+		"textSource": "来源: 脚本文本",
+		"urlSource": "来源: URL",
+		"hint": "请分享 .js 文件、脚本链接或脚本文本",
+		"size": "大小: %{size} KB",
+		"pickerBusy": "文件选择器正在打开，请稍候",
+		"scriptEmpty": "音源脚本为空",
+		"missingGetter": "脚本缺少 getMusicUrl 方法",
+		"notFound": "未找到指定的音源",
+		"selected": "音源 “%{name}” 已选中并重新加载",
+		"switched": "已切换至 %{name}",
+		"selectionFailed": "设置选中音源时发生错误",
+		"overwrite": "是否覆盖",
+		"overwriteMessage": "已经存在该音源，是否覆盖？",
+		"updated": "音源更新成功",
+		"deleted": "音源删除成功"
+	},
+	"sourceErrors": {
+		"timeout": "获取音源超时，请换源或重试。",
+		"invalid-url": "播放链接已失效，请换源或重试。",
+		"network": "网络连接异常，请检查网络后重试。",
+		"unsupported-format": "当前音频格式暂不支持，请尝试其他音源。",
+		"playback": "音频加载失败，请换源或重试。",
+		"cancelled": "已取消获取音源。",
+		"unknown": "获取音源失败，请换源或重试。",
+		"localMissing": "本地文件不存在，请删除并重新缓存或导入。",
+		"noSource": "获取音乐失败，请先导入音源。",
+		"downgraded": "已自动切换至 %{quality} 音质",
+		"probeNetwork": "网络异常，暂不能判断音源状态",
+		"probeCatalog": "样本歌曲不可用，仍可尝试播放其他歌曲"
+	},
 	"onboarding": {
 		"title": "开始听音乐",
 		"description": "选择音源、测试可用性，然后搜索你想听的歌曲。也可以直接在“我的音乐”导入本地音乐。",
@@ -592,6 +642,7 @@
 		"clear": "清除"
 	},
 	"backup": {
+		"cancelled": "已取消下载",
 		"snapshotHistory": "查看历史快照",
 		"historyDescription": "按备份日期选择快照，下载并校验后预览；不会自动恢复。",
 		"noSnapshots": "尚未找到每日快照",

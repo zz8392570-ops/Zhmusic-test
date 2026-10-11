@@ -1,3 +1,4 @@
+import i18n from '@/utils/i18n'
 import { adaptLxMusicScript, isLxMusicScript } from './lxMusicSourceAdapter'
 
 interface ModuleExports {
@@ -17,7 +18,7 @@ interface ModuleExports {
 export async function createMusicApiFromScript(rawScript: string): Promise<IMusic.MusicApi> {
 	const script = rawScript?.trim?.() ?? ''
 	if (!script) {
-		throw new Error('音源脚本为空')
+		throw new Error(i18n.t('sourceImport.scriptEmpty'))
 	}
 
 	if (isLxMusicScript(script)) {
@@ -30,7 +31,7 @@ export async function createMusicApiFromScript(rawScript: string): Promise<IMusi
 	moduleFunc(module, module.exports, require)
 
 	if (typeof module.exports.getMusicUrl !== 'function') {
-		throw new Error('脚本缺少 getMusicUrl 方法')
+		throw new Error(i18n.t('sourceImport.missingGetter'))
 	}
 
 	return {
@@ -50,7 +51,7 @@ export async function createMusicApiFromScript(rawScript: string): Promise<IMusi
 export async function fetchScriptFromUrl(url: string): Promise<string> {
 	const target = url?.trim?.()
 	if (!target) {
-		throw new Error('链接为空')
+		throw new Error(i18n.t('sourceImport.urlEmpty'))
 	}
 	const response = await fetch(target)
 	if (!response.ok) {
@@ -62,8 +63,5 @@ export async function fetchScriptFromUrl(url: string): Promise<string> {
 export function looksLikeScriptText(text?: string | null): boolean {
 	if (!text) return false
 	const normalized = text.trim()
-	return (
-		/module\s*\.\s*exports\s*\.\s*getMusicUrl/.test(normalized) ||
-		isLxMusicScript(normalized)
-	)
+	return /module\s*\.\s*exports\s*\.\s*getMusicUrl/.test(normalized) || isLxMusicScript(normalized)
 }

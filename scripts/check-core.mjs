@@ -17,6 +17,7 @@ const checks = [
 	'check-volume.mjs',
 	'check-webdav-backup.mjs',
 	'check-webdav-status.mjs',
+	'check-health-and-logs.mjs',
 ]
 
 for (const check of checks) {

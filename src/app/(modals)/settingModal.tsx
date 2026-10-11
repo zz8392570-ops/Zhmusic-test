@@ -335,19 +335,19 @@ const MusicSourceMenu = ({ isDelete, onSelectSource }) => {
 
 const importMusicSourceFromUrl = async () => {
 	Alert.prompt(
-		'导入音源',
-		'请输入音源 URL',
+		i18n.t('sourceImport.title'),
+		i18n.t('sourceImport.urlPrompt'),
 		[
 			{
-				text: '取消',
+				text: i18n.t('find.cancel'),
 				onPress: () => logInfo('取消导入'),
 				style: 'cancel',
 			},
 			{
-				text: '确定',
+				text: i18n.t('common.confirm'),
 				onPress: async (url) => {
 					if (!url) {
-						Alert.alert('错误', 'URL 不能为空')
+						Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.urlEmpty'))
 						return
 					}
 
@@ -360,7 +360,7 @@ const importMusicSourceFromUrl = async () => {
 					} catch (error) {
 						const errMsg = error instanceof Error ? error.message : String(error)
 						logError('导入音源失败:', errMsg)
-						Alert.alert('错误', `导入音源失败: ${errMsg}`)
+						Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'))
 					}
 				},
 			},
@@ -370,7 +370,7 @@ const importMusicSourceFromUrl = async () => {
 }
 const importMusicSourceFromFile = async () => {
 	if (isMusicSourceFilePickerOpen) {
-		Alert.alert('请稍候', '文件选择器正在打开')
+		Alert.alert(i18n.t('common.notice'), i18n.t('sourceImport.pickerBusy'))
 		return
 	}
 	isMusicSourceFilePickerOpen = true
@@ -394,7 +394,7 @@ const importMusicSourceFromFile = async () => {
 	} catch (err) {
 		const errMsg = err instanceof Error ? (err as Error).message : String(err)
 		logError('Error importing music source:', errMsg)
-		Alert.alert('导入失败', `无法导入音源: ${errMsg}`)
+		Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'))
 		logError('导入音源失败: ' + errMsg)
 	} finally {
 		isMusicSourceFilePickerOpen = false

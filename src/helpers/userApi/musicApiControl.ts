@@ -1,3 +1,4 @@
+import i18n from '@/utils/i18n'
 import PersistStatus from '@/store/PersistStatus'
 import { waitForRequest, throwIfRequestAborted } from '@/helpers/requestControl'
 import {
@@ -11,10 +12,9 @@ import { showAutomaticSourceSwitchNotice } from '@/utils/sourceSwitchNotice'
 import { Alert } from 'react-native'
 import { logError, logInfo } from '../logger'
 import {
-	HEALTH_TEST_QUALITY,
 	HEALTH_TEST_TIMEOUT_MS,
-	HEALTH_TEST_TRACKS,
-	classifyMusicApiHealth,
+	probeMusicApi,
+	selectHealthTestTracks,
 	createTestingHealth,
 	getFailoverCandidates,
 	isValidMusicUrl,
@@ -99,7 +99,7 @@ export const recordMusicApiAttempt = (
 	)
 	const message = result.error instanceof Error ? result.error.message : String(result.error ?? '')
 	const timedOut = /timeout|timed out|超时/i.test(message)
-		const health: IMusic.MusicApiHealth = {
+	const health: IMusic.MusicApiHealth = {
 		...previous,
 		status: result.success && previous.status === 'dead' ? 'partial' : previous.status,
 		runtimeSuccessCount: (previous.runtimeSuccessCount ?? 0) + (result.success ? 1 : 0),
@@ -248,7 +248,7 @@ export const setMusicApiAsSelectedById = async (
 		const targetApiIndex = musicApis.findIndex((api) => api.id === musicApiId)
 		if (targetApiIndex === -1) {
 			logError(`Music API with id ${musicApiId} not found`)
-			if (!options.silent) Alert.alert('错误', '未找到指定的音源')
+			if (!options.silent) Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.notFound'))
 			return
 		}
 
@@ -270,15 +270,18 @@ export const setMusicApiAsSelectedById = async (
 		nowApiState.setValue(reloadedApi.health?.status === 'dead' ? '异常' : '正常')
 		logInfo(`Music API "${reloadedApi.name}" set as selected and reloaded successfully`)
 		if (!options.silent) {
-			Alert.alert('成功', `音源 "${reloadedApi.name}" 已设置为当前选中并重新加载`)
+			Alert.alert(
+				i18n.t('common.success'),
+				i18n.t('sourceImport.selected', { name: reloadedApi.name }),
+			)
 		} else if (options.notify !== false) {
-			showToast('已切换至 ' + reloadedApi.name, '', 'info')
+			showToast(i18n.t('sourceImport.switched', { name: reloadedApi.name }), '', 'info')
 		}
 		return reloadedApi
 	} catch (error) {
 		throwIfRequestAborted(options.signal)
 		logError('Error setting music API as selected:', error)
-		if (!options.silent) Alert.alert('错误', '设置选中音源时发生错误')
+		if (!options.silent) Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.selectionFailed'))
 	}
 }
 
@@ -306,38 +309,29 @@ const testMusicApiInternal = async (apiId: string) => {
 	if (!api) return
 	patchMusicApi(apiId, { health: createTestingHealth(api.health) })
 	try {
-		let successCount = 0
-		const latencies: number[] = []
-		for (const track of HEALTH_TEST_TRACKS) {
-			const startedAt = Date.now()
-			try {
-				const url = await withSourceRuntime(async () => {
-					const ready = await ensureApiRuntime(api)
-					if (typeof ready.getMusicUrl !== 'function') return null
-					return Promise.race([
-						ready.getMusicUrl(track.title, track.artist, track.id, HEALTH_TEST_QUALITY),
-						new Promise<never>((_, reject) => {
-							setTimeout(() => reject(new Error('请求超时')), HEALTH_TEST_TIMEOUT_MS)
-						}),
-					])
-				})
-				if (isValidMusicUrl(url)) {
-					successCount += 1
-					latencies.push(Date.now() - startedAt)
-				}
-			} catch {
-				// Counted as a failed probe.
-			}
-		}
-	const health: IMusic.MusicApiHealth = {
-			...api.health,
-			successCount,
-			totalCount: HEALTH_TEST_TRACKS.length,
-			latencyMs: latencies.length
-				? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length)
-				: null,
-			status: classifyMusicApiHealth(successCount, HEALTH_TEST_TRACKS.length),
-			testedAt: Date.now(),
+		const tracks = selectHealthTestTracks(
+			[
+				...(PersistStatus.get('music.recentlyPlayed') ?? []),
+				...(PersistStatus.get('music.favorites') ?? []),
+				...(PersistStatus.get('music.playLists') ?? []).flatMap((list) => list.songs ?? []),
+			],
+			api.scriptType === 'lxmusic',
+		)
+		const result = await probeMusicApi(
+			(
+				title: string,
+				artist: string,
+				id: string,
+				quality: IMusic.IQualityKey,
+				context: { musicItem: IMusic.IMusicItem },
+			) => requestMusicUrlFromApi(api, context.musicItem, quality, HEALTH_TEST_TIMEOUT_MS),
+			tracks,
+		)
+		const latestHealth = (musicApiStore.getValue() || []).find((item) => item.id === apiId)?.health
+		const health = {
+			...latestHealth,
+			...result,
+			qualitySupport: { ...latestHealth?.qualitySupport, ...result.qualitySupport },
 		}
 		patchMusicApi(apiId, { health }, true)
 		logInfo(
@@ -430,9 +424,9 @@ export const addMusicApi = (musicApi: IMusic.MusicApi, options: AddMusicApiOptio
 				if (shouldAutoTest) void testMusicApiById(musicApi.id)
 				return
 			}
-			Alert.alert('是否覆盖', `已经存在该音源，是否覆盖？`, [
+			Alert.alert(i18n.t('sourceImport.overwrite'), i18n.t('sourceImport.overwriteMessage'), [
 				{
-					text: '确定',
+					text: i18n.t('common.confirm'),
 					onPress: () => {
 						const updatedMusicApiList = [...nowMusicApiList]
 						updatedMusicApiList[existingApiIndex] = {
@@ -442,13 +436,13 @@ export const addMusicApi = (musicApi: IMusic.MusicApi, options: AddMusicApiOptio
 						}
 						persistApiList(updatedMusicApiList)
 						logInfo('Music API updated successfully')
-						Alert.alert('成功', '音源更新成功', [
-							{ text: '确定', onPress: () => logInfo('Update alert closed') },
+						Alert.alert(i18n.t('common.success'), i18n.t('sourceImport.updated'), [
+							{ text: i18n.t('common.confirm'), onPress: () => logInfo('Update alert closed') },
 						])
 						if (shouldAutoTest) void testMusicApiById(musicApi.id)
 					},
 				},
-				{ text: '取消', onPress: () => {}, style: 'cancel' },
+				{ text: i18n.t('find.cancel'), onPress: () => {}, style: 'cancel' },
 			])
 			return
 		}
@@ -461,16 +455,16 @@ export const addMusicApi = (musicApi: IMusic.MusicApi, options: AddMusicApiOptio
 		}
 		logInfo('音源导入成功')
 		if (!options.silent) {
-			Alert.alert('成功', '音源导入成功', [
-				{ text: '确定', onPress: () => logInfo('Add alert closed') },
+			Alert.alert(i18n.t('common.success'), i18n.t('sourceImport.success'), [
+				{ text: i18n.t('common.confirm'), onPress: () => logInfo('Add alert closed') },
 			])
 		}
 		if (shouldAutoTest) void testMusicApiById(musicApi.id)
 	} catch (error) {
 		logError('Error adding/updating music API:', error)
 		if (!options.silent) {
-			Alert.alert('失败', '音源导入/更新失败', [
-				{ text: '确定', onPress: () => logInfo('Error alert closed') },
+			Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'), [
+				{ text: i18n.t('common.confirm'), onPress: () => logInfo('Error alert closed') },
 			])
 		}
 	}
@@ -494,8 +488,8 @@ export const deleteMusicApiById = (musicApiId: string, options: { silent?: boole
 	}
 	logInfo('Music API deleted successfully')
 	if (!options.silent) {
-		Alert.alert('成功', '音源删除成功', [
-			{ text: '确定', onPress: () => logInfo('Add alert closed') },
+		Alert.alert(i18n.t('common.success'), i18n.t('sourceImport.deleted'), [
+			{ text: i18n.t('common.confirm'), onPress: () => logInfo('Add alert closed') },
 		])
 	}
 }

@@ -1,3 +1,4 @@
+import i18n from '@/utils/i18n'
 import { ThemeColors } from '@/constants/tokens'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { logError, logInfo } from '@/helpers/logger'
@@ -32,29 +33,29 @@ const ShareIntent = () => {
 
 	const sourceLabel = useMemo(() => {
 		if (sharedFile?.fileName) return sharedFile.fileName
-		if (hasScriptText) return '脚本文本'
+		if (hasScriptText) return i18n.t('sourceImport.scriptText')
 		if (sourceUrl) return sourceUrl
-		if (sharedText) return '分享文本'
-		return '无可用来源'
+		if (sharedText) return i18n.t('sourceImport.sharedText')
+		return i18n.t('sourceImport.noSource')
 	}, [hasScriptText, sharedFile?.fileName, sourceUrl, sharedText])
 
 	const sourceInfo = useMemo(() => {
 		if (sharedFile?.path && sharedFile?.size) {
-			return `大小: ${(sharedFile.size / 1024).toFixed(1)} KB`
+			return i18n.t('sourceImport.size', { size: (sharedFile.size / 1024).toFixed(1) })
 		}
 		if (sharedFile?.path) {
-			return '来源: 文件'
+			return i18n.t('sourceImport.file')
 		}
 		if (hasScriptText) {
-			return '来源: 脚本文本'
+			return i18n.t('sourceImport.textSource')
 		}
 		if (sourceUrl) {
-			return '来源: URL'
+			return i18n.t('sourceImport.urlSource')
 		}
 		if (sharedText) {
-			return '来源: 文本脚本'
+			return i18n.t('sourceImport.textSource')
 		}
-		return '请分享 .js 文件、脚本链接或脚本文本'
+		return i18n.t('sourceImport.hint')
 	}, [hasScriptText, sharedFile?.path, sharedFile?.size, sourceUrl, sharedText])
 
 	logInfo('shareIntent', shareIntent)
@@ -79,7 +80,7 @@ const ShareIntent = () => {
 		if (sharedText) {
 			return sharedText
 		}
-		throw new Error('未识别到可导入的 JS 音源脚本')
+		throw new Error(i18n.t('sourceImport.empty'))
 	}
 
 	const handleFinish = () => {
@@ -97,7 +98,9 @@ const ShareIntent = () => {
 				try {
 					const musicApi = await createMusicApiFromScript(sharedText)
 					myTrackPlayer.addMusicApi(musicApi)
-					Alert.alert('导入成功', '音源脚本已成功导入', [{ text: '确定', onPress: handleFinish }])
+					Alert.alert(i18n.t('common.success'), i18n.t('sourceImport.success'), [
+						{ text: i18n.t('common.confirm'), onPress: handleFinish },
+					])
 					return
 				} catch (err) {
 					logInfo(
@@ -111,12 +114,14 @@ const ShareIntent = () => {
 			const scriptText = await resolveScriptText()
 			const musicApi = await createMusicApiFromScript(scriptText)
 			myTrackPlayer.addMusicApi(musicApi)
-			Alert.alert('导入成功', '音源脚本已成功导入', [{ text: '确定', onPress: handleFinish }])
+			Alert.alert(i18n.t('common.success'), i18n.t('sourceImport.success'), [
+				{ text: i18n.t('common.confirm'), onPress: handleFinish },
+			])
 		} catch (err) {
 			const errMsg = err instanceof Error ? err.message : String(err)
 			logError('分享导入音源失败:', errMsg)
-			Alert.alert('导入失败', `无法导入音源脚本: ${errMsg}`, [
-				{ text: '确定', onPress: handleFinish },
+			Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'), [
+				{ text: i18n.t('common.confirm'), onPress: handleFinish },
 			])
 		} finally {
 			setImporting(false)
@@ -127,14 +132,19 @@ const ShareIntent = () => {
 		return (
 			<SafeAreaView style={styles.container}>
 				<View style={styles.card}>
-					<Text style={styles.title}>导入音源</Text>
-					<Text style={styles.message}>没有可导入的 JS 音源脚本</Text>
+					<Text style={styles.title}>{i18n.t('sourceImport.title')}</Text>
+					<Text style={styles.message}>{i18n.t('sourceImport.empty')}</Text>
 					<Text style={styles.fileInfo}>{sourceInfo}</Text>
 					<Text style={styles.debugText}>
 						{`type=${sharedType} files=${sharedFilesCount} textLen=${sharedText.length} url=${sharedUrl ? 1 : 0} script=${hasScriptText ? 1 : 0}`}
 					</Text>
-					<TouchableOpacity style={[styles.importButton, styles.cancelButton]} onPress={handleFinish}>
-						<Text style={[styles.importButtonText, styles.cancelButtonText]}>返回</Text>
+					<TouchableOpacity
+						style={[styles.importButton, styles.cancelButton]}
+						onPress={handleFinish}
+					>
+						<Text style={[styles.importButtonText, styles.cancelButtonText]}>
+							{i18n.t('common.back')}
+						</Text>
 					</TouchableOpacity>
 				</View>
 			</SafeAreaView>
@@ -144,7 +154,7 @@ const ShareIntent = () => {
 	return (
 		<SafeAreaView style={styles.container}>
 			<View style={styles.card}>
-				<Text style={styles.title}>导入音源</Text>
+				<Text style={styles.title}>{i18n.t('sourceImport.title')}</Text>
 				<Text style={styles.fileName} numberOfLines={2}>
 					{sourceLabel}
 				</Text>
@@ -155,14 +165,18 @@ const ShareIntent = () => {
 						onPress={handleImport}
 						disabled={importing}
 					>
-						<Text style={styles.importButtonText}>{importing ? '导入中...' : '导入'}</Text>
+						<Text style={styles.importButtonText}>
+							{importing ? i18n.t('sourceImport.importing') : i18n.t('sourceImport.import')}
+						</Text>
 					</TouchableOpacity>
 					<TouchableOpacity
 						style={[styles.importButton, styles.cancelButton]}
 						onPress={handleFinish}
 						disabled={importing}
 					>
-						<Text style={[styles.importButtonText, styles.cancelButtonText]}>取消</Text>
+						<Text style={[styles.importButtonText, styles.cancelButtonText]}>
+							{i18n.t('find.cancel')}
+						</Text>
 					</TouchableOpacity>
 				</View>
 			</View>
@@ -172,77 +186,77 @@ const ShareIntent = () => {
 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: colors.background,
-		padding: 16,
-	},
-	card: {
-		backgroundColor: colors.surfaceElevated,
-		borderRadius: 10,
-		padding: 16,
-		marginTop: 16,
-		shadowColor: colors.shadow,
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 8,
-	},
-	title: {
-		fontSize: 20,
-		fontWeight: '600',
-		color: colors.text,
-		marginBottom: 16,
-	},
-	fileName: {
-		fontSize: 16,
-		color: colors.text,
-		marginBottom: 8,
-	},
-	fileInfo: {
-		fontSize: 14,
-		color: colors.text,
-		marginBottom: 24,
-		opacity: 0.8,
-	},
-	importButton: {
-		backgroundColor: colors.primary,
-		padding: 16,
-		borderRadius: 8,
-		alignItems: 'center',
-	},
-	importButtonText: {
-		color: '#FFFFFF',
-		fontSize: 16,
-		fontWeight: '600',
-	},
-	message: {
-		color: colors.text,
-		fontSize: 16,
-		textAlign: 'center',
-		marginBottom: 8,
-	},
-	debugText: {
-		color: colors.text,
-		fontSize: 12,
-		opacity: 0.7,
-		marginBottom: 16,
-	},
-	buttonContainer: {
-		flexDirection: 'row',
-		gap: 10,
-	},
-	importPrimary: {
-		flex: 1,
-	},
-	cancelButton: {
-		flex: 1,
-		backgroundColor: 'transparent',
-		borderWidth: 1,
-		borderColor: colors.primary,
-	},
-	cancelButtonText: {
-		color: colors.primary,
-	},
+		container: {
+			flex: 1,
+			backgroundColor: colors.background,
+			padding: 16,
+		},
+		card: {
+			backgroundColor: colors.surfaceElevated,
+			borderRadius: 10,
+			padding: 16,
+			marginTop: 16,
+			shadowColor: colors.shadow,
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.1,
+			shadowRadius: 8,
+		},
+		title: {
+			fontSize: 20,
+			fontWeight: '600',
+			color: colors.text,
+			marginBottom: 16,
+		},
+		fileName: {
+			fontSize: 16,
+			color: colors.text,
+			marginBottom: 8,
+		},
+		fileInfo: {
+			fontSize: 14,
+			color: colors.text,
+			marginBottom: 24,
+			opacity: 0.8,
+		},
+		importButton: {
+			backgroundColor: colors.primary,
+			padding: 16,
+			borderRadius: 8,
+			alignItems: 'center',
+		},
+		importButtonText: {
+			color: '#FFFFFF',
+			fontSize: 16,
+			fontWeight: '600',
+		},
+		message: {
+			color: colors.text,
+			fontSize: 16,
+			textAlign: 'center',
+			marginBottom: 8,
+		},
+		debugText: {
+			color: colors.text,
+			fontSize: 12,
+			opacity: 0.7,
+			marginBottom: 16,
+		},
+		buttonContainer: {
+			flexDirection: 'row',
+			gap: 10,
+		},
+		importPrimary: {
+			flex: 1,
+		},
+		cancelButton: {
+			flex: 1,
+			backgroundColor: 'transparent',
+			borderWidth: 1,
+			borderColor: colors.primary,
+		},
+		cancelButtonText: {
+			color: colors.primary,
+		},
 	})
 
 export default ShareIntent

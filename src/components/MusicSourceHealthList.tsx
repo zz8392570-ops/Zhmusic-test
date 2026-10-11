@@ -34,7 +34,11 @@ const statusLabel = (status?: IMusic.MusicApiHealthStatus, latencyMs?: number | 
 	}
 }
 
-const MusicSourceHealthList = ({ onSelectSource, onTestSource, onTestAll }: MusicSourceHealthListProps) => {
+const MusicSourceHealthList = ({
+	onSelectSource,
+	onTestSource,
+	onTestAll,
+}: MusicSourceHealthListProps) => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const musicApis = musicApiStore.useValue() || []
@@ -93,9 +97,21 @@ const MusicSourceHealthList = ({ onSelectSource, onTestSource, onTestAll }: Musi
 									<Text style={styles.meta}>{latency}</Text>
 									<Text style={styles.meta}>{ratio}</Text>
 									<Text style={[styles.status, { color: statusColor(api.health?.status) }]}>
-										{statusLabel(api.health?.status, api.health?.averageResponseMs ?? api.health?.latencyMs)}
+										{statusLabel(
+											api.health?.status,
+											api.health?.averageResponseMs ?? api.health?.latencyMs,
+										)}
 									</Text>
 								</View>
+								{api.health?.status === 'idle' && api.health.lastProbeIssue ? (
+									<Text style={styles.runtimeText}>
+										{i18n.t(
+											api.health.lastProbeIssue === 'network'
+												? 'sourceErrors.probeNetwork'
+												: 'sourceErrors.probeCatalog',
+										)}
+									</Text>
+								) : null}
 								<View style={styles.runtimeRow}>
 									<Text style={styles.runtimeText} numberOfLines={1}>
 										{i18n.t('settings.sourceHealth.runtime', {
@@ -109,7 +125,9 @@ const MusicSourceHealthList = ({ onSelectSource, onTestSource, onTestAll }: Musi
 									</TouchableOpacity>
 								</View>
 								{api.health?.lastError ? (
-									<Text style={styles.lastError} numberOfLines={2}>{api.health.lastError}</Text>
+									<Text style={styles.lastError} numberOfLines={2}>
+										{api.health.lastError}
+									</Text>
 								) : null}
 							</TouchableOpacity>
 						</View>
@@ -169,15 +187,15 @@ const createStyles = (colors: ThemeColors) =>
 			alignItems: 'center',
 			gap: 12,
 		},
-			meta: {
+		meta: {
 			fontSize: 13,
 			color: colors.textMuted,
 			minWidth: 52,
-			},
-			runtimeRow: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 8 },
-			runtimeText: { flex: 1, color: colors.textMuted, fontSize: 12 },
-			testOneText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
-			lastError: { marginTop: 4, color: colors.error, fontSize: 12 },
+		},
+		runtimeRow: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 8 },
+		runtimeText: { flex: 1, color: colors.textMuted, fontSize: 12 },
+		testOneText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+		lastError: { marginTop: 4, color: colors.error, fontSize: 12 },
 		status: {
 			marginLeft: 'auto',
 			fontSize: 13,

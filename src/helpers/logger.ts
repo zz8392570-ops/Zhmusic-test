@@ -1,6 +1,7 @@
 import { createStore, useStore } from 'zustand'
 
 type LogLevel = 'INFO' | 'WARN' | 'ERROR'
+export const MAX_LOG_ENTRIES = 1000
 
 type LogEntry = {
 	timestamp: string
@@ -40,15 +41,7 @@ export const useLogger = createStore<LoggerState>((set) => ({
 			console.log(`[${newLog.timestamp}] [${level}] ${message}`)
 
 			return {
-				logs: [
-					...state.logs,
-					{
-						timestamp: new Date().toISOString(),
-						level,
-						message,
-						details: args.length > 1 ? args : undefined,
-					},
-				],
+				logs: [...state.logs, newLog].slice(-MAX_LOG_ENTRIES),
 			}
 		}),
 	clearLogs: () => set({ logs: [] }),

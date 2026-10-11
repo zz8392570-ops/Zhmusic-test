@@ -1,3 +1,4 @@
+import i18n from '@/utils/i18n'
 import { fakeAudioMp3Uri } from '@/constants/images'
 import { resolveLocalFile } from '@/helpers/localFile'
 import { logError, logInfo } from '@/helpers/logger'
@@ -161,7 +162,7 @@ const resolveSourceInternal = async (
 		if (localFile.status !== 'resolved') {
 			if (isCurrentSourceRequest(requestType)) {
 				logError('本地文件无法访问:', musicItem.url, localFile.reason)
-				showToast('错误', '本地文件不存在，请删除并重新缓存或导入。', 'error')
+				showToast(i18n.t('common.error'), i18n.t('sourceErrors.localMissing'), 'error')
 			}
 			return { url: fakeAudioMp3Uri, wasCached: false, quality: null }
 		}
@@ -203,7 +204,7 @@ const resolveSourceInternal = async (
 		const nowMusicApi = musicApiSelectedStore.getValue()
 		if (nowMusicApi == null) {
 			if (isCurrentSourceRequest(requestType)) {
-				showToast('错误', '获取音乐失败，请先导入音源。', 'error')
+				showToast(i18n.t('common.error'), i18n.t('sourceErrors.noSource'), 'error')
 			}
 			return { url: fakeAudioMp3Uri, wasCached: false, quality: null }
 		}
@@ -279,7 +280,12 @@ const resolveSourceInternal = async (
 								appendSourceDiagnostic({
 									requestKey,
 									requestType,
-									track: { id: String(musicItem.id), title: musicItem.title, artist: musicItem.artist, platform: musicItem.platform },
+									track: {
+										id: String(musicItem.id),
+										title: musicItem.title,
+										artist: musicItem.artist,
+										platform: musicItem.platform,
+									},
 									sourceId: api.id,
 									sourceName: api.name,
 									requestedQuality: currentQuality,
@@ -301,7 +307,12 @@ const resolveSourceInternal = async (
 							appendSourceDiagnostic({
 								requestKey,
 								requestType,
-								track: { id: String(musicItem.id), title: musicItem.title, artist: musicItem.artist, platform: musicItem.platform },
+								track: {
+									id: String(musicItem.id),
+									title: musicItem.title,
+									artist: musicItem.artist,
+									platform: musicItem.platform,
+								},
 								sourceId: api.id,
 								sourceName: api.name,
 								requestedQuality: preferredQuality,
@@ -311,13 +322,19 @@ const resolveSourceInternal = async (
 								result: 'success',
 							})
 							if (isCurrentSourceRequest(requestType) && currentQuality !== preferredQuality) {
-								showToast('提示', `已自动切换至${currentQuality}音质`, 'info')
+								showToast(
+									i18n.t('common.notice'),
+									i18n.t('sourceErrors.downgraded', { quality: currentQuality }),
+									'info',
+								)
 							}
 							logInfo(`${logPrefix} ${api.name} 成功获取${currentQuality}音质的音乐URL`)
 						} catch (error) {
 							throwIfRequestAborted(options.signal)
 							const errMsg = error instanceof Error ? error.message : String(error)
-							apiFailureReason = /timeout|timed out|超时/i.test(errMsg) ? 'timeout' : 'requestFailed'
+							apiFailureReason = /timeout|timed out|超时/i.test(errMsg)
+								? 'timeout'
+								: 'requestFailed'
 							recordMusicApiAttempt(api.id, {
 								success: false,
 								durationMs: Date.now() - startedAt,
@@ -327,7 +344,12 @@ const resolveSourceInternal = async (
 							appendSourceDiagnostic({
 								requestKey,
 								requestType,
-								track: { id: String(musicItem.id), title: musicItem.title, artist: musicItem.artist, platform: musicItem.platform },
+								track: {
+									id: String(musicItem.id),
+									title: musicItem.title,
+									artist: musicItem.artist,
+									platform: musicItem.platform,
+								},
 								sourceId: api.id,
 								sourceName: api.name,
 								requestedQuality: currentQuality,
