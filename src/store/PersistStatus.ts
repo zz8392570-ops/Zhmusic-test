@@ -7,6 +7,13 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
+	'app.onboardingCompleted': boolean
+	'backup.webdavStatus': {
+		lastSuccessAt?: number
+		lastFailureAt?: number
+		errorCode?: string
+		failureCount?: number
+	}
 	'music.musicItem': IMusic.IMusicItem //当前播放
 	'music.progress': number
 	'music.restorePlaybackOnStartup': boolean

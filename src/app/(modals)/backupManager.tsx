@@ -21,6 +21,8 @@ import { songsNumsToLoadStore } from '@/player/PlayerStore'
 import i18n, { changeLanguage } from '@/utils/i18n'
 import { shareLocalFiles } from '../../../modules/cymusic-native/sharing'
 import Constants from 'expo-constants'
+import PersistStatus from '@/store/PersistStatus'
+import { recordWebDavBackupFailure, recordWebDavBackupSuccess } from '@/helpers/webDavBackupStatus'
 import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
 import { useEffect, useState } from 'react'
@@ -51,6 +53,7 @@ export default function BackupManagerScreen() {
 	const [webDavPassword, setWebDavPassword] = useState('')
 	const [webDavRemotePath, setWebDavRemotePath] = useState(DEFAULT_REMOTE_PATH)
 	const [webDavStatus, setWebDavStatus] = useState('')
+	const backupStatus = PersistStatus.useValue('backup.webdavStatus')
 
 	useEffect(() => {
 		let mounted = true
@@ -79,6 +82,7 @@ export default function BackupManagerScreen() {
 	const webDavErrorMessage = (error: unknown) => {
 		const code = (error as { code?: WebDavErrorCode })?.code
 		if (code === 'invalid-config') return i18n.t('backup.webdavInvalidConfig')
+		if (code === 'https-required') return i18n.t('backup.httpsRequired')
 		if (code === 'unauthorized') return i18n.t('backup.webdavUnauthorized')
 		if (code === 'directory-not-found') return i18n.t('backup.webdavDirectoryNotFound')
 		if (code === 'backup-not-found') return i18n.t('backup.webdavBackupNotFound')
@@ -117,10 +121,16 @@ export default function BackupManagerScreen() {
 		})
 	const uploadWebDav = () =>
 		void runWebDavAction(async (config) => {
+			try {
 				await uploadWebDavBackupSnapshots(
 					config,
 					createMusicBackup(Constants.expoConfig?.version ?? ''),
 				)
+				recordWebDavBackupSuccess()
+			} catch (error) {
+				recordWebDavBackupFailure(error)
+				throw error
+			}
 			setWebDavStatus(i18n.t('backup.webdavUploadSuccess'))
 		})
 	const downloadWebDav = () =>
@@ -239,6 +249,7 @@ export default function BackupManagerScreen() {
 		<View style={{ gap: 8 }}>
 			<Text style={{ color: colors.text, fontWeight: '600' }}>{label}</Text>
 			<TextInput
+				accessibilityLabel={label}
 				autoCapitalize="none"
 				autoCorrect={false}
 				editable={!busy}
@@ -282,6 +293,22 @@ export default function BackupManagerScreen() {
 				<Text style={{ color: colors.textMuted, fontSize: 13, lineHeight: 19 }}>
 					{i18n.t('backup.webdavDescription')}
 				</Text>
+				<View style={{ gap: 8 }} accessibilityLiveRegion="polite">
+					<Text style={{ color: colors.textMuted }}>
+						{i18n.t('backup.lastSuccess', {
+							time: backupStatus?.lastSuccessAt
+								? new Date(backupStatus.lastSuccessAt).toLocaleString()
+								: i18n.t('backup.never'),
+						})}
+					</Text>
+					{backupStatus?.errorCode ? (
+						<Text style={{ color: colors.error }}>
+							{i18n.t('backup.autoFailed', {
+								reason: webDavErrorMessage({ code: backupStatus.errorCode }),
+							})}
+						</Text>
+					) : null}
+				</View>
 				{input(i18n.t('backup.webdavUrl'), webDavUrl, setWebDavUrl, {
 					placeholder: 'https://dav.example.com/remote.php/dav/files/user/Backups',
 					keyboardType: 'url',
@@ -301,6 +328,7 @@ export default function BackupManagerScreen() {
 					<View style={{ flex: 1 }}>{button(i18n.t('backup.webdavTest'), testWebDav)}</View>
 				</View>
 				{button(i18n.t('backup.webdavUpload'), uploadWebDav)}
+				{backupStatus?.errorCode ? button(i18n.t('backup.retryNow'), uploadWebDav) : null}
 				{button(i18n.t('backup.webdavDownload'), downloadWebDav)}
 				{busy ? <ActivityIndicator color={colors.primary} /> : null}
 				{webDavStatus ? (

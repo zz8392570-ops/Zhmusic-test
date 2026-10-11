@@ -1,4 +1,15 @@
 {
+	"onboarding": {
+		"title": "开始听音乐",
+		"description": "选择音源、测试可用性，然后搜索你想听的歌曲。也可以直接在“我的音乐”导入本地音乐。",
+		"configure": "1. 配置音源 · %{source}",
+		"noSource": "尚未选择",
+		"test": "2. 测试当前音源",
+		"ready": "音源可用，可以开始搜索播放。",
+		"failed": "当前音源暂不可用，请打开设置导入或选择其他音源。",
+		"search": "3. 搜索歌曲并开始播放",
+		"dismiss": "稍后设置"
+	},
 	"settings": {
 		"title": "设置",
 		"sections": {
@@ -581,6 +592,12 @@
 		"clear": "清除"
 	},
 	"backup": {
+		"failureReminder": "自动备份连续失败，点此查看并重试",
+		"httpsRequired": "WebDAV 备份需要 HTTPS 地址，请更换为 https:// 后重试。",
+		"lastSuccess": "最近备份成功：%{time}",
+		"never": "尚未成功备份",
+		"autoFailed": "备份失败：%{reason}",
+		"retryNow": "立即重试备份",
 		"webdavDirectoryNotFound": "WebDAV 目录不存在，请先在服务器中创建目录，或检查目录地址和远程路径",
 		"webdavBackupNotFound": "远程备份文件尚不存在，请先点击“上传当前备份”",
 		"title": "备份与恢复",
@@ -606,7 +623,7 @@
 		"webdavUsername": "用户名",
 		"webdavPassword": "密码或应用专用密码",
 		"webdavRemotePath": "远端文件名或相对路径",
-		"webdavSecurityNote": "配置保存在系统安全存储中。使用 HTTP 时，用户名、密码和备份内容不会被加密传输，建议使用 HTTPS。",
+		"webdavSecurityNote": "配置保存在系统安全存储中。备份仅接受 HTTPS 地址，不跟随重定向；旧 HTTP 配置需改为 HTTPS。",
 		"webdavSave": "保存配置",
 		"webdavTest": "测试连接",
 		"webdavUpload": "上传当前备份",

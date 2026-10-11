@@ -29,6 +29,7 @@ const webdav = loadModule(
 	{
 		'@/helpers/musicBackup': { MAX_BACKUP_BYTES: 100, parseMusicBackup },
 		buffer: { Buffer },
+		'expo/fetch': { fetch },
 		'expo-secure-store': {
 			getItemAsync: async (key) => secureValues.get(key) ?? null,
 			setItemAsync: async (key, value) => secureValues.set(key, value),
@@ -44,6 +45,19 @@ const config = {
 	remotePath: 'music backups/Cymusic.json',
 }
 const backup = { format: 'zhmusic-backup', version: 1 }
+
+await check('HTTP credentials cannot be saved or sent; legacy config remains editable', async () => {
+	const insecure = { ...config, url: 'http://dav.example.test/root' }
+	const count = requests.length
+	for (const operation of [webdav.saveWebDavBackupConfig, webdav.testWebDavConnection,
+		(value) => webdav.uploadWebDavBackup(value, backup), webdav.downloadWebDavBackup]) {
+		await assert.rejects(operation(insecure), error => error.code === 'https-required')
+	}
+	assert.equal(requests.length, count)
+	secureValues.set('cymusic.webdav.backup', JSON.stringify(insecure))
+	assert.equal((await webdav.loadWebDavBackupConfig()).url, insecure.url)
+	secureValues.clear()
+})
 
 await check('configuration is normalized and credentials stay in secure storage', async () => {
 	const saved = await webdav.saveWebDavBackupConfig(config)
@@ -72,6 +86,7 @@ await check(
 		await webdav.uploadWebDavBackup(config, backup)
 		const upload = requests.at(-1)
 		assert.equal(upload.options.method, 'PUT')
+		assert.equal(upload.options.redirect, 'error')
 		assert.equal(upload.url, 'https://dav.example.test/root/music%20backups/Cymusic.json')
 		assert.equal(upload.options.headers['Content-Type'], 'application/octet-stream')
 		assert.equal(

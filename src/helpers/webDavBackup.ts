@@ -1,6 +1,7 @@
 import { MAX_BACKUP_BYTES, parseMusicBackup, type MusicBackup } from '@/helpers/musicBackup'
 import { Buffer } from 'buffer'
 import * as SecureStore from 'expo-secure-store'
+import { fetch } from 'expo/fetch'
 
 const CONFIG_KEY = 'cymusic.webdav.backup'
 const LAST_DAILY_BACKUP_KEY = 'cymusic.webdav.last-daily-backup'
@@ -15,6 +16,7 @@ export interface WebDavBackupConfig {
 
 export type WebDavErrorCode =
 	| 'invalid-config'
+	| 'https-required'
 	| 'unauthorized'
 	| 'not-found'
 	| 'directory-not-found'
@@ -34,7 +36,7 @@ export class WebDavBackupError extends Error {
 	}
 }
 
-const normalizeConfig = (config: WebDavBackupConfig): WebDavBackupConfig => {
+const normalizeConfig = (config: WebDavBackupConfig, requireHttps = true): WebDavBackupConfig => {
 	let url: URL
 	try {
 		url = new URL(config.url.trim())
@@ -43,6 +45,7 @@ const normalizeConfig = (config: WebDavBackupConfig): WebDavBackupConfig => {
 	}
 	if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
 		throw new WebDavBackupError('invalid-config')
+	if (requireHttps && url.protocol !== 'https:') throw new WebDavBackupError('https-required')
 	url.hash = ''
 	const remotePath = config.remotePath.trim().replace(/^\/+|\/+$/g, '')
 	const segments = remotePath.split('/').filter(Boolean)
@@ -74,7 +77,8 @@ export const loadWebDavBackupConfig = async (): Promise<WebDavBackupConfig | nul
 		throw new WebDavBackupError('invalid-config')
 	}
 	if (!isConfig(value)) throw new WebDavBackupError('invalid-config')
-	return normalizeConfig(value)
+	// Keep legacy addresses editable; every network operation still enforces HTTPS.
+	return normalizeConfig(value, false)
 }
 
 export const saveWebDavBackupConfig = async (config: WebDavBackupConfig) => {
@@ -109,9 +113,9 @@ const request = async (url: string, options: RequestInit) => {
 	const controller = new AbortController()
 	const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 	try {
-		return await fetch(url, { ...options, signal: controller.signal })
+		return await fetch(url, { ...options, redirect: 'error', signal: controller.signal })
 	} catch (error) {
-		if (error instanceof Error && error.name === 'AbortError')
+		if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError'))
 			throw new WebDavBackupError('timeout')
 		throw new WebDavBackupError('request-failed')
 	} finally {

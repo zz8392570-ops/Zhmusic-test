@@ -1,6 +1,7 @@
 import { logError, logInfo } from '@/helpers/logger'
 import { createMusicBackup } from '@/helpers/musicBackup'
 import { runDailyWebDavBackup } from '@/helpers/webDavBackup'
+import { recordWebDavBackupFailure, recordWebDavBackupSuccess } from '@/helpers/webDavBackupStatus'
 import Constants from 'expo-constants'
 import { AppState, type AppStateStatus } from 'react-native'
 
@@ -10,13 +11,16 @@ let backupPromise: Promise<void> | null = null
 
 const requestDailyBackup = () => {
 	if (backupPromise || appState !== 'active') return backupPromise
-	backupPromise = runDailyWebDavBackup(
-		createMusicBackup(Constants.expoConfig?.version ?? ''),
-	)
+	backupPromise = Promise.resolve()
+		.then(() => runDailyWebDavBackup(createMusicBackup(Constants.expoConfig?.version ?? '')))
 		.then((result) => {
-			if (result === 'uploaded') logInfo('WebDAV 每日备份已完成')
+			if (result === 'uploaded') {
+				recordWebDavBackupSuccess()
+				logInfo('WebDAV 每日备份已完成')
+			}
 		})
 		.catch((error) => {
+			recordWebDavBackupFailure(error)
 			logError('WebDAV 每日备份失败:', error)
 		})
 		.finally(() => {

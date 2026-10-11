@@ -1,4 +1,15 @@
 {
+	"onboarding": {
+		"title": "Start listening",
+		"description": "Choose a source, test it, then search for a song. You can also import local audio in My Music.",
+		"configure": "1. Configure source · %{source}",
+		"noSource": "None selected",
+		"test": "2. Test current source",
+		"ready": "Source is available. Search for a song to play.",
+		"failed": "This source is unavailable. Import or select another source in Settings.",
+		"search": "3. Search and play",
+		"dismiss": "Set up later"
+	},
 	"settings": {
 		"title": "Settings",
 		"sections": {
@@ -580,6 +591,12 @@
 		"clear": "Clear"
 	},
 	"backup": {
+		"failureReminder": "Automatic backups have failed repeatedly. Tap to review and retry.",
+		"httpsRequired": "WebDAV backups require an HTTPS URL. Update the address to https:// and try again.",
+		"lastSuccess": "Last successful backup: %{time}",
+		"never": "No successful backup yet",
+		"autoFailed": "Backup failed: %{reason}",
+		"retryNow": "Retry backup now",
 		"webdavDirectoryNotFound": "The WebDAV directory does not exist. Create it on the server first, or check the directory URL and remote path.",
 		"webdavBackupNotFound": "The remote backup does not exist yet. Upload the current backup first.",
 		"title": "Backup & Restore",
@@ -605,7 +622,7 @@
 		"webdavUsername": "Username",
 		"webdavPassword": "Password or app password",
 		"webdavRemotePath": "Remote file name or relative path",
-		"webdavSecurityNote": "The configuration is kept in secure system storage. HTTP sends credentials and backup data without encryption; HTTPS is recommended.",
+		"webdavSecurityNote": "Configuration is kept in secure system storage. Backups require HTTPS and do not follow redirects. Update old HTTP configurations to HTTPS.",
 		"webdavSave": "Save configuration",
 		"webdavTest": "Test connection",
 		"webdavUpload": "Upload current backup",

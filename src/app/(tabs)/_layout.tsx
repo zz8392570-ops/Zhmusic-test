@@ -1,4 +1,6 @@
 import { FloatingPlayer } from '@/components/FloatingPlayer'
+import GettingStarted from '@/components/GettingStarted'
+import BackupReminder from '@/components/BackupReminder'
 import { BlurTint } from '@/constants/tokens'
 import { useAppTheme } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
@@ -42,6 +44,8 @@ const TabsNavigation = () => {
 
 	return (
 		<>
+			<GettingStarted />
+			<BackupReminder />
 			<Tabs
 				screenOptions={{
 					tabBarActiveTintColor: colors.primary,
