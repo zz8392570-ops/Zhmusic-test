@@ -7,6 +7,7 @@ const { check, finish } = checks()
 const globals = { Error }
 const request = loadModule('src/helpers/requestControl.ts', {}, globals)
 const audioQuality = loadModule('src/helpers/audioQuality.ts', {})
+const naming = loadModule('src/helpers/downloadFilename.ts', { buffer: { Buffer } })
 const state = (initial) => {
 	let value = initial
 	return {
@@ -59,6 +60,7 @@ function persistence() {
 function backupFixture() {
 	const store = persistence()
 	const backup = loadModule('src/helpers/musicBackup.ts', {
+		'@/helpers/downloadFilename': naming,
 		'@/store/PersistStatus': store,
 		buffer: { Buffer },
 	})
@@ -705,6 +707,7 @@ function retentionFixture() {
 					: { status: 'nonlocal' },
 	}
 	const cache = loadModule('src/player/CacheManager.ts', {
+		'@/helpers/downloadFilename': naming,
 		'@/helpers/logger': { logInfo() {}, logError() {} },
 		'./PlayerStore': stores,
 		'@/store/PersistStatus': store,

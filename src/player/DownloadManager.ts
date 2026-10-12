@@ -143,12 +143,15 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 			if (!source.url || source.url === fakeAudioMp3Uri || source.url.includes('fake'))
 				throw new Error('没有可下载的音源')
 			quality = source.quality ?? task.quality
-			await withCacheMaintenance(() => ensureCacheDiskSpace(() => [
-				...protectedPaths(),
-				...cacheDownloadTasksStore.getValue()
-					.filter((item) => item.status === 'downloading')
-					.map((item) => getLocalFilePath(item.track, item.quality)),
-			]))
+			await withCacheMaintenance(() =>
+				ensureCacheDiskSpace(() => [
+					...protectedPaths(),
+					...cacheDownloadTasksStore
+						.getValue()
+						.filter((item) => item.status === 'downloading')
+						.map((item) => getLocalFilePath(item.track, item.quality)),
+				]),
+			)
 			if (controller.signal.aborted || !isCurrent(task)) return
 			localPath = await downloadToCache(
 				{ ...task.track, url: source.url },
@@ -157,6 +160,8 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 					if (isCurrent(task)) update({ ...task, quality, progress, status: 'downloading' })
 				},
 				task.id,
+				(cacheDownloadTasksStore.getValue().find((item) => item.id === task.id)?.kind ??
+					task.kind) !== 'automatic',
 			)
 		}
 		if (controller.signal.aborted || !isCurrent(task)) return

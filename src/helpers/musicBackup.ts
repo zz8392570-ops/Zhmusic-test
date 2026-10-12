@@ -1,7 +1,9 @@
 import PersistStatus, { IPersistConfig } from '@/store/PersistStatus'
 import { Buffer } from 'buffer'
+import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 
 const settingValidators = {
+	'music.downloadFilenameTemplate': isValidDownloadTemplate,
 	'music.quality': (value: unknown) =>
 		typeof value === 'string' && ['128k', '320k', 'flac'].includes(value),
 	'music.preciseSeeking': (value: unknown) => typeof value === 'boolean',

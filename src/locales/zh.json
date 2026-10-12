@@ -1,4 +1,16 @@
 {
+	"downloadNaming": {
+		"title": "下载歌曲命名",
+		"description": "仅影响新下载的歌曲；已有下载和自动缓存不改名。扩展名按实际音质添加，重名自动加序号。",
+		"tokens": "占位符：{title} 歌曲、{artist} 歌手、{album} 专辑、{quality} 音质、{platform} 平台、{id} 编号",
+		"invalid": "请输入包含 {title}、{artist} 或 {id} 的规则，不能使用路径或未知占位符。",
+		"preview": "文件名预览",
+		"save": "保存规则",
+		"saved": "命名规则已保存",
+		"exampleTitle": "示例歌曲",
+		"exampleArtist": "示例歌手",
+		"exampleAlbum": "示例专辑"
+	},
 	"common": {
 		"error": "错误",
 		"success": "成功",
@@ -235,11 +247,11 @@
 		"nameRequired": "请输入歌单名称",
 		"createButton": "创建歌单",
 		"importButton": "导入歌单",
-		"createFailed": "创建失败，请重试",
-		"imported": "已导入歌单：%{name}",
 		"importFile": "导入 LX/Cymusic 歌单文件",
 		"orImportFile": "或者从本地导入 .lxmc / JSON 歌单文件",
-		"fileImportFailed": "歌单文件无效、版本不支持或超过 10 MB"
+		"fileImportFailed": "歌单文件无效、版本不支持或超过 10 MB",
+		"createFailed": "创建失败，请重试",
+		"imported": "已导入歌单：%{name}"
 	},
 	"playlistTools": {
 		"title": "整理歌单",
@@ -256,7 +268,18 @@
 			"duration": "按时长",
 			"source": "按平台"
 		},
+		"sortDirections": {
+			"asc": "升序",
+			"desc": "降序",
+			"random": "随机排序"
+		},
 		"sorted": "歌单排序已保存",
+		"export": "导出 LX/Cymusic 歌单文件",
+		"exporting": "正在导出…",
+		"exportFailed": "歌单导出失败，请稍后重试",
+		"clear": "清空歌单",
+		"clearTitle": "清空歌单",
+		"clearMessage": "确定移除这个歌单中的全部歌曲吗？歌单本身和离线文件会保留。",
 		"findDuplicates": "检查重复歌曲",
 		"repairUnavailable": "扫描并修复失效歌曲",
 		"repairing": "正在扫描失效歌曲…",
@@ -270,6 +293,9 @@
 		"organizeSelected": "整理所选歌曲",
 		"addSelected": "添加到其他歌单",
 		"moveSelected": "移动到其他歌单",
+		"moveSelectedTop": "移到歌单顶部",
+		"moveSelectedBottom": "移到歌单底部",
+		"positionUpdated": "歌曲位置已更新",
 		"chooseDestination": "选择目标歌单",
 		"noDestination": "请先创建另一个自建歌单",
 		"organizeComplete": "批量整理完成",
@@ -285,21 +311,7 @@
 		"sourceSearchFailed": "搜索替代版本失败，请稍后重试",
 		"replaced": "已替换并保存到歌单",
 		"replacementDuplicate": "所选版本已在歌单中",
-		"updateFailed": "歌单更新失败，请重试",
-		"sortDirections": {
-			"asc": "升序",
-			"desc": "降序",
-			"random": "随机排序"
-		},
-		"export": "导出 LX/Cymusic 歌单文件",
-		"exporting": "正在导出…",
-		"exportFailed": "歌单导出失败，请稍后重试",
-		"clear": "清空歌单",
-		"clearTitle": "清空歌单",
-		"clearMessage": "确定移除这个歌单中的全部歌曲吗？歌单本身和离线文件会保留。",
-		"moveSelectedTop": "移到歌单顶部",
-		"moveSelectedBottom": "移到歌单底部",
-		"positionUpdated": "歌曲位置已更新"
+		"updateFailed": "歌单更新失败，请重试"
 	},
 	"logScreen": {
 		"title": "应用日志",
@@ -351,11 +363,7 @@
 		"title": "版本更新记录",
 		"subtitle": "看看每个版本新增和修复了什么",
 		"current": "当前版本",
-		"sections": {
-			"new": "新增",
-			"improved": "优化",
-			"fixed": "修复"
-		}
+		"sections": { "new": "新增", "improved": "优化", "fixed": "修复" }
 	},
 	"library": {
 		"songCount": "%{count} 首歌曲",

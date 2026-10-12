@@ -287,6 +287,15 @@ const RootNavigation = () => {
 				}}
 			/>
 			<Stack.Screen
+				name="(modals)/downloadNaming"
+				options={{
+					presentation: 'modal',
+					headerTitle: i18n.t('downloadNaming.title'),
+					headerStyle: { backgroundColor: colors.background },
+					headerTintColor: colors.text,
+				}}
+			/>
+			<Stack.Screen
 				name="(modals)/syncManager"
 				options={{
 					presentation: 'modal',

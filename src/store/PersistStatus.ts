@@ -56,6 +56,8 @@ export interface IPersistConfig {
 	'search.type': 'songs' | 'artists' | 'playlists'
 	'search.platform': 'all' | 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
 	'music.cacheQualityMap': Record<string, string>
+	'music.downloadFilenameTemplate': string
+	'music.downloadFilenameMap': Record<string, string>
 	'music.cacheLimitMB': number
 	'music.savedOffline': Record<string, boolean>
 	'music.cacheDownloads': import('@/player/PlayerStore').CacheDownloadTask[]

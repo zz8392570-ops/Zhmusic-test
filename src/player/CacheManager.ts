@@ -1,6 +1,7 @@
 import { logError, logInfo } from '@/helpers/logger'
 import { cacheRevisionStore, importedLocalMusicStore, qualityStore } from './PlayerStore'
 import PersistStatus from '@/store/PersistStatus'
+import { formatDownloadFilename, DEFAULT_DOWNLOAD_TEMPLATE } from '@/helpers/downloadFilename'
 import * as FileSystem from 'expo-file-system/legacy'
 import { downloadFile } from '@/helpers/fileDownload'
 import { fileUriFromPath } from '@/helpers/localFile'
@@ -37,6 +38,16 @@ const getCacheExtension = (quality: AudioQuality) =>
 	quality === 'flac' || quality === 'flac24bit' ? 'flac' : 'mp3'
 
 const getCacheFilename = (musicItem: IMusic.IMusicItem, quality: AudioQuality): string => {
+	const mapped = (PersistStatus.get('music.downloadFilenameMap') ?? {})[
+		downloadNameKey(musicItem, quality)
+	]
+	if (
+		mapped &&
+		!/[/\\]/.test(mapped) &&
+		!Array.from(mapped).some((char) => char.charCodeAt(0) < 32) &&
+		!/^\./.test(mapped)
+	)
+		return mapped
 	const format = getCacheExtension(quality)
 	const safeTitle = sanitizeFilename(musicItem.title)
 	const safeArtist = sanitizeFilename(musicItem.artist)
@@ -45,6 +56,47 @@ const getCacheFilename = (musicItem: IMusic.IMusicItem, quality: AudioQuality): 
 			? `${musicItem.platform}_${musicItem.id}`
 			: `${safeTitle}-${safeArtist}`
 	return `${platformId}.${format}`
+}
+
+const downloadNameKey = (track: IMusic.IMusicItem, quality: AudioQuality) =>
+	JSON.stringify([track.platform, track.id, getCacheExtension(quality)])
+let namingLock: Promise<unknown> = Promise.resolve()
+const allocateDownloadPath = (
+	track: IMusic.IMusicItem,
+	quality: AudioQuality,
+	customNaming: boolean,
+): Promise<string> => {
+	const allocate = async () => {
+		const key = downloadNameKey(track, quality)
+		const names = PersistStatus.get('music.downloadFilenameMap') ?? {}
+		if (names[key]) return getLocalFilePath(track, quality)
+		const filename = customNaming
+			? formatDownloadFilename(
+					track,
+					quality,
+					PersistStatus.get('music.downloadFilenameTemplate') ?? DEFAULT_DOWNLOAD_TEMPLATE,
+				)
+			: getCacheFilename(track, quality)
+		const dot = filename.lastIndexOf('.')
+		const reserved = new Set(Object.values(names).map((name) => name.toLowerCase()))
+		let candidate = filename
+		for (
+			let index = 2;
+			reserved.has(candidate.toLowerCase()) ||
+			(await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${candidate}`))).exists;
+			index++
+		) {
+			candidate = `${filename.slice(0, dot)} (${index})${filename.slice(dot)}`
+		}
+		PersistStatus.set('music.downloadFilenameMap', { ...names, [key]: candidate })
+		return `${cacheDir}${candidate}`
+	}
+	const pending = namingLock.then(allocate, allocate)
+	namingLock = pending.then(
+		() => undefined,
+		() => undefined,
+	)
+	return pending
 }
 
 const getLegacyCacheFilename = (musicItem: IMusic.IMusicItem, quality: AudioQuality): string => {
@@ -137,10 +189,13 @@ export const downloadToCache = async (
 	quality: AudioQuality = qualityStore.getValue(),
 	onProgress?: (progress: number) => void,
 	taskId?: string,
+	customNaming = false,
 ): Promise<string> => {
 	try {
 		await ensureCacheDirExists()
-		const localPath = getLocalFilePath(musicItem, quality)
+		let localPath = getLocalFilePath(musicItem, quality)
+		if (!(await FileSystem.getInfoAsync(getCacheFileUri(localPath))).exists)
+			localPath = await allocateDownloadPath(musicItem, quality, customNaming)
 		const existing = await FileSystem.getInfoAsync(getCacheFileUri(localPath))
 		if (existing.exists) {
 			setCachedQuality(localPath, quality)
@@ -279,22 +334,26 @@ export const ensureCacheDiskSpace = async (
 	expectedBytes = 128 * 1024 * 1024,
 ) => {
 	const required = 512 * 1024 * 1024 + Math.max(0, expectedBytes)
-	if (await FileSystem.getFreeDiskStorageAsync() >= required) return
+	if ((await FileSystem.getFreeDiskStorageAsync()) >= required) return
 	await migrateCacheRetention()
 	if ((await FileSystem.getInfoAsync(cacheDir)).exists) {
-		const files = await Promise.all((await FileSystem.readDirectoryAsync(cacheDir)).map(async (entry) => ({
-			entry,
-			info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
-		})))
-		files.sort((a, b) =>
-			(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
-			(b.info.exists ? b.info.modificationTime ?? 0 : 0))
+		const files = await Promise.all(
+			(await FileSystem.readDirectoryAsync(cacheDir)).map(async (entry) => ({
+				entry,
+				info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
+			})),
+		)
+		files.sort(
+			(a, b) =>
+				(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
+				(b.info.exists ? b.info.modificationTime ?? 0 : 0),
+		)
 		for (const file of files) {
-			if (await FileSystem.getFreeDiskStorageAsync() >= required) return
+			if ((await FileSystem.getFreeDiskStorageAsync()) >= required) return
 			await removeAutomaticCacheFile(file.entry, () => isPreserved(file.entry, preservePaths))
 		}
 	}
-	if (await FileSystem.getFreeDiskStorageAsync() < required)
+	if ((await FileSystem.getFreeDiskStorageAsync()) < required)
 		throw new Error('设备剩余空间不足，请释放空间后重试')
 }
 

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const checks = [
+	'check-download-naming.mjs',
 	'check-file-downloads.mjs',
 	'check-local-files.mjs',
 	'check-lx-sync.mjs',

@@ -489,6 +489,7 @@ const SettingModal = () => {
 			title: i18n.t('settings.sections.downloadsCache'),
 			data: [
 				{ id: 'cache-manager', title: i18n.t('settings.items.manageCache'), type: 'link' },
+				{ id: 'download-naming', title: i18n.t('downloadNaming.title'), type: 'link' },
 				{
 					id: '14',
 					title: i18n.t('settings.items.autoCacheLocal'),
@@ -547,12 +548,12 @@ const SettingModal = () => {
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => {
 				switch (event) {
-				case 'file':
-					setTimeout(
-						() => void importMusicSourceFromFile(),
-						Platform.OS === 'ios' ? IOS_MODAL_DISMISS_DELAY_MS : 0,
-					)
-					break
+					case 'file':
+						setTimeout(
+							() => void importMusicSourceFromFile(),
+							Platform.OS === 'ios' ? IOS_MODAL_DISMISS_DELAY_MS : 0,
+						)
+						break
 					case 'url':
 						importMusicSourceFromUrl()
 						break
@@ -806,6 +807,7 @@ const SettingModal = () => {
 						if (item.id === 'cache-manager') {
 							router.push('/(modals)/cacheManager')
 						}
+						if (item.id === 'download-naming') router.push('/(modals)/downloadNaming')
 						if (item.id === '13') {
 							router.push('/(modals)/logScreen')
 						}
