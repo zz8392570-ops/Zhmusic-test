@@ -28,7 +28,7 @@ type PlaylistTracksListProps = {
 	exportSelectedTracks?: () => void
 	managementActions?: MenuAction[]
 	onManagementAction?: (actionId: string) => void
-	onSelectedAction?: (actionId: 'add' | 'move') => void
+	onSelectedAction?: (actionId: 'add' | 'move' | 'top' | 'bottom') => void
 	onReplaceSource?: (track: Track) => void
 	showMetadata?: boolean
 	metadata?: string

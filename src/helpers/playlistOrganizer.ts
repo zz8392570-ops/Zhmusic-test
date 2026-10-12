@@ -1,15 +1,23 @@
 import type { Track } from '@/player/types'
 
 export type PlaylistSortField = 'title' | 'artist' | 'album' | 'duration' | 'source'
+export type PlaylistSortDirection = 'asc' | 'desc'
 
-export const sortLibraryPlaylists = <T extends { title?: string; name?: string; pinned?: boolean; folder?: string; sortOrder?: number }>(
+export const sortLibraryPlaylists = <
+	T extends {
+		title?: string
+		name?: string
+		pinned?: boolean
+		folder?: string
+		sortOrder?: number
+	},
+>(
 	playlists: T[],
 ): T[] =>
 	playlists
 		.map((playlist, index) => ({ playlist, index }))
 		.sort((left, right) => {
-			if (!!left.playlist.pinned !== !!right.playlist.pinned)
-				return left.playlist.pinned ? -1 : 1
+			if (!!left.playlist.pinned !== !!right.playlist.pinned) return left.playlist.pinned ? -1 : 1
 			const folderResult = compareText(left.playlist.folder, right.playlist.folder)
 			if (folderResult) return folderResult
 			const orderResult =
@@ -36,7 +44,11 @@ const normalizedArtists = (value: unknown) =>
 const compareText = (left: unknown, right: unknown) =>
 	text(left).localeCompare(text(right), undefined, { numeric: true, sensitivity: 'base' })
 
-export const sortPlaylistTracks = (tracks: Track[], field: PlaylistSortField): Track[] =>
+export const sortPlaylistTracks = (
+	tracks: Track[],
+	field: PlaylistSortField,
+	direction: PlaylistSortDirection = 'asc',
+): Track[] =>
 	tracks
 		.map((track, index) => ({ track, index }))
 		.sort((left, right) => {
@@ -51,7 +63,7 @@ export const sortPlaylistTracks = (tracks: Track[], field: PlaylistSortField): T
 				default:
 					result = compareText(left.track[field], right.track[field])
 			}
-			return result || left.index - right.index
+			return (direction === 'desc' ? -result : result) || left.index - right.index
 		})
 		.map(({ track }) => track)
 

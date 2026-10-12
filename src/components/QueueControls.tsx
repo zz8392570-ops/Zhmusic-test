@@ -24,7 +24,7 @@ type QueueControlsProps = {
 	exportSelectedTracks?: () => void
 	managementActions?: MenuAction[]
 	onManagementAction?: (actionId: string) => void
-	onSelectedAction?: (actionId: 'add' | 'move') => void
+	onSelectedAction?: (actionId: 'add' | 'move' | 'top' | 'bottom') => void
 } & ViewProps
 
 export const QueueControls = ({
@@ -234,9 +234,19 @@ export const QueueControls = ({
 					actions={[
 						{ id: 'add', title: i18n.t('playlistTools.addSelected'), image: 'text.badge.plus' },
 						{ id: 'move', title: i18n.t('playlistTools.moveSelected'), image: 'folder' },
+						{
+							id: 'top',
+							title: i18n.t('playlistTools.moveSelectedTop'),
+							image: 'arrow.up.to.line',
+						},
+						{
+							id: 'bottom',
+							title: i18n.t('playlistTools.moveSelectedBottom'),
+							image: 'arrow.down.to.line',
+						},
 					]}
 					onPressAction={({ nativeEvent: { event } }) =>
-						onSelectedAction(event as 'add' | 'move')
+						onSelectedAction(event as 'add' | 'move' | 'top' | 'bottom')
 					}
 				>
 					<TouchableOpacity

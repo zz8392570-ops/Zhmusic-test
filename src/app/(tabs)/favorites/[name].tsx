@@ -8,17 +8,22 @@ import {
 	rankReplacementSources,
 	sortPlaylistTracks,
 	type PlaylistSortField,
+	type PlaylistSortDirection,
 } from '@/helpers/playlistOrganizer'
+import { serializePlaylistFile } from '@/helpers/playlistFile'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import { getImportedPlaylistSource, refreshImportedPlaylist } from '@/helpers/importPlaylist'
 import { useDefaultStyles } from '@/styles'
 import { Redirect, useLocalSearchParams } from 'expo-router'
+import { File, Paths } from 'expo-file-system'
 import React, { useCallback, useMemo, useState } from 'react'
 import { Alert, ScrollView, View } from 'react-native'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import i18n from '@/utils/i18n'
 import { repairUnavailableTracks } from '@/helpers/libraryRepair'
+import { shareLocalFiles } from '../../../../modules/cymusic-native/sharing'
+import shuffle from 'lodash.shuffle'
 
 const PlaylistScreen = () => {
 	const defaultStyles = useDefaultStyles()
@@ -28,6 +33,7 @@ const PlaylistScreen = () => {
 	const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set())
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [isRepairing, setIsRepairing] = useState(false)
+	const [isExporting, setIsExporting] = useState(false)
 
 	const playlist = useMemo(() => {
 		return playlists?.find((p) => p.id === playlistID)
@@ -97,9 +103,19 @@ const PlaylistScreen = () => {
 	}, [saveSongs, selectedTracks, songs])
 
 	const organizeSelectedTracks = useCallback(
-		(action: 'add' | 'move') => {
+		(action: 'add' | 'move' | 'top' | 'bottom') => {
 			const selected = songs.filter((song) => selectedTracks.has(song.id))
 			if (!selected.length) return
+			if (action === 'top' || action === 'bottom') {
+				const rest = songs.filter((song) => !selectedTracks.has(song.id))
+				const next = action === 'top' ? [...selected, ...rest] : [...rest, ...selected]
+				if (saveSongs(next) === 'success') {
+					setSelectedTracks(new Set())
+					setIsMultiSelectMode(false)
+					Alert.alert(i18n.t('playlistTools.positionUpdated'))
+				}
+				return
+			}
 			const destinations = (playlists ?? []).filter((item) => item.id !== playlistID)
 			if (!destinations.length) {
 				Alert.alert(i18n.t('playlistTools.noDestination'))
@@ -114,7 +130,11 @@ const PlaylistScreen = () => {
 						onPress: () => {
 							const result =
 								action === 'move'
-									? myTrackPlayer.moveSongsBetweenStoredPlaylists(playlistID, destination.id, selected)
+									? myTrackPlayer.moveSongsBetweenStoredPlaylists(
+											playlistID,
+											destination.id,
+											selected,
+										)
 									: myTrackPlayer.addSongsToStoredPlayList(destination.id, selected)
 							if (result.status === 'success') {
 								Alert.alert(
@@ -136,8 +156,43 @@ const PlaylistScreen = () => {
 				],
 			)
 		},
-		[playlistID, playlists, selectedTracks, songs],
+		[playlistID, playlists, saveSongs, selectedTracks, songs],
 	)
+
+	const exportPlaylist = useCallback(async () => {
+		if (!playlist || isExporting) return
+		setIsExporting(true)
+		const safeName = (playlist.title || playlist.name || 'playlist')
+			.replace(/[\\/:*?"<>|]+/g, '_')
+			.slice(0, 80)
+		const file = new File(Paths.cache, `lx_list_part_${safeName}.lxmc`)
+		try {
+			file.create({ overwrite: true })
+			file.write(serializePlaylistFile(playlist as IMusic.PlayList))
+			await shareLocalFiles([file.uri])
+		} catch {
+			Alert.alert(i18n.t('playlistTools.exportFailed'))
+		} finally {
+			try {
+				if (file.exists) file.delete()
+			} catch {
+				/* Temporary export cleanup is best effort. */
+			}
+			setIsExporting(false)
+		}
+	}, [isExporting, playlist])
+
+	const clearPlaylist = useCallback(() => {
+		if (!songs.length) return
+		Alert.alert(i18n.t('playlistTools.clearTitle'), i18n.t('playlistTools.clearMessage'), [
+			{ text: i18n.t('find.cancel'), style: 'cancel' },
+			{
+				text: i18n.t('playlistTools.clear'),
+				style: 'destructive',
+				onPress: () => void saveSongs([]),
+			},
+		])
+	}, [saveSongs, songs.length])
 
 	const importedSource = useMemo(
 		() => (playlist ? getImportedPlaylistSource(playlist) : null),
@@ -190,9 +245,16 @@ const PlaylistScreen = () => {
 				id: 'sort',
 				title: i18n.t('playlistTools.sort'),
 				image: 'arrow.up.arrow.down',
-				subactions: (['title', 'artist', 'album', 'duration', 'source'] as PlaylistSortField[]).map(
-					(field) => ({ id: `sort-${field}`, title: i18n.t(`playlistTools.sortFields.${field}`) }),
-				),
+				subactions: [
+					...(['title', 'artist', 'album', 'duration', 'source'] as PlaylistSortField[]).flatMap(
+						(field) =>
+							(['asc', 'desc'] as PlaylistSortDirection[]).map((direction) => ({
+								id: `sort-${field}-${direction}`,
+								title: `${i18n.t(`playlistTools.sortFields.${field}`)} · ${i18n.t(`playlistTools.sortDirections.${direction}`)}`,
+							})),
+					),
+					{ id: 'sort-random', title: i18n.t('playlistTools.sortDirections.random') },
+				],
 			},
 			{
 				id: 'duplicates',
@@ -206,8 +268,20 @@ const PlaylistScreen = () => {
 				attributes: { disabled: isRepairing },
 			},
 			{ id: 'select', title: i18n.t('playlistTools.selectSongs'), image: 'checkmark.circle' },
+			{
+				id: 'export',
+				title: i18n.t(isExporting ? 'playlistTools.exporting' : 'playlistTools.export'),
+				image: 'square.and.arrow.up',
+				attributes: { disabled: isExporting },
+			},
+			{
+				id: 'clear',
+				title: i18n.t('playlistTools.clear'),
+				image: 'trash',
+				attributes: { destructive: true },
+			},
 		],
-		[importedSource, isRefreshing, isRepairing],
+		[importedSource, isExporting, isRefreshing, isRepairing],
 	)
 
 	const repairUnavailableSongs = useCallback(async () => {
@@ -230,8 +304,10 @@ const PlaylistScreen = () => {
 			}
 			if (
 				result.repaired &&
-				myTrackPlayer.updateStoredPlaylist(playlistID, { songs: result.tracks, sourceOverrides }) !==
-					'success'
+				myTrackPlayer.updateStoredPlaylist(playlistID, {
+					songs: result.tracks,
+					sourceOverrides,
+				}) !== 'success'
 			)
 				throw new Error('save failed')
 			Alert.alert(
@@ -251,6 +327,14 @@ const PlaylistScreen = () => {
 
 	const onManagementAction = useCallback(
 		(actionId: string) => {
+			if (actionId === 'export') {
+				void exportPlaylist()
+				return
+			}
+			if (actionId === 'clear') {
+				clearPlaylist()
+				return
+			}
 			if (actionId === 'repair') {
 				void repairUnavailableSongs()
 				return
@@ -259,11 +343,20 @@ const PlaylistScreen = () => {
 				void refreshOnlinePlaylist()
 				return
 			}
+			if (actionId === 'sort-random') {
+				if (saveSongs(shuffle(songs)) === 'success') Alert.alert(i18n.t('playlistTools.sorted'))
+				return
+			}
 			if (actionId.startsWith('sort-')) {
-				const field = actionId.replace('sort-', '') as PlaylistSortField
+				const [, field, direction] = actionId.split('-') as [
+					string,
+					PlaylistSortField,
+					PlaylistSortDirection,
+				]
 				if (
-					saveSongs(sortPlaylistTracks(songs as Track[], field) as IMusic.IMusicItem[]) ===
-					'success'
+					saveSongs(
+						sortPlaylistTracks(songs as Track[], field, direction) as IMusic.IMusicItem[],
+					) === 'success'
 				) {
 					Alert.alert(i18n.t('playlistTools.sorted'))
 				}
@@ -288,7 +381,14 @@ const PlaylistScreen = () => {
 				)
 			}
 		},
-		[refreshOnlinePlaylist, repairUnavailableSongs, saveSongs, songs],
+		[
+			clearPlaylist,
+			exportPlaylist,
+			refreshOnlinePlaylist,
+			repairUnavailableSongs,
+			saveSongs,
+			songs,
+		],
 	)
 
 	const replaceSource = useCallback(

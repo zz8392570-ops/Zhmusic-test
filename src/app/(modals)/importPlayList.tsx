@@ -4,12 +4,19 @@ import { ThemeColors, screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import { importPlaylistByLink, parsePlaylistInput } from '@/helpers/importPlaylist'
 import { logError } from '@/helpers/logger'
-import myTrackPlayer from '@/helpers/trackPlayerIndex'
+import {
+	MAX_PLAYLIST_FILE_BYTES,
+	parsePlaylistFile,
+	uniqueImportedPlaylist,
+} from '@/helpers/playlistFile'
+import myTrackPlayer, { playListsStore } from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
 import { useHeaderHeight } from 'expo-router/react-navigation'
+import * as DocumentPicker from 'expo-document-picker'
+import { File } from 'expo-file-system'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import React, { useMemo, useRef, useState } from 'react'
@@ -120,6 +127,33 @@ const ImportPlayList = () => {
 		}
 	}
 
+	const handleFileImport = async () => {
+		setIsLoading(true)
+		setError(null)
+		try {
+			const result = await DocumentPicker.getDocumentAsync({
+				type: ['application/json', 'text/plain', 'application/octet-stream'],
+				copyToCacheDirectory: true,
+			})
+			if (result.canceled) return
+			const file = new File(result.assets[0].uri)
+			if (file.size > MAX_PLAYLIST_FILE_BYTES) throw new Error('too large')
+			const playlist = uniqueImportedPlaylist(
+				parsePlaylistFile(await file.text()),
+				(playListsStore.getValue() ?? []) as IMusic.PlayList[],
+			)
+			const saveResult = myTrackPlayer.addPlayLists(playlist)
+			if (saveResult !== 'success') throw new Error(saveResult)
+			setPlaylistData(playlist)
+			setTimeout(() => router.dismiss(), 250)
+		} catch (err) {
+			setError(i18n.t('playlistManager.fileImportFailed'))
+			logError('歌单文件导入错误:', err)
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
 	const DismissPlayerSymbol = () => (
 		<View style={[styles.dismissSymbol, { top: top - 25 }]}>
 			<View style={styles.dismissBar} />
@@ -218,6 +252,18 @@ const ImportPlayList = () => {
 									)}
 								</TouchableOpacity>
 							</View>
+							<Text style={[styles.hint, { textAlign: 'center', marginVertical: 12 }]}>
+								{i18n.t('playlistManager.orImportFile')}
+							</Text>
+							<TouchableOpacity
+								onPress={() => void handleFileImport()}
+								activeOpacity={0.8}
+								style={styles.button}
+								disabled={isLoading}
+							>
+								<Ionicons name="document-outline" size={24} color={colors.primary} />
+								<Text style={styles.buttonText}>{i18n.t('playlistManager.importFile')}</Text>
+							</TouchableOpacity>
 						</View>
 					) : (
 						<View style={styles.section}>

@@ -236,7 +236,10 @@
 		"createButton": "创建歌单",
 		"importButton": "导入歌单",
 		"createFailed": "创建失败，请重试",
-		"imported": "已导入歌单：%{name}"
+		"imported": "已导入歌单：%{name}",
+		"importFile": "导入 LX/Cymusic 歌单文件",
+		"orImportFile": "或者从本地导入 .lxmc / JSON 歌单文件",
+		"fileImportFailed": "歌单文件无效、版本不支持或超过 10 MB"
 	},
 	"playlistTools": {
 		"title": "整理歌单",
@@ -282,7 +285,21 @@
 		"sourceSearchFailed": "搜索替代版本失败，请稍后重试",
 		"replaced": "已替换并保存到歌单",
 		"replacementDuplicate": "所选版本已在歌单中",
-		"updateFailed": "歌单更新失败，请重试"
+		"updateFailed": "歌单更新失败，请重试",
+		"sortDirections": {
+			"asc": "升序",
+			"desc": "降序",
+			"random": "随机排序"
+		},
+		"export": "导出 LX/Cymusic 歌单文件",
+		"exporting": "正在导出…",
+		"exportFailed": "歌单导出失败，请稍后重试",
+		"clear": "清空歌单",
+		"clearTitle": "清空歌单",
+		"clearMessage": "确定移除这个歌单中的全部歌曲吗？歌单本身和离线文件会保留。",
+		"moveSelectedTop": "移到歌单顶部",
+		"moveSelectedBottom": "移到歌单底部",
+		"positionUpdated": "歌曲位置已更新"
 	},
 	"logScreen": {
 		"title": "应用日志",
@@ -334,7 +351,11 @@
 		"title": "版本更新记录",
 		"subtitle": "看看每个版本新增和修复了什么",
 		"current": "当前版本",
-		"sections": { "new": "新增", "improved": "优化", "fixed": "修复" }
+		"sections": {
+			"new": "新增",
+			"improved": "优化",
+			"fixed": "修复"
+		}
 	},
 	"library": {
 		"songCount": "%{count} 首歌曲",

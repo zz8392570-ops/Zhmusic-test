@@ -235,7 +235,10 @@
 		"createButton": "Create Playlist",
 		"importButton": "Import Playlist",
 		"createFailed": "Couldn't create the playlist. Try again.",
-		"imported": "Imported playlist: %{name}"
+		"imported": "Imported playlist: %{name}",
+		"importFile": "Import LX/Cymusic playlist file",
+		"orImportFile": "Or import a local .lxmc / JSON playlist file",
+		"fileImportFailed": "The playlist file is invalid, unsupported, or larger than 10 MB"
 	},
 	"playlistTools": {
 		"title": "Organize Playlist",
@@ -281,7 +284,21 @@
 		"sourceSearchFailed": "Couldn't search for another version. Try again later.",
 		"replaced": "The saved playlist version was replaced",
 		"replacementDuplicate": "That version is already in this playlist",
-		"updateFailed": "Couldn't update the playlist. Try again."
+		"updateFailed": "Couldn't update the playlist. Try again.",
+		"sortDirections": {
+			"asc": "Ascending",
+			"desc": "Descending",
+			"random": "Random order"
+		},
+		"export": "Export LX/Cymusic playlist file",
+		"exporting": "Exporting…",
+		"exportFailed": "Couldn't export the playlist. Try again later.",
+		"clear": "Clear playlist",
+		"clearTitle": "Clear Playlist",
+		"clearMessage": "Remove every song from this playlist? The playlist and offline files will remain.",
+		"moveSelectedTop": "Move to top",
+		"moveSelectedBottom": "Move to bottom",
+		"positionUpdated": "Song positions updated"
 	},
 	"logScreen": {
 		"title": "Application Logs",
@@ -333,7 +350,11 @@
 		"title": "Release Notes",
 		"subtitle": "See what changed in every version",
 		"current": "Current",
-		"sections": { "new": "New", "improved": "Improved", "fixed": "Fixed" }
+		"sections": {
+			"new": "New",
+			"improved": "Improved",
+			"fixed": "Fixed"
+		}
 	},
 	"library": {
 		"songCount": "%{count} songs",
