@@ -73,4 +73,18 @@ await suite.check('keyword compatibility and forced refresh remain usable', asyn
 	await helper.getHotSearchItems('tx', true)
 	assert.equal(requests, before + 1)
 })
+await suite.check('retains only provider badges and never invents a trend status', () => {
+	const items = helper.normalizeHotSearchItems(
+		[
+			{ keyword: 'badge', score: 500, badgeUrl: 'http://example.com/hot.png' },
+			{ keyword: 'text', badgeText: ' 新 ' },
+			{ keyword: 'plain', badgeUrl: 'javascript:alert(1)', badgeText: '' },
+		],
+		'wy',
+	)
+	assert.equal(items[0].badgeUrl, 'https://example.com/hot.png')
+	assert.equal(items[1].badgeText, '新')
+	assert.equal(items[2].badgeUrl, undefined)
+	assert.equal(items[2].badgeText, undefined)
+})
 suite.finish()

@@ -5,7 +5,13 @@ import {
 	type SearchPlatform,
 } from '@/helpers/crossPlatformSearch'
 
-export type HotSearchItem = { keyword: string; platform: MusicPlatform; score?: number }
+export type HotSearchItem = {
+	keyword: string
+	platform: MusicPlatform
+	score?: number
+	badgeUrl?: string
+	badgeText?: string
+}
 const hotSearchCache = new Map<SearchPlatform, HotSearchItem[]>()
 
 export const normalizeHotSearchItems = (
@@ -17,13 +23,27 @@ export const normalizeHotSearchItems = (
 		const value =
 			typeof raw === 'string'
 				? { keyword: raw }
-				: (raw as { keyword?: unknown; score?: unknown } | null)
+				: (raw as {
+						keyword?: unknown
+						score?: unknown
+						badgeUrl?: unknown
+						badgeText?: unknown
+					} | null)
 		if (!value || typeof value.keyword !== 'string') return []
 		const keyword = value.keyword.trim()
 		if (!keyword || seen.has(keyword)) return []
 		seen.add(keyword)
 		const score = Number(value.score)
-		return [{ keyword, platform, score: Number.isFinite(score) && score > 0 ? score : undefined }]
+		const item: HotSearchItem = {
+			keyword,
+			platform,
+			score: Number.isFinite(score) && score > 0 ? score : undefined,
+		}
+		if (typeof value.badgeUrl === 'string' && /^https?:\/\//i.test(value.badgeUrl))
+			item.badgeUrl = value.badgeUrl.replace(/^http:/i, 'https:')
+		if (typeof value.badgeText === 'string' && value.badgeText.trim())
+			item.badgeText = value.badgeText.trim()
+		return [item]
 	})
 }
 

@@ -3,7 +3,6 @@ import { MenuView } from '@/components/ActionMenu'
 import { importPlaylistByLink } from '@/helpers/importPlaylist'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
-import { screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import { DEFAULT_HOME_SOURCE, normalizeLeaderboardSource } from '@/helpers/leaderboard'
 import {
@@ -110,7 +109,9 @@ const PublicPlaylistCard = ({ item, onPress }: { item: PublicPlaylist; onPress: 
 								justifyContent: 'center',
 							}}
 						>
-							<Ionicons name="musical-note" size={11} color="#fff" />
+							<Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>
+								{{ tx: 'QQ', wy: '云', kg: 'K', kw: '酷', mg: 'M' }[item.source]}
+							</Text>
 						</View>
 						<Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 12, flex: 1 }}>
 							{i18n.t(`publicPlaylists.platformNames.${item.source}`)}
@@ -290,7 +291,7 @@ const RadiolistsScreen = () => {
 			/>
 			<SearchPlatformSelector
 				includeAll={false}
-				inset={screenPadding.horizontal}
+				inset={18}
 				value={source}
 				onChange={(platform) => {
 					PersistStatus.set('music.radioBoardSource', platform as MusicPlatform)
@@ -300,7 +301,7 @@ const RadiolistsScreen = () => {
 				horizontal
 				showsHorizontalScrollIndicator={false}
 				contentContainerStyle={{
-					paddingHorizontal: screenPadding.horizontal,
+					paddingHorizontal: 18,
 					paddingTop: 2,
 					paddingBottom: 4,
 					gap: 8,
@@ -385,7 +386,7 @@ const RadiolistsScreen = () => {
 					)}
 					columnWrapperStyle={{ gap: 14, marginBottom: 18 }}
 					contentContainerStyle={{
-						paddingHorizontal: screenPadding.horizontal,
+						paddingHorizontal: 18,
 						paddingTop: 4,
 						paddingBottom: 150,
 					}}

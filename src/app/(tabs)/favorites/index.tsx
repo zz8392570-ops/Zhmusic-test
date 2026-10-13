@@ -5,7 +5,6 @@ import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { searchPersonalLibrary } from '@/helpers/personalLibrarySearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { isSameMediaItem } from '@/utils/mediaItem'
-import { screenPadding } from '@/constants/tokens'
 import {
 	importedLocalMusicStore,
 	playListsStore,
@@ -14,6 +13,7 @@ import {
 import { Playlist } from '@/helpers/types'
 import DiscoveryHeading from '@/components/DiscoveryHeading'
 import GlobalButton from '@/components/GlobalButton'
+import { MenuView } from '@/components/ActionMenu'
 import { useFavorites } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
@@ -162,10 +162,7 @@ const FavoritesScreen = () => {
 		return (
 			<View style={defaultStyles.container}>
 				{heading}
-				<ScrollView
-					contentInsetAdjustmentBehavior="never"
-					style={{ paddingHorizontal: screenPadding.horizontal }}
-				>
+				<ScrollView contentInsetAdjustmentBehavior="never" style={{ paddingHorizontal: 18 }}>
 					{results.tracks.length ? (
 						<View style={{ paddingTop: 16, gap: 14 }}>
 							<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
@@ -309,27 +306,30 @@ const FavoritesScreen = () => {
 						{i18n.t('library.myPlaylists')}
 					</Text>
 					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-						<Pressable
-							onPress={() => setShowSearch((value) => !value)}
-							accessibilityLabel={i18n.t('find.inFavorites')}
-							style={{ padding: 6 }}
-						>
-							<Ionicons name="search-outline" size={19} color={colors.textMuted} />
-						</Pressable>
-						<Pressable
-							onPress={() => router.navigate('/(modals)/importPlayList')}
-							accessibilityLabel={i18n.t('playlistManager.title')}
-							style={{
-								width: 34,
-								height: 34,
-								borderRadius: 17,
-								backgroundColor: colors.primary,
-								alignItems: 'center',
-								justifyContent: 'center',
+						<MenuView
+							actions={[
+								{ id: 'import', title: i18n.t('playlistManager.title') },
+								{ id: 'search', title: i18n.t('find.inFavorites') },
+							]}
+							onPressAction={({ nativeEvent: { event } }) => {
+								if (event === 'search') setShowSearch((value) => !value)
+								else router.navigate('/(modals)/importPlayList')
 							}}
 						>
-							<Ionicons name="add" size={25} color="#fff" />
-						</Pressable>
+							<Pressable
+								accessibilityLabel={i18n.t('playlistManager.title')}
+								style={{
+									width: 34,
+									height: 34,
+									borderRadius: 17,
+									backgroundColor: colors.primary,
+									alignItems: 'center',
+									justifyContent: 'center',
+								}}
+							>
+								<Ionicons name="add" size={25} color="#fff" />
+							</Pressable>
+						</MenuView>
 					</View>
 				</View>
 				<PlaylistsList

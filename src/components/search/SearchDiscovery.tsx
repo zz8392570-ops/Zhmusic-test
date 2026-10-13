@@ -8,6 +8,7 @@ import { useThemeColors } from '@/hooks/useAppTheme'
 import { hapticSelection } from '@/utils/haptics'
 import i18n from '@/utils/i18n'
 import { useMemo } from 'react'
+import { Image } from 'expo-image'
 
 type SearchDiscoveryProps = {
 	history: string[]
@@ -143,6 +144,20 @@ const SearchDiscovery = ({
 								<Text style={styles.hotKeyword} numberOfLines={1}>
 									{item.keyword}
 								</Text>
+								{item.badgeUrl ? (
+									<Image
+										source={{ uri: item.badgeUrl }}
+										contentFit="contain"
+										style={{ width: 24, height: 16, marginLeft: 6 }}
+									/>
+								) : item.badgeText ? (
+									<Text
+										numberOfLines={1}
+										style={{ color: colors.primary, fontSize: 11, maxWidth: 40, marginLeft: 6 }}
+									>
+										{item.badgeText}
+									</Text>
+								) : null}
 								<View style={styles.heat}>
 									<Text style={styles.heatPlatform}>
 										{i18n.t(getMusicPlatformLabelKey(item.platform))}

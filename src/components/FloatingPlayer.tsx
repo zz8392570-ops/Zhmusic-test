@@ -125,7 +125,7 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 						accessibilityLabel={i18n.t('queue.title')}
 						style={{ padding: 6 }}
 					>
-						<Ionicons name="musical-notes-outline" size={25} color={colors.text} />
+						<Ionicons name="list-outline" size={25} color={colors.text} />
 					</TouchableOpacity>
 				</View>
 

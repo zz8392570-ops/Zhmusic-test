@@ -4,19 +4,23 @@ import { Image } from 'expo-image'
 import type { Playlist } from '@/helpers/types'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Pressable, Text, View, useWindowDimensions } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View, useWindowDimensions } from 'react-native'
 
 export default function ChartCard({
 	board,
 	selected,
 	onPress,
+	onPlay,
+	playing = false,
 }: {
 	board: Playlist
 	selected: boolean
 	onPress: () => void
+	onPlay: () => void
+	playing?: boolean
 }) {
 	const { width } = useWindowDimensions()
-	const cardWidth = Math.max(108, Math.min(180, (width - 48 - 24) / 3))
+	const cardWidth = Math.max(108, Math.min(180, (width - 36 - 24) / 3))
 	const scene = /飙升|上升|趋势/.test(board.title) ? 1 : /新歌|新声|首发/.test(board.title) ? 2 : 0
 	return (
 		<Pressable
@@ -75,7 +79,16 @@ export default function ChartCard({
 						marginTop: 10,
 					}}
 				/>
-				<View
+				<Pressable
+					accessibilityRole="button"
+					accessibilityLabel={`播放${board.title}`}
+					accessibilityState={{ busy: playing, disabled: playing }}
+					disabled={playing}
+					hitSlop={6}
+					onPress={(event) => {
+						event.stopPropagation()
+						onPlay()
+					}}
 					style={{
 						position: 'absolute',
 						right: 10,
@@ -88,8 +101,12 @@ export default function ChartCard({
 						justifyContent: 'center',
 					}}
 				>
-					<Ionicons name="play" size={16} color="#fff" />
-				</View>
+					{playing ? (
+						<ActivityIndicator size="small" color="#fff" />
+					) : (
+						<Ionicons name="play" size={16} color="#fff" />
+					)}
+				</Pressable>
 			</LinearGradient>
 		</Pressable>
 	)

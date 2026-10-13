@@ -2,8 +2,8 @@ import { ThemeColors } from '@/constants/tokens'
 import type { SearchPlatform } from '@/helpers/crossPlatformSearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
-import { memo, useMemo } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native'
+import { memo, useMemo, useState } from 'react'
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions } from 'react-native'
 import { hapticSelection } from '@/utils/haptics'
 
 type SearchPlatformSelectorProps = {
@@ -27,19 +27,26 @@ const SearchPlatformSelector = ({
 	value,
 	onChange,
 	includeAll = true,
-	inset = 16,
+	inset = 18,
 	solid = false,
 }: SearchPlatformSelectorProps) => {
 	const colors = useThemeColors()
+	const { width, fontScale } = useWindowDimensions()
+	const [containerWidth, setContainerWidth] = useState(width)
 	const styles = useMemo(() => createStyles(colors, inset), [colors, inset])
 	const platforms = includeAll ? PLATFORMS : PLATFORMS.filter((platform) => platform.id !== 'all')
 
+	const chipWidth = Math.max(
+		52 * fontScale,
+		(containerWidth - inset * 2 - 8 * (platforms.length - 1)) / platforms.length,
+	)
 	return (
 		<ScrollView
+			onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
 			horizontal
 			showsHorizontalScrollIndicator={false}
 			contentContainerStyle={styles.content}
-			style={styles.container}
+			style={[styles.container, { height: Math.max(40, 32 * fontScale + 8) }]}
 		>
 			{platforms.map((platform) => {
 				const selected = platform.id === value
@@ -55,6 +62,7 @@ const SearchPlatformSelector = ({
 						}}
 						style={({ pressed }) => [
 							styles.chip,
+							{ width: chipWidth, minHeight: 32 * fontScale },
 							solid && { backgroundColor: colors.surfaceMuted },
 							selected && styles.selectedChip,
 							pressed && styles.pressed,
@@ -87,7 +95,8 @@ const createStyles = (colors: ThemeColors, inset: number) =>
 		chip: {
 			minHeight: 32,
 			justifyContent: 'center',
-			paddingHorizontal: 13,
+			paddingHorizontal: 4,
+			alignItems: 'center',
 			borderRadius: 18,
 			backgroundColor: 'transparent',
 		},

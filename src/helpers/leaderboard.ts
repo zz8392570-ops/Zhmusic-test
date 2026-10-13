@@ -65,7 +65,11 @@ export const resolveBoardId = (source: LeaderboardSource, bangid?: string | numb
 
 export const setHomeLeaderboard = (source: LeaderboardSource, bangid?: string | number | null) => {
 	PersistStatus.set('music.homeBoardSource', source)
-	PersistStatus.set('music.homeBoardId', resolveBoardId(source, bangid))
+	// Remote catalogs can contain new boards that are absent from the bundled list.
+	PersistStatus.set(
+		'music.homeBoardId',
+		bangid == null ? resolveBoardId(source) : normalizeBoardId(bangid, source),
+	)
 }
 
 export const parseBoardKey = (
@@ -196,7 +200,12 @@ const fetchWyRadio = async (): Promise<Playlist[]> => {
 		'User-Agent': 'Mozilla/5.0',
 	})
 	const list = (result?.list ?? []).map((item: any) =>
-		toRadioPlaylist('wy', item.id, item.name, item.coverImgUrl),
+		toRadioPlaylist('wy', item.id, item.name, item.coverImgUrl, {
+			period:
+				Number.isFinite(item.updateTime) && item.updateTime > 0
+					? new Date(item.updateTime).toLocaleDateString()
+					: '',
+		}),
 	)
 	if (!list.length) throw new Error('empty wy boards')
 	return list

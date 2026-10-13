@@ -43,7 +43,11 @@ export default {
 		}
 		return {
 			source: 'wy',
-			items: body.data.itemList.map((item) => ({ keyword: item.searchWord, score: item.score })),
+			items: body.data.itemList.map((item) => ({
+				keyword: item.searchWord,
+				score: item.score,
+				badgeUrl: item.iconUrl,
+			})),
 			list: body.data.itemList.map((item) => item.searchWord).filter(Boolean),
 		}
 	},

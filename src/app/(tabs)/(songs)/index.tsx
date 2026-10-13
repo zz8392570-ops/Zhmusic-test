@@ -3,7 +3,6 @@ import { TracksList } from '@/components/TracksList'
 import DiscoveryHeading from '@/components/DiscoveryHeading'
 import ChartCard from '@/components/ChartCard'
 import { Ionicons } from '@expo/vector-icons'
-import { screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import {
 	DEFAULT_HOME_BOARD_ID,
@@ -23,7 +22,15 @@ import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
+import {
+	ActivityIndicator,
+	Alert,
+	Pressable,
+	RefreshControl,
+	ScrollView,
+	Text,
+	View,
+} from 'react-native'
 
 const boardIdOf = (playlist: Playlist) => playlist.id.split('__').slice(1).join('__')
 
@@ -42,6 +49,8 @@ const SongsScreen = () => {
 	const [loadingBoards, setLoadingBoards] = useState(true)
 	const [loadingTracks, setLoadingTracks] = useState(true)
 	const [failed, setFailed] = useState(false)
+	const [playingBoard, setPlayingBoard] = useState<string | null>(null)
+	const playRequest = useRef(0)
 	const boardRequest = useRef(0)
 	const trackRequest = useRef(0)
 
@@ -91,9 +100,12 @@ const SongsScreen = () => {
 	}, [boardId, source])
 
 	useEffect(() => {
+		playRequest.current += 1
+		setPlayingBoard(null)
 		setBoards([])
 		void loadBoards()
 		return () => {
+			playRequest.current += 1
 			boardRequest.current += 1
 		}
 	}, [loadBoards])
@@ -109,6 +121,36 @@ const SongsScreen = () => {
 	const refresh = useCallback(async () => {
 		await Promise.all([loadBoards(), loadTracks()])
 	}, [loadBoards, loadTracks])
+
+	const selectBoard = (board: Playlist) => {
+		playRequest.current += 1
+		setPlayingBoard(null)
+		setHomeLeaderboard(source, boardIdOf(board))
+	}
+	const playBoard = async (board: Playlist) => {
+		const requestId = ++playRequest.current
+		setPlayingBoard(board.id)
+		setHomeLeaderboard(source, boardIdOf(board))
+		try {
+			const result = await getBoardSongs(source, boardIdOf(board), 1)
+			if (
+				requestId !== playRequest.current ||
+				PersistStatus.get('music.homeBoardSource') !== source
+			)
+				return
+			const songs = (result.list ?? []).map((item) => mapLeaderboardTrack(item, source))
+			if (!songs.length) throw new Error('Empty leaderboard')
+			await myTrackPlayer.playWithReplacePlayList(
+				songs[0] as IMusic.IMusicItem,
+				songs as IMusic.IMusicItem[],
+			)
+		} catch (error) {
+			if (requestId === playRequest.current) Alert.alert(i18n.t('home.loadFailed'))
+			console.error('Failed to play leaderboard:', error)
+		} finally {
+			if (requestId === playRequest.current) setPlayingBoard(null)
+		}
+	}
 
 	return (
 		<View style={defaultStyles.container}>
@@ -127,7 +169,7 @@ const SongsScreen = () => {
 			/>
 			<SearchPlatformSelector
 				includeAll={false}
-				inset={screenPadding.horizontal}
+				inset={18}
 				value={source}
 				onChange={(platform) => setHomeLeaderboard(platform as MusicPlatform)}
 			/>
@@ -151,7 +193,7 @@ const SongsScreen = () => {
 						horizontal
 						showsHorizontalScrollIndicator={false}
 						contentContainerStyle={{
-							paddingHorizontal: screenPadding.horizontal,
+							paddingHorizontal: 18,
 							paddingTop: 4,
 							paddingBottom: 12,
 							gap: 12,
@@ -162,12 +204,14 @@ const SongsScreen = () => {
 								key={board.id}
 								board={board}
 								selected={boardIdOf(board) === boardId}
-								onPress={() => setHomeLeaderboard(source, boardIdOf(board))}
+								onPress={() => selectBoard(board)}
+								onPlay={() => void playBoard(board)}
+								playing={playingBoard === board.id}
 							/>
 						))}
 					</ScrollView>
 
-					<View style={{ paddingHorizontal: screenPadding.horizontal }}>
+					<View style={{ paddingHorizontal: 18 }}>
 						{failed && !tracks.length ? (
 							<View style={{ alignItems: 'center', paddingVertical: 80 }}>
 								<Text style={{ color: colors.textMuted, fontSize: 16 }}>
@@ -205,6 +249,7 @@ const SongsScreen = () => {
 												{selectedBoard?.title || i18n.t('appTab.songs')}
 											</Text>
 											<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
+												{selectedBoard?.period ? `${selectedBoard.period} · ` : ''}
 												{i18n.t('charts.trackCount', { count: visibleTracks.length })}
 											</Text>
 										</View>

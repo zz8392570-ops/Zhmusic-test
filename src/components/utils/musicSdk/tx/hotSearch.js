@@ -52,6 +52,8 @@ export default {
 			items: body.hotkey.data.vec_hotkey.map((item) => ({
 				keyword: item.query,
 				score: item.score,
+				badgeUrl: item.desc_icon_url,
+				badgeText: item.desc_icon_text,
 			})),
 		}
 	},
