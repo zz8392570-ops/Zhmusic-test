@@ -192,6 +192,25 @@ export const TracksList = React.memo(
 
 		const keyExtractor = useCallback((item: Track) => item.id, [])
 
+		// The parent ScrollView owns scrolling in playlist/detail screens. Avoid
+		// recycled cell measurements inside that unbounded viewport.
+		if (!scrollEnabled) {
+			return (
+				<View style={{ paddingTop: 10, paddingBottom: 128 }}>
+					{combinedListHeader}
+					{tracks.length
+						? tracks.map((track, index) => (
+								<View key={JSON.stringify([track.platform, track.id, track.url, index])}>
+									{index > 0 ? <ItemDivider /> : null}
+									{renderItem({ item: track, index })}
+								</View>
+							))
+						: emptyListComponent}
+					{tracks.length > 0 ? <ItemDivider /> : null}
+				</View>
+			)
+		}
+
 		return (
 			<FlashList
 				data={tracks}

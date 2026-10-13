@@ -10,6 +10,7 @@ const checks = [
 	'check-player-background.mjs',
 	'check-public-playlists.mjs',
 	'check-hot-search.mjs',
+	'check-nested-track-list.mjs',
 	'check-product-optimizations.mjs',
 	'check-request-timers.mjs',
 	'check-rntp-player.mjs',
