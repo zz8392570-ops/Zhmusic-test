@@ -1,6 +1,6 @@
 import { Buffer } from 'buffer'
 
-export const DEFAULT_DOWNLOAD_TEMPLATE = '{platform}_{id}'
+export const DEFAULT_DOWNLOAD_TEMPLATE = '{title} - {artist}'
 const TOKENS = ['title', 'artist', 'album', 'quality', 'platform', 'id']
 
 export const isValidDownloadTemplate = (value: unknown): value is string =>

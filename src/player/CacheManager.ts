@@ -68,8 +68,12 @@ const allocateDownloadPath = (
 ): Promise<string> => {
 	const allocate = async () => {
 		const key = downloadNameKey(track, quality)
-		const names = PersistStatus.get('music.downloadFilenameMap') ?? {}
-		if (names[key]) return getLocalFilePath(track, quality)
+		const names = { ...(PersistStatus.get('music.downloadFilenameMap') ?? {}) }
+		if (names[key]) {
+			const existingPath = getLocalFilePath(track, quality)
+			if ((await FileSystem.getInfoAsync(getCacheFileUri(existingPath))).exists) return existingPath
+			delete names[key]
+		}
 		const filename = customNaming
 			? formatDownloadFilename(
 					track,
@@ -189,7 +193,7 @@ export const downloadToCache = async (
 	quality: AudioQuality = qualityStore.getValue(),
 	onProgress?: (progress: number) => void,
 	taskId?: string,
-	customNaming = false,
+	customNaming = true,
 ): Promise<string> => {
 	try {
 		await ensureCacheDirExists()

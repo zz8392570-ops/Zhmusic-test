@@ -1,7 +1,7 @@
 {
 	"downloadNaming": {
 		"title": "Download file naming",
-		"description": "Applies to new downloads only; existing files and automatic cache keep their names. Extensions follow actual quality; duplicate names get a number.",
+		"description": "Applies to new downloads and new automatic cache files. Existing files keep their names and are reused when downloaded again. Extensions follow actual quality; duplicate names get a number.",
 		"tokens": "Tokens: {title}, {artist}, {album}, {quality}, {platform}, {id}",
 		"invalid": "Include {title}, {artist} or {id}. Paths and unknown tokens are not allowed.",
 		"preview": "Filename preview",

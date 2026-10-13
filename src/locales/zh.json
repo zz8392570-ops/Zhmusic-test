@@ -1,7 +1,7 @@
 {
 	"downloadNaming": {
 		"title": "下载歌曲命名",
-		"description": "仅影响新下载的歌曲；已有下载和自动缓存不改名。扩展名按实际音质添加，重名自动加序号。",
+		"description": "新下载和新自动缓存都使用此命名规则。已有文件保留原名称；再次下载已缓存歌曲会复用原文件。扩展名按实际音质添加，重名自动加序号。",
 		"tokens": "占位符：{title} 歌曲、{artist} 歌手、{album} 专辑、{quality} 音质、{platform} 平台、{id} 编号",
 		"invalid": "请输入包含 {title}、{artist} 或 {id} 的规则，不能使用路径或未知占位符。",
 		"preview": "文件名预览",

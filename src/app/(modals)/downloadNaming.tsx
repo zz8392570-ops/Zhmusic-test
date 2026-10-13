@@ -69,7 +69,7 @@ export default function DownloadNamingScreen() {
 				'{title} - {artist}',
 				'{artist} - {title}',
 				'{title} - {artist} [{quality}]',
-				DEFAULT_DOWNLOAD_TEMPLATE,
+				'{platform}_{id}',
 			].map((rule) => (
 				<View key={rule}>{button(rule, () => setTemplate(rule))}</View>
 			))}

@@ -160,8 +160,6 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 					if (isCurrent(task)) update({ ...task, quality, progress, status: 'downloading' })
 				},
 				task.id,
-				(cacheDownloadTasksStore.getValue().find((item) => item.id === task.id)?.kind ??
-					task.kind) !== 'automatic',
 			)
 		}
 		if (controller.signal.aborted || !isCurrent(task)) return

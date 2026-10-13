@@ -13,7 +13,7 @@ await check('templates support metadata and actual-quality extensions', () => {
 		naming.formatDownloadFilename(track, 'flac', '{album} [{quality}] {id}'),
 		'Album [flac] 1.flac',
 	)
-	assert.equal(naming.formatDownloadFilename(track, '128k'), 'tx_1.mp3')
+	assert.equal(naming.formatDownloadFilename(track, '128k'), 'Song - Artist.mp3')
 	for (const rule of ['', '../{title}', '{title}/{artist}', '{unknown}', '{album}', '{title'])
 		assert.equal(naming.isValidDownloadTemplate(rule), false)
 })
@@ -35,7 +35,7 @@ await check(
 )
 
 await check(
-	'concurrent duplicate names stay distinct; rule changes preserve old lookup; automatic cache uses default',
+	'concurrent duplicate names stay distinct; both download kinds honor rules while existing lookup stays stable',
 	async () => {
 		const values = new Map([['music.downloadFilenameTemplate', '{title} - {artist}']])
 		const files = new Set(['file:///Documents/musicCache/'])
@@ -79,7 +79,12 @@ await check(
 		assert.equal((await cache.getCachedAudioInfo(track)).localPath, first)
 		assert.equal(
 			await cache.downloadToCache({ ...track, id: '3' }, '128k'),
-			'file:///Documents/musicCache/tx_3.mp3',
+			'file:///Documents/musicCache/Artist - Song.mp3',
+		)
+		files.delete(first)
+		assert.equal(
+			await cache.downloadToCache(track, '320k'),
+			'file:///Documents/musicCache/Artist - Song (2).mp3',
 		)
 	},
 )
