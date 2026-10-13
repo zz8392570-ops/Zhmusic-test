@@ -10,6 +10,7 @@ type LeaderboardCoverProps = {
 	platform?: string
 	boardId?: string
 	compact?: boolean
+	backgroundOnly?: boolean
 	style?: StyleProp<ViewStyle>
 }
 
@@ -65,6 +66,7 @@ const LeaderboardCover = ({
 	platform,
 	boardId = '',
 	compact = true,
+	backgroundOnly = false,
 	style,
 }: LeaderboardCoverProps) => {
 	const visual = useMemo(() => getCoverVisual(title, boardId), [boardId, title])
@@ -80,17 +82,21 @@ const LeaderboardCover = ({
 		>
 			<View style={styles.largeOrb} />
 			<View style={styles.smallOrb} />
-			<View style={styles.topRow}>
-				<Text style={[styles.platform, !compact && styles.largePlatform]}>{platformLabel}</Text>
-				<MaterialCommunityIcons
-					name={visual.icon}
-					size={compact ? 18 : 34}
-					color="rgba(255,255,255,0.92)"
-				/>
-			</View>
-			<Text numberOfLines={2} style={[styles.title, !compact && styles.largeTitle]}>
-				{title}
-			</Text>
+			{!backgroundOnly ? (
+				<>
+					<View style={styles.topRow}>
+						<Text style={[styles.platform, !compact && styles.largePlatform]}>{platformLabel}</Text>
+						<MaterialCommunityIcons
+							name={visual.icon}
+							size={compact ? 18 : 34}
+							color="rgba(255,255,255,0.92)"
+						/>
+					</View>
+					<Text numberOfLines={2} style={[styles.title, !compact && styles.largeTitle]}>
+						{title}
+					</Text>
+				</>
+			) : null}
 		</LinearGradient>
 	)
 }

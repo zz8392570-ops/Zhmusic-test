@@ -8,7 +8,6 @@ import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll, { type SearchType } from '@/helpers/searchAll'
 import { getHotSearches } from '@/helpers/hotSearch'
-import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import {
 	deduplicateCrossPlatformTracks,
 	type MusicPlatform,
@@ -17,12 +16,13 @@ import {
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { cacheRevisionStore } from '@/helpers/trackPlayerIndex'
 import { getCachedQuality } from '@/player/CacheManager'
-import { useNavigationSearchController } from '@/hooks/useNavigationSearch'
+import DiscoveryHeading from '@/components/DiscoveryHeading'
+import { Ionicons } from '@expo/vector-icons'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
 import i18n from '@/utils/i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 const SEARCH_TABS: { type: SearchType; label: string }[] = [
@@ -129,27 +129,12 @@ const SearchScreen = () => {
 		resetResults()
 	}, [cancelSuggestionRequest, resetResults])
 
-	const searchBarOptions = useMemo(
-		() => ({
-			placeholder: i18n.t('find.inSearch'),
-			cancelButtonText: i18n.t('find.cancel'),
-			autoCapitalize: 'none' as const,
-			obscureBackground: false,
-		}),
-		[],
-	)
-	const handleFocusSearch = useCallback(() => setIsEditing(true), [])
-	const {
-		search: draftQuery,
-		setSearchText,
-		blur: blurSearch,
-	} = useNavigationSearchController({
-		searchBarOptions,
-		debounceMs: 0,
-		onFocus: handleFocusSearch,
-		onCancel: handleCancelSearch,
-		onSubmit: submitSearch,
-	})
+	const [draftQuery, setSearchText] = useState('')
+	const searchInput = useRef<TextInput>(null)
+	const blurSearch = useCallback(() => {
+		searchInput.current?.blur()
+		Keyboard.dismiss()
+	}, [])
 
 	useEffect(() => {
 		if (!songSearchRequest || consumedSearchRequest.current === songSearchRequest) return
@@ -365,13 +350,7 @@ const SearchScreen = () => {
 		const start = hotSearchBatch * HOT_SEARCH_BATCH_SIZE
 		return hotSearches.slice(start, start + HOT_SEARCH_BATCH_SIZE)
 	}, [hotSearchBatch, hotSearches])
-	const hotSearchTitle = i18n.t('find.platformHotSearch', {
-		platform: i18n.t(
-			hotSearchPlatform === 'all'
-				? 'find.platformAll'
-				: getMusicPlatformLabelKey(hotSearchPlatform),
-		),
-	})
+	const hotSearchTitle = i18n.t('find.hotSearch')
 	const handleChangeHotSearch = useCallback(() => {
 		setHotSearchBatch((currentBatch) =>
 			hotSearchBatchCount > 1 ? (currentBatch + 1) % hotSearchBatchCount : 0,
@@ -415,6 +394,38 @@ const SearchScreen = () => {
 	return (
 		<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
 			<View style={styles.contentContainer}>
+				<DiscoveryHeading title={i18n.t('appTab.search')} />
+				<View style={styles.searchField}>
+					<Ionicons name="search-outline" size={23} color={colors.textMuted} />
+					<TextInput
+						ref={searchInput}
+						value={draftQuery}
+						onChangeText={setSearchText}
+						onFocus={() => setIsEditing(true)}
+						onBlur={() => setIsEditing(false)}
+						onSubmitEditing={() => {
+							submitSearch(draftQuery)
+							blurSearch()
+						}}
+						placeholder={i18n.t('find.inSearch')}
+						placeholderTextColor={colors.textMuted}
+						autoCapitalize="none"
+						returnKeyType="search"
+						style={styles.searchInput}
+					/>
+					{draftQuery ? (
+						<Pressable
+							accessibilityLabel={i18n.t('find.cancel')}
+							onPress={() => {
+								setSearchText('')
+								handleCancelSearch()
+							}}
+							hitSlop={8}
+						>
+							<Ionicons name="close-circle" size={20} color={colors.textMuted} />
+						</Pressable>
+					) : null}
+				</View>
 				<View style={styles.segmentedControl}>
 					{SEARCH_TABS.map((tab) => {
 						const isSelected = searchType === tab.type
@@ -438,7 +449,12 @@ const SearchScreen = () => {
 					})}
 				</View>
 				{searchType === 'songs' ? (
-					<SearchPlatformSelector value={searchPlatform} onChange={handleSearchPlatformChange} />
+					<SearchPlatformSelector
+						solid
+						inset={18}
+						value={searchPlatform}
+						onChange={handleSearchPlatformChange}
+					/>
 				) : (
 					<View style={styles.providerNotice}>
 						<Text style={styles.providerNoticeText}>{i18n.t('find.qqOnlyNotice')}</Text>
@@ -508,6 +524,19 @@ const SearchScreen = () => {
 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
+		searchField: {
+			flexShrink: 0,
+			minHeight: 46,
+			marginHorizontal: 18,
+			marginBottom: 12,
+			paddingHorizontal: 14,
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 10,
+			borderRadius: 13,
+			backgroundColor: colors.surfaceMuted,
+		},
+		searchInput: { flex: 1, minHeight: 46, color: colors.text, fontSize: 16, paddingVertical: 10 },
 		safeArea: {
 			flex: 1,
 			backgroundColor: colors.background,
@@ -515,25 +544,26 @@ const createStyles = (colors: ThemeColors) =>
 		contentContainer: {
 			flex: 1,
 			backgroundColor: colors.background,
-			paddingTop: 8,
+			paddingTop: 0,
 		},
 		segmentedControl: {
-			height: 36,
+			minHeight: 42,
+			flexShrink: 0,
 			flexDirection: 'row',
-			marginHorizontal: 16,
-			marginBottom: 6,
-			padding: 2,
-			borderRadius: 10,
+			marginHorizontal: 18,
+			marginBottom: 10,
+			padding: 0,
+			borderRadius: 12,
 			backgroundColor: colors.surfaceMuted,
 		},
 		segment: {
 			flex: 1,
 			alignItems: 'center',
 			justifyContent: 'center',
-			borderRadius: 8,
+			borderRadius: 12,
 		},
 		activeSegment: {
-			backgroundColor: colors.surfaceElevated,
+			backgroundColor: colors.primary,
 			shadowColor: colors.shadow,
 			shadowOffset: { width: 0, height: 1 },
 			shadowOpacity: 0.12,
@@ -546,7 +576,7 @@ const createStyles = (colors: ThemeColors) =>
 			fontWeight: '500',
 		},
 		activeSegmentText: {
-			color: colors.primary,
+			color: '#fff',
 			fontWeight: '600',
 		},
 		pressed: {

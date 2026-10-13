@@ -267,7 +267,7 @@ const TracksListItem = ({
 					</View>
 				</View>
 			</TouchableHighlight>
-			{!isMultiSelectMode ? (
+			{!isMultiSelectMode && !rank ? (
 				<TouchableOpacity
 					style={styles.shortcutsButton}
 					onPress={() => {

@@ -11,14 +11,15 @@ type SearchPlatformSelectorProps = {
 	onChange: (platform: SearchPlatform) => void
 	includeAll?: boolean
 	inset?: number
+	solid?: boolean
 }
 
 const PLATFORMS: { id: SearchPlatform; label: string }[] = [
 	{ id: 'all', label: 'find.platformAll' },
 	{ id: 'tx', label: 'find.platformTx' },
-	{ id: 'kw', label: 'find.platformKw' },
-	{ id: 'kg', label: 'find.platformKg' },
 	{ id: 'wy', label: 'find.platformWy' },
+	{ id: 'kg', label: 'find.platformKg' },
+	{ id: 'kw', label: 'find.platformKw' },
 	{ id: 'mg', label: 'find.platformMg' },
 ]
 
@@ -27,6 +28,7 @@ const SearchPlatformSelector = ({
 	onChange,
 	includeAll = true,
 	inset = 16,
+	solid = false,
 }: SearchPlatformSelectorProps) => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors, inset), [colors, inset])
@@ -53,6 +55,7 @@ const SearchPlatformSelector = ({
 						}}
 						style={({ pressed }) => [
 							styles.chip,
+							solid && { backgroundColor: colors.surfaceMuted },
 							selected && styles.selectedChip,
 							pressed && styles.pressed,
 						]}
@@ -71,20 +74,22 @@ const createStyles = (colors: ThemeColors, inset: number) =>
 	StyleSheet.create({
 		container: {
 			flexGrow: 0,
+			flexShrink: 0,
+			height: 50,
 		},
 		content: {
-			minHeight: 42,
+			minHeight: 50,
 			alignItems: 'center',
 			gap: 8,
 			paddingHorizontal: inset,
 			paddingBottom: 6,
 		},
 		chip: {
-			minHeight: 30,
+			minHeight: 36,
 			justifyContent: 'center',
 			paddingHorizontal: 13,
-			borderRadius: 15,
-			backgroundColor: colors.surfaceMuted,
+			borderRadius: 18,
+			backgroundColor: 'transparent',
 		},
 		selectedChip: {
 			backgroundColor: colors.primary,
@@ -93,6 +98,7 @@ const createStyles = (colors: ThemeColors, inset: number) =>
 			color: colors.textMuted,
 			fontSize: 13,
 			fontWeight: '500',
+			lineHeight: 20,
 		},
 		selectedLabel: {
 			color: '#ffffff',

@@ -1,3 +1,5 @@
+import DiscoveryHeading from '@/components/DiscoveryHeading'
+import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import { screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
@@ -18,6 +20,7 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
 	ActivityIndicator,
+	Alert,
 	FlatList,
 	Pressable,
 	RefreshControl,
@@ -49,8 +52,8 @@ const PublicPlaylistCard = ({ item, onPress }: { item: PublicPlaylist; onPress: 
 					<View
 						style={{
 							position: 'absolute',
-							top: 8,
-							right: 8,
+							bottom: 8,
+							left: 8,
 							flexDirection: 'row',
 							alignItems: 'center',
 							gap: 3,
@@ -60,7 +63,7 @@ const PublicPlaylistCard = ({ item, onPress }: { item: PublicPlaylist; onPress: 
 							backgroundColor: colors.overlay,
 						}}
 					>
-						<Ionicons name="headset" size={11} color="#fff" />
+						<Ionicons name="play" size={11} color="#fff" />
 						<Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{item.playCount}</Text>
 					</View>
 				) : null}
@@ -71,14 +74,15 @@ const PublicPlaylistCard = ({ item, onPress }: { item: PublicPlaylist; onPress: 
 					color: colors.text,
 					fontSize: 15,
 					fontWeight: '700',
-					lineHeight: 20,
+					lineHeight: 22,
+					minHeight: 44,
 					marginTop: 9,
 				}}
 			>
 				{item.name}
 			</Text>
 			<Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
-				{item.author || i18n.t(`search.platforms.${item.source}`)}
+				{i18n.t(getMusicPlatformLabelKey(item.source))}
 			</Text>
 		</Pressable>
 	)
@@ -165,6 +169,24 @@ const RadiolistsScreen = () => {
 		}
 	}, [categoryId, hasMore, loading, loadingMore, page, source])
 
+	const changeBatch = async () => {
+		if (loading || loadingMore) return
+		const requestId = ++requestRef.current
+		setLoading(true)
+		try {
+			const next = hasMore ? page + 1 : 1
+			const result = await getPublicPlaylists(source, categoryId, next)
+			if (requestId !== requestRef.current) return
+			setPlaylists(result.list)
+			setPage(next)
+			setHasMore(result.hasMore)
+		} catch (error) {
+			console.error('Failed to change playlist batch:', error)
+		} finally {
+			if (requestId === requestRef.current) setLoading(false)
+		}
+	}
+
 	const selectCategory = (nextCategory: string) => {
 		PersistStatus.set('music.publicPlaylistCategories', {
 			...categorySelections,
@@ -189,6 +211,26 @@ const RadiolistsScreen = () => {
 
 	return (
 		<View style={[defaultStyles.container, { backgroundColor: colors.background }]}>
+			<DiscoveryHeading
+				title={i18n.t('appTab.radio')}
+				action={
+					<Pressable
+						onPress={() =>
+							Alert.alert(i18n.t('publicPlaylists.categories'), undefined, [
+								...categories.map((category) => ({
+									text: category.name,
+									onPress: () => selectCategory(category.id),
+								})),
+								{ text: i18n.t('find.cancel'), style: 'cancel' },
+							])
+						}
+						accessibilityLabel={i18n.t('publicPlaylists.categories')}
+						style={{ padding: 8 }}
+					>
+						<Ionicons name="funnel-outline" size={26} color={colors.textMuted} />
+					</Pressable>
+				}
+			/>
 			<SearchPlatformSelector
 				includeAll={false}
 				inset={screenPadding.horizontal}
@@ -206,7 +248,7 @@ const RadiolistsScreen = () => {
 					paddingBottom: 14,
 					gap: 8,
 				}}
-				style={{ flexGrow: 0 }}
+				style={{ flexGrow: 0, flexShrink: 0, height: 64 }}
 			>
 				{categories.map((category) => {
 					const selected = category.id === categoryId
@@ -216,7 +258,9 @@ const RadiolistsScreen = () => {
 							onPress={() => selectCategory(category.id)}
 							style={{
 								paddingHorizontal: 15,
-								paddingVertical: 8,
+								paddingVertical: 9,
+								minHeight: 38,
+								justifyContent: 'center',
 								borderRadius: 18,
 								backgroundColor: selected ? colors.primary : colors.surfaceMuted,
 							}}
@@ -224,7 +268,8 @@ const RadiolistsScreen = () => {
 							<Text
 								style={{
 									color: selected ? '#fff' : colors.textMuted,
-									fontSize: 13,
+									fontSize: 14,
+									lineHeight: 20,
 									fontWeight: '600',
 								}}
 							>
@@ -251,6 +296,30 @@ const RadiolistsScreen = () => {
 				</View>
 			) : (
 				<FlatList
+					ListHeaderComponent={
+						<View
+							style={{
+								flexDirection: 'row',
+								alignItems: 'center',
+								justifyContent: 'space-between',
+								paddingBottom: 14,
+							}}
+						>
+							<Text style={{ color: colors.text, fontSize: 23, fontWeight: '800' }}>
+								{i18n.t('publicPlaylists.hot')}
+							</Text>
+							<Pressable
+								onPress={() => void changeBatch()}
+								disabled={loading || loadingMore}
+								style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8 }}
+							>
+								<Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
+								<Text style={{ color: colors.textMuted, fontSize: 14 }}>
+									{i18n.t('find.changeBatch')}
+								</Text>
+							</Pressable>
+						</View>
+					}
 					data={playlists}
 					numColumns={2}
 					keyExtractor={(item) => `${item.source}_${item.id}`}

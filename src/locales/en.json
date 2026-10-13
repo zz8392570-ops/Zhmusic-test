@@ -442,10 +442,13 @@
 		"refreshFailed": "Refresh failed. Tap to retry"
 	},
 	"charts": {
+		"playAll": "Play all",
 		"updated": "Updated live",
 		"trackCount": "%{count} songs"
 	},
 	"publicPlaylists": {
+		"categories": "Playlist categories",
+		"hot": "Popular playlists",
 		"loadFailed": "Couldn't load playlists",
 		"detailFailed": "Couldn't load this playlist",
 		"playsUnit": "plays",

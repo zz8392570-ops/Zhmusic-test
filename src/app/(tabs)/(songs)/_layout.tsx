@@ -1,4 +1,3 @@
-import GlobalButton from '@/components/GlobalButton'
 import { getStackScreenWithSearchBar } from '@/constants/layout'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
@@ -17,9 +16,9 @@ const SongsScreenLayout = () => {
 					name="index"
 					options={{
 						...getStackScreenWithSearchBar(colors),
+						headerShown: false,
 						headerLargeTitle: false,
 						headerTitle: i18n.t('appTab.songs'),
-						headerRight: () => <GlobalButton />,
 					}}
 				/>
 			</Stack>

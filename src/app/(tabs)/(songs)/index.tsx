@@ -1,6 +1,8 @@
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import { TracksList } from '@/components/TracksList'
-import { unknownTrackImageUri } from '@/constants/images'
+import DiscoveryHeading from '@/components/DiscoveryHeading'
+import ChartCard from '@/components/ChartCard'
+import { Ionicons } from '@expo/vector-icons'
 import { screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import {
@@ -13,14 +15,13 @@ import {
 	setHomeLeaderboard,
 } from '@/helpers/leaderboard'
 import { generateTracksListId } from '@/helpers/miscellaneous'
-import { songsNumsToLoadStore } from '@/helpers/trackPlayerIndex'
+import myTrackPlayer, { songsNumsToLoadStore } from '@/helpers/trackPlayerIndex'
 import type { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
-import { Image } from 'expo-image'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 
@@ -111,6 +112,18 @@ const SongsScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
+			<DiscoveryHeading
+				title={i18n.t('appTab.songs')}
+				action={
+					<Pressable
+						onPress={() => void refresh()}
+						accessibilityLabel={i18n.t('home.retry')}
+						style={{ padding: 8 }}
+					>
+						<Ionicons name="refresh-outline" size={27} color={colors.textMuted} />
+					</Pressable>
+				}
+			/>
 			<SearchPlatformSelector
 				includeAll={false}
 				inset={screenPadding.horizontal}
@@ -131,7 +144,7 @@ const SongsScreen = () => {
 							tintColor={colors.primary}
 						/>
 					}
-					contentContainerStyle={{ paddingBottom: 140 }}
+					contentContainerStyle={{ paddingBottom: 0 }}
 				>
 					<ScrollView
 						horizontal
@@ -143,42 +156,14 @@ const SongsScreen = () => {
 							gap: 12,
 						}}
 					>
-						{boards.map((board) => {
-							const selected = boardIdOf(board) === boardId
-							return (
-								<Pressable
-									key={board.id}
-									onPress={() => setHomeLeaderboard(source, boardIdOf(board))}
-									style={({ pressed }) => ({
-										width: 142,
-										padding: 10,
-										borderRadius: 16,
-										borderWidth: selected ? 1.5 : 1,
-										borderColor: selected ? colors.primary : colors.border,
-										backgroundColor: colors.surfaceElevated,
-										opacity: pressed ? 0.75 : 1,
-									})}
-								>
-									<Image
-										source={{ uri: board.coverImg || unknownTrackImageUri }}
-										contentFit="cover"
-										style={{ width: '100%', aspectRatio: 1.7, borderRadius: 10 }}
-									/>
-									<Text
-										numberOfLines={1}
-										style={{ color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 9 }}
-									>
-										{board.title}
-									</Text>
-									<Text
-										numberOfLines={1}
-										style={{ color: colors.textMuted, fontSize: 11, marginTop: 3 }}
-									>
-										{board.period || i18n.t('charts.updated')}
-									</Text>
-								</Pressable>
-							)
-						})}
+						{boards.map((board) => (
+							<ChartCard
+								key={board.id}
+								board={board}
+								selected={boardIdOf(board) === boardId}
+								onPress={() => setHomeLeaderboard(source, boardIdOf(board))}
+							/>
+						))}
 					</ScrollView>
 
 					<View style={{ paddingHorizontal: screenPadding.horizontal }}>
@@ -203,14 +188,48 @@ const SongsScreen = () => {
 								tracks={visibleTracks}
 								scrollEnabled={false}
 								showRank
+								hideQueueControls
 								ListHeaderComponent={
-									<View style={{ marginBottom: 4 }}>
-										<Text style={{ color: colors.text, fontSize: 23, fontWeight: '800' }}>
-											{selectedBoard?.title || i18n.t('appTab.songs')}
-										</Text>
-										<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
-											{i18n.t('charts.trackCount', { count: visibleTracks.length })}
-										</Text>
+									<View
+										style={{
+											marginBottom: 18,
+											flexDirection: 'row',
+											alignItems: 'center',
+											justifyContent: 'space-between',
+											gap: 10,
+										}}
+									>
+										<View style={{ flex: 1 }}>
+											<Text style={{ color: colors.text, fontSize: 23, fontWeight: '800' }}>
+												{selectedBoard?.title || i18n.t('appTab.songs')}
+											</Text>
+											<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
+												{i18n.t('charts.trackCount', { count: visibleTracks.length })}
+											</Text>
+										</View>
+										<Pressable
+											disabled={!visibleTracks.length}
+											onPress={() =>
+												void myTrackPlayer.playWithReplacePlayList(
+													visibleTracks[0] as IMusic.IMusicItem,
+													visibleTracks as IMusic.IMusicItem[],
+												)
+											}
+											style={{
+												backgroundColor: colors.primary,
+												flexDirection: 'row',
+												alignItems: 'center',
+												gap: 6,
+												borderRadius: 22,
+												paddingHorizontal: 15,
+												paddingVertical: 11,
+											}}
+										>
+											<Ionicons name="play" size={18} color="#fff" />
+											<Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+												{i18n.t('charts.playAll')}
+											</Text>
+										</Pressable>
 									</View>
 								}
 							/>

@@ -57,7 +57,7 @@ const SearchDiscovery = ({
 							onPress={onClearHistory}
 							style={({ pressed }) => pressed && styles.pressed}
 						>
-							<Text style={styles.clearText}>{i18n.t('find.clear')}</Text>
+							<MaterialCommunityIcons name="trash-can-outline" size={22} color={colors.textMuted} />
 						</Pressable>
 					</View>
 					<View style={styles.chipList}>
@@ -68,6 +68,7 @@ const SearchDiscovery = ({
 									onPress={() => onSearch(keyword)}
 									style={({ pressed }) => [styles.historyLabelButton, pressed && styles.pressed]}
 								>
+									<MaterialCommunityIcons name="clock-outline" size={17} color={colors.textMuted} />
 									<Text style={styles.historyLabel} numberOfLines={1}>
 										{keyword}
 									</Text>
@@ -153,12 +154,12 @@ const createStyles = (colors: ThemeColors) =>
 			flex: 1,
 		},
 		content: {
-			paddingHorizontal: 16,
-			paddingTop: 10,
+			paddingHorizontal: 18,
+			paddingTop: 20,
 			paddingBottom: 140,
 		},
 		section: {
-			marginBottom: 24,
+			marginBottom: 26,
 		},
 		sectionHeader: {
 			minHeight: 32,
@@ -168,7 +169,7 @@ const createStyles = (colors: ThemeColors) =>
 		},
 		sectionTitle: {
 			color: colors.text,
-			fontSize: 19,
+			fontSize: 22,
 			fontWeight: '700',
 			marginBottom: 10,
 		},
@@ -200,6 +201,9 @@ const createStyles = (colors: ThemeColors) =>
 			minHeight: 36,
 			maxWidth: 220,
 			justifyContent: 'center',
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 7,
 			paddingLeft: 13,
 			paddingRight: 5,
 		},
@@ -213,25 +217,19 @@ const createStyles = (colors: ThemeColors) =>
 			alignItems: 'center',
 			justifyContent: 'center',
 		},
-		hotList: {
-			flexDirection: 'row',
-			flexWrap: 'wrap',
-			columnGap: 10,
-			rowGap: 10,
-		},
+		hotList: { gap: 0 },
 		hotItem: {
-			width: '48.5%',
-			minHeight: 48,
+			width: '100%',
+			minHeight: 46,
 			flexDirection: 'row',
 			alignItems: 'center',
-			paddingHorizontal: 12,
-			borderRadius: 12,
-			backgroundColor: colors.surfaceMuted,
+			borderBottomWidth: StyleSheet.hairlineWidth,
+			borderBottomColor: colors.separator,
 		},
 		rank: {
-			width: 22,
+			width: 32,
 			color: colors.textMuted,
-			fontSize: 14,
+			fontSize: 18,
 			fontWeight: '700',
 		},
 		topRank: {
@@ -240,7 +238,7 @@ const createStyles = (colors: ThemeColors) =>
 		hotKeyword: {
 			flex: 1,
 			color: colors.text,
-			fontSize: 14,
+			fontSize: 16,
 		},
 		statusRow: {
 			minHeight: 64,
