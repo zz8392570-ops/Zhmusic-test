@@ -1,7 +1,7 @@
 import localImage from '@/assets/local.png'
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { unknownTrackImageUri } from '@/constants/images'
-import { ThemeColors, screenPadding } from '@/constants/tokens'
+import { ThemeColors } from '@/constants/tokens'
 import { logError, logInfo } from '@/helpers/logger'
 import { resolveLocalFile } from '@/helpers/localFile'
 import myTrackPlayer, { importedLocalMusicStore } from '@/helpers/trackPlayerIndex'
@@ -307,43 +307,47 @@ const LocalMusicScreen = () => {
 			)}
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
+				contentContainerStyle={{ paddingHorizontal: 18 }}
 			>
 				<View style={styles.libraryControls}>
-					{(['all', 'imported', 'saved', 'automatic'] as const).map((item) => (
-						<Pressable
-							key={item}
-							accessibilityRole="button"
-							accessibilityState={{ selected: filter === item }}
-							onPress={() => {
-								setFilter(item)
-								setSelectedTracks(new Set())
-							}}
-							style={[styles.chip, filter === item && styles.activeChip]}
-						>
-							<Text style={[styles.chipText, filter === item && styles.activeChipText]}>
-								{i18n.t(`localMusic.filters.${item}`)}
-							</Text>
-						</Pressable>
-					))}
-					<View style={{ flex: 1 }} />
-					{(['recent', 'title', 'artist'] as const).map((item) => (
-						<Pressable
-							key={item}
-							accessibilityRole="button"
-							accessibilityState={{ selected: sort === item }}
-							onPress={() => setSort(item)}
-							style={[styles.chip, sort === item && styles.activeChip]}
-						>
-							<Text style={[styles.chipText, sort === item && styles.activeChipText]}>
-								{i18n.t(`library.sort.${item}`)}
-							</Text>
-						</Pressable>
-					))}
+					<View style={styles.controlsRow}>
+						{(['all', 'imported', 'saved', 'automatic'] as const).map((item) => (
+							<Pressable
+								key={item}
+								accessibilityRole="button"
+								accessibilityState={{ selected: filter === item }}
+								onPress={() => {
+									setFilter(item)
+									setSelectedTracks(new Set())
+								}}
+								style={[styles.chip, filter === item && styles.activeChip]}
+							>
+								<Text style={[styles.chipText, filter === item && styles.activeChipText]}>
+									{i18n.t(`localMusic.filters.${item}`)}
+								</Text>
+							</Pressable>
+						))}
+					</View>
+					<View style={styles.controlsRow}>
+						{(['recent', 'title', 'artist'] as const).map((item) => (
+							<Pressable
+								key={item}
+								accessibilityRole="button"
+								accessibilityState={{ selected: sort === item }}
+								onPress={() => setSort(item)}
+								style={[styles.chip, sort === item && styles.activeChip]}
+							>
+								<Text style={[styles.chipText, sort === item && styles.activeChipText]}>
+									{i18n.t(`library.sort.${item}`)}
+								</Text>
+							</Pressable>
+						))}
+					</View>
 				</View>
 				<PlaylistTracksList
 					playlist={playListItem as Playlist}
 					tracks={visibleTracks as Track[]}
+					compactHeader
 					showImportMenu={true}
 					onImportTrack={importLocalMusic}
 					allowDelete={true}
@@ -400,12 +404,15 @@ const createStyles = (colors: ThemeColors) =>
 			backgroundColor: colors.loading,
 		},
 		libraryControls: {
+			gap: 6,
+			marginBottom: 8,
+			paddingTop: 8,
+		},
+		controlsRow: {
 			alignItems: 'center',
 			flexDirection: 'row',
 			flexWrap: 'wrap',
 			gap: 6,
-			marginBottom: 8,
-			paddingTop: 8,
 		},
 		chip: {
 			backgroundColor: colors.surfaceMuted,

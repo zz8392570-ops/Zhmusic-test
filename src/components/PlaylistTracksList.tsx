@@ -4,7 +4,8 @@ import { generateTracksListId } from '@/helpers/miscellaneous'
 import { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
-import { useMemo } from 'react'
+import i18n from '@/utils/i18n'
+import { useMemo, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Image } from 'expo-image'
 import type { Track } from '@/player/types'
@@ -33,6 +34,7 @@ type PlaylistTracksListProps = {
 	onReplaceSource?: (track: Track) => void
 	showMetadata?: boolean
 	metadata?: string
+	compactHeader?: boolean
 }
 
 export const PlaylistTracksList = ({
@@ -56,13 +58,14 @@ export const PlaylistTracksList = ({
 	onReplaceSource,
 	showMetadata = false,
 	metadata,
+	compactHeader = false,
 }: PlaylistTracksListProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
-	// const filteredPlaylistTracks = useMemo(() => {
-	// 	return playlist.tracks.filter(trackTitleFilter(search))
-	// }, [playlist.tracks, search])
+	const artworkUri = playlist.coverImg || playlist.artwork || unknownTrackImageUri
+	const [failedArtworkUri, setFailedArtworkUri] = useState<string | null>(null)
+	const displayedArtworkUri = failedArtworkUri === artworkUri ? unknownTrackImageUri : artworkUri
 
 	return (
 		<TracksList
@@ -72,42 +75,45 @@ export const PlaylistTracksList = ({
 			ListHeaderComponentStyle={styles.playlistHeaderContainer}
 			ListHeaderComponent={
 				<View>
-					<View style={styles.artworkImageContainer}>
-						<Image
-							contentFit="cover"
-							cachePolicy="memory-disk"
-							priority="high"
-							recyclingKey={
-								(playlist.coverImg || playlist.artwork || unknownTrackImageUri) ?? 'missing-artwork'
-							}
-							source={{
-								uri: playlist.coverImg || playlist.artwork || unknownTrackImageUri,
-							}}
-							style={styles.artworkImage}
-						/>
+					<View style={compactHeader && styles.compactHeader}>
+						<View style={styles.artworkImageContainer}>
+							<Image
+								contentFit="cover"
+								cachePolicy="memory-disk"
+								priority="high"
+								recyclingKey={displayedArtworkUri}
+								source={{ uri: displayedArtworkUri }}
+								onError={() => setFailedArtworkUri(artworkUri)}
+								style={[styles.artworkImage, compactHeader && styles.compactArtwork]}
+							/>
+						</View>
+						<View style={compactHeader && styles.compactInfo}>
+							<Text style={[styles.playlistNameText, compactHeader && styles.compactName]}>
+								{playlist.title || playlist.name}
+							</Text>
+							{showMetadata && playlist.artist ? (
+								<Text style={[styles.playlistArtistText, compactHeader && styles.compactText]}>
+									{playlist.artist}
+								</Text>
+							) : null}
+							{(showMetadata && metadata) || compactHeader ? (
+								<Text style={[styles.playlistStatsText, compactHeader && styles.compactText]}>
+									{metadata || i18n.t('charts.trackCount', { count: tracks.length })}
+								</Text>
+							) : null}
+							{showMetadata && playlist.description ? (
+								<Text
+									numberOfLines={3}
+									style={[styles.playlistDescriptionText, compactHeader && styles.compactText]}
+								>
+									{playlist.description}
+								</Text>
+							) : null}
+						</View>
 					</View>
 
-					<Text numberOfLines={1} style={styles.playlistNameText}>
-						{playlist.title}
-					</Text>
-					{showMetadata && playlist.artist ? (
-						<Text numberOfLines={1} style={styles.playlistArtistText}>
-							{playlist.artist}
-						</Text>
-					) : null}
-					{showMetadata && metadata ? (
-						<Text numberOfLines={1} style={styles.playlistStatsText}>
-							{metadata}
-						</Text>
-					) : null}
-					{showMetadata && playlist.description ? (
-						<Text numberOfLines={3} style={styles.playlistDescriptionText}>
-							{playlist.description}
-						</Text>
-					) : null}
-
 					<QueueControls
-						style={{ paddingTop: showMetadata ? 18 : 24 }}
+						style={{ paddingTop: compactHeader ? 14 : 18 }}
 						tracks={tracks}
 						showImportMenu={showImportMenu}
 						onImportTrack={onImportTrack}
@@ -139,8 +145,7 @@ export const PlaylistTracksList = ({
 const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
 		playlistHeaderContainer: {
-			flex: 1,
-			marginBottom: 24,
+			marginBottom: 18,
 		},
 		artworkImageContainer: {
 			flexDirection: 'row',
@@ -151,12 +156,14 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			maxWidth: 240,
 			aspectRatio: 1,
 			borderRadius: 14,
+			backgroundColor: colors.surfaceMuted,
 		},
 		playlistNameText: {
 			...defaultStyles.text,
 			marginTop: 16,
 			textAlign: 'center',
 			fontSize: fontSize.lg,
+			lineHeight: 32,
 			fontWeight: '800',
 		},
 		playlistArtistText: {
@@ -178,4 +185,9 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			lineHeight: 19,
 			textAlign: 'center',
 		},
+		compactHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+		compactArtwork: { width: 68, maxWidth: 68 },
+		compactInfo: { flex: 1, minWidth: 0 },
+		compactName: { marginTop: 0, textAlign: 'left', fontSize: 22, lineHeight: 28 },
+		compactText: { textAlign: 'left' },
 	})

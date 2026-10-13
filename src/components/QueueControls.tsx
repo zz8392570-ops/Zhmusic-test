@@ -74,9 +74,9 @@ export const QueueControls = ({
 	}
 
 	return (
-		<View style={[{ flexDirection: 'row', columnGap: 16 }, style]} {...viewProps}>
+		<View style={[styles.container, style]} {...viewProps}>
 			{/* Play button */}
-			<View style={{ flex: 1 }}>
+			<View style={styles.control}>
 				{isMultiSelectMode ? (
 					<TouchableOpacity
 						onPress={() => {
@@ -105,22 +105,24 @@ export const QueueControls = ({
 					<TouchableOpacity
 						onPress={handlePlay}
 						activeOpacity={0.8}
-						style={[styles.button, isEmpty && styles.buttonDisabled]}
+						style={[styles.button, styles.playButton, isEmpty && styles.buttonDisabled]}
 						disabled={isEmpty}
 						accessibilityRole="button"
 						accessibilityLabel={i18n.t('playButton.play')}
 						accessibilityState={{ disabled: isEmpty }}
 					>
-						<Ionicons name="play" size={22} color={colors.primary} />
+						<Ionicons name="play" size={22} color="#fff" />
 
-						<Text style={styles.buttonText}>{i18n.t('playButton.play')}</Text>
+						<Text style={[styles.buttonText, styles.playButtonText]}>
+							{i18n.t('playButton.play')}
+						</Text>
 					</TouchableOpacity>
 				)}
 			</View>
 
 			{/* Shuffle button */}
 			{!isMultiSelectMode ? (
-				<View style={{ flex: 1 }}>
+				<View style={styles.control}>
 					<TouchableOpacity
 						onPress={handleShufflePlay}
 						activeOpacity={0.8}
@@ -136,7 +138,7 @@ export const QueueControls = ({
 					</TouchableOpacity>
 				</View>
 			) : (
-				<View style={{ flex: 1 }}>
+				<View style={styles.control}>
 					<TouchableOpacity
 						onPress={() => {
 							hapticSelection()
@@ -179,7 +181,7 @@ export const QueueControls = ({
 				</TouchableOpacity>
 			) : null}
 			{showImportMenu && (
-				<View style={{ flex: 1 }}>
+				<View style={styles.control}>
 					{isMultiSelectMode ? (
 						<TouchableOpacity
 							onPress={() => {
@@ -267,24 +269,31 @@ export const QueueControls = ({
 
 const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
+		container: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'stretch' },
+		control: { flexGrow: 1, flexBasis: 96, minWidth: 96 },
 		button: {
-			padding: 12,
+			minHeight: 48,
+			paddingVertical: 12,
+			paddingHorizontal: 10,
 			backgroundColor: colors.surfaceMuted,
-			borderRadius: 10,
+			borderRadius: 22,
 			borderCurve: 'continuous',
 			flexDirection: 'row',
 			justifyContent: 'center',
 			alignItems: 'center',
-			columnGap: 8,
+			columnGap: 6,
 		},
 		buttonText: {
 			...defaultStyles.text,
 			color: colors.primary,
 			fontWeight: '600',
-			fontSize: 17,
+			fontSize: 14,
+			flexShrink: 1,
 			textAlign: 'center',
 		},
 		buttonDisabled: {
 			opacity: 0.45,
 		},
+		playButton: { backgroundColor: colors.primary },
+		playButtonText: { color: '#fff' },
 	})

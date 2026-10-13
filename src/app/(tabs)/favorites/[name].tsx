@@ -1,5 +1,4 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
-import { screenPadding } from '@/constants/tokens'
 import myTrackPlayer, { playListsStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { searchSongsAcrossPlatforms } from '@/helpers/crossPlatformSearch'
@@ -449,7 +448,7 @@ const PlaylistScreen = () => {
 		<View style={defaultStyles.container}>
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
+				contentContainerStyle={{ paddingHorizontal: 18 }}
 			>
 				<PlaylistTracksList
 					playlist={playlist as Playlist}

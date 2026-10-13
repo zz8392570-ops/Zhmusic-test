@@ -1,6 +1,6 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { unknownTrackImageUri } from '@/constants/images'
-import { screenPadding, type ThemeColors } from '@/constants/tokens'
+import { type ThemeColors } from '@/constants/tokens'
 import {
 	clearListeningStats,
 	getSmartPlaylistTracks,
@@ -48,23 +48,28 @@ const SmartPlaylistScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
-			<View style={styles.settings}>
-				<View style={styles.settingText}>
-					<Text style={styles.settingTitle}>{i18n.t('listeningStats.enabled')}</Text>
-					<Text style={styles.settingDescription}>{i18n.t('listeningStats.privateHint')}</Text>
-				</View>
-				<Switch value={enabled} onValueChange={setListeningStatsEnabled} />
-				<Pressable onPress={clear} accessibilityRole="button">
-					<Text style={styles.clear}>{i18n.t('listeningStats.clear')}</Text>
-				</Pressable>
-			</View>
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
+				contentContainerStyle={{ paddingHorizontal: 18 }}
 			>
+				<View style={styles.settings}>
+					<View style={styles.settingText}>
+						<Text style={styles.settingTitle}>{i18n.t('listeningStats.enabled')}</Text>
+						<Text style={styles.settingDescription}>{i18n.t('listeningStats.privateHint')}</Text>
+					</View>
+					<Switch
+						value={enabled}
+						onValueChange={setListeningStatsEnabled}
+						trackColor={{ false: colors.surfaceMuted, true: colors.primary }}
+					/>
+					<Pressable onPress={clear} accessibilityRole="button" style={styles.clearAction}>
+						<Text style={styles.clear}>{i18n.t('listeningStats.clear')}</Text>
+					</Pressable>
+				</View>
 				<PlaylistTracksList
 					playlist={playlist}
 					tracks={tracks}
+					compactHeader
 					showMetadata
 					metadata={i18n.t('listeningStats.summary', {
 						count: stats.length,
@@ -80,16 +85,19 @@ const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
 		settings: {
 			alignItems: 'center',
-			borderBottomColor: colors.border,
-			borderBottomWidth: StyleSheet.hairlineWidth,
+			backgroundColor: colors.surfaceElevated,
+			borderRadius: 14,
 			flexDirection: 'row',
-			gap: 12,
-			paddingHorizontal: 16,
+			gap: 10,
+			marginTop: 8,
+			marginBottom: 6,
+			paddingHorizontal: 14,
 			paddingVertical: 10,
 		},
 		settingText: { flex: 1 },
 		settingTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
 		settingDescription: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+		clearAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
 		clear: { color: colors.primary, fontSize: 13, fontWeight: '600' },
 	})
 

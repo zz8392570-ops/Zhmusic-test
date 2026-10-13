@@ -3,7 +3,7 @@ import { useIsPlaying } from '@rntp/player'
 import { FlashList } from '@shopify/flash-list'
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import {
 	ActivityIndicator,
 	Pressable,
@@ -11,11 +11,13 @@ import {
 	Text,
 	TouchableOpacity,
 	View,
+	type StyleProp,
+	type ImageStyle,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { unknownTrackImageUri } from '@/constants/images'
-import { ThemeColors, screenPadding } from '@/constants/tokens'
+import { unknownArtistImageUri, unknownTrackImageUri } from '@/constants/images'
+import { ThemeColors } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
@@ -49,6 +51,34 @@ const ItemDivider = memo(() => {
 	const colors = useThemeColors()
 	return <View style={[styles.itemSeparator, { backgroundColor: colors.separator }]} />
 })
+
+const SearchArtwork = ({
+	uri,
+	artist = false,
+	style,
+}: {
+	uri?: string
+	artist?: boolean
+	style: StyleProp<ImageStyle>
+}) => {
+	const fallbackUri = artist ? unknownArtistImageUri : unknownTrackImageUri
+	const artworkUri = uri?.trim() || fallbackUri
+	const [failedUri, setFailedUri] = useState<string | null>(null)
+
+	return (
+		<Image
+			accessible={false}
+			contentFit="cover"
+			cachePolicy="memory-disk"
+			placeholder={{ uri: fallbackUri }}
+			placeholderContentFit="cover"
+			recyclingKey={artworkUri}
+			source={{ uri: failedUri === artworkUri ? fallbackUri : artworkUri }}
+			onError={() => setFailedUri(artworkUri)}
+			style={style}
+		/>
+	)
+}
 
 const formatCompactCount = (value: unknown) => {
 	const count = Number(value)
@@ -171,32 +201,37 @@ const PartialResultsNotice = ({ platforms }: { platforms: MusicPlatform[] }) => 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
 		playlistItem: {
-			minHeight: 68,
+			minHeight: 78,
 			flexDirection: 'row',
 			alignItems: 'center',
+			gap: 12,
+			paddingVertical: 8,
 		},
 		playlistArtwork: {
 			width: 62,
 			height: 62,
-			borderRadius: 8,
-			marginRight: 13,
+			borderRadius: 14,
 			backgroundColor: colors.artworkPlaceholder,
 		},
 		playlistContent: {
 			flex: 1,
+			minWidth: 0,
 			gap: 3,
 		},
 		playlistTitle: {
 			fontSize: 16,
+			lineHeight: 22,
 			fontWeight: '600',
 			color: colors.text,
 		},
 		playlistCreator: {
 			fontSize: 13,
+			lineHeight: 19,
 			color: colors.textMuted,
 		},
 		playlistMeta: {
 			fontSize: 12,
+			lineHeight: 18,
 			color: colors.textMuted,
 		},
 		partialNotice: {
@@ -206,65 +241,74 @@ const createStyles = (colors: ThemeColors) =>
 			gap: 8,
 			marginBottom: 8,
 			paddingHorizontal: 12,
-			borderRadius: 10,
+			paddingVertical: 8,
+			borderRadius: 14,
 			backgroundColor: colors.surfaceMuted,
 		},
 		partialNoticeText: {
 			flex: 1,
 			color: colors.textMuted,
 			fontSize: 12,
+			lineHeight: 18,
 		},
 		artistItem: {
-			minHeight: 58,
+			minHeight: 72,
 			flexDirection: 'row',
 			alignItems: 'center',
+			gap: 12,
+			paddingVertical: 8,
 		},
 		artistAvatar: {
 			width: 50,
 			height: 50,
 			borderRadius: 25,
-			marginRight: 13,
 			backgroundColor: colors.artworkPlaceholder,
 		},
 		artistContent: {
 			flex: 1,
+			minWidth: 0,
 			gap: 3,
 		},
 		artistName: {
 			fontSize: 16,
+			lineHeight: 22,
 			fontWeight: '600',
 			color: colors.text,
 		},
 		artistMeta: {
 			fontSize: 13,
+			lineHeight: 19,
 			color: colors.textMuted,
 		},
 		stateContainer: {
-			minHeight: 320,
+			minHeight: 260,
 			alignItems: 'center',
 			justifyContent: 'center',
-			paddingHorizontal: 32,
+			paddingHorizontal: 18,
+			paddingVertical: 24,
 			gap: 10,
 		},
 		stateTitle: {
 			color: colors.text,
 			fontSize: 17,
+			lineHeight: 24,
 			fontWeight: '600',
 			textAlign: 'center',
 		},
 		stateDescription: {
 			color: colors.textMuted,
 			fontSize: 14,
+			lineHeight: 21,
 			textAlign: 'center',
 		},
 		retryButton: {
 			minWidth: 96,
-			minHeight: 40,
+			minHeight: 44,
 			alignItems: 'center',
 			justifyContent: 'center',
 			marginTop: 6,
 			paddingHorizontal: 18,
-			borderRadius: 20,
+			borderRadius: 22,
 			backgroundColor: colors.primary,
 		},
 		retryText: {
@@ -296,8 +340,7 @@ const createStyles = (colors: ThemeColors) =>
 const styles = StyleSheet.create({
 	itemSeparator: {
 		height: StyleSheet.hairlineWidth,
-		marginVertical: 8,
-		marginLeft: 63,
+		marginVertical: 4,
 	},
 })
 
@@ -352,19 +395,14 @@ export const SearchList = ({
 
 				return (
 					<TouchableOpacity
+						accessibilityRole="button"
 						activeOpacity={0.65}
 						style={themedStyles.playlistItem}
 						onPress={() => handleTrackSelect(track)}
 					>
-						<Image
-							contentFit="cover"
-							cachePolicy="memory-disk"
-							recyclingKey={(track.artwork || unknownTrackImageUri) ?? 'missing-artwork'}
-							source={{ uri: track.artwork || unknownTrackImageUri }}
-							style={themedStyles.playlistArtwork}
-						/>
+						<SearchArtwork uri={track.artwork} style={themedStyles.playlistArtwork} />
 						<View style={themedStyles.playlistContent}>
-							<Text style={themedStyles.playlistTitle} numberOfLines={1}>
+							<Text style={themedStyles.playlistTitle} numberOfLines={2}>
 								{track.title}
 							</Text>
 							{track.artist ? (
@@ -385,23 +423,18 @@ export const SearchList = ({
 			if (track.isArtist) {
 				return (
 					<TouchableOpacity
+						accessibilityRole="button"
 						activeOpacity={0.65}
 						style={themedStyles.artistItem}
 						onPress={() => handleTrackSelect(track)}
 					>
-						<Image
-							contentFit="cover"
-							cachePolicy="memory-disk"
-							recyclingKey={(track.artwork || unknownTrackImageUri) ?? 'missing-artwork'}
-							source={{ uri: track.artwork || unknownTrackImageUri }}
-							style={themedStyles.artistAvatar}
-						/>
+						<SearchArtwork uri={track.artwork} artist style={themedStyles.artistAvatar} />
 						<View style={themedStyles.artistContent}>
-							<Text style={themedStyles.artistName} numberOfLines={1}>
+							<Text style={themedStyles.artistName} numberOfLines={2}>
 								{track.title}
 							</Text>
 							{track.worksNum ? (
-								<Text style={themedStyles.artistMeta}>
+								<Text style={themedStyles.artistMeta} numberOfLines={1}>
 									{i18n.t('find.artistWorks', { works: track.worksNum })}
 								</Text>
 							) : null}
@@ -471,7 +504,7 @@ export const SearchList = ({
 				contentContainerStyle={{
 					paddingTop: 8,
 					paddingBottom: 128 + insets.bottom,
-					paddingHorizontal: screenPadding.horizontal,
+					paddingHorizontal: 18,
 				}}
 				ItemSeparatorComponent={ItemDivider}
 				ListEmptyComponent={

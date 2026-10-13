@@ -1,5 +1,5 @@
 import { unknownTrackImageUri } from '@/constants/images'
-import { ThemeColors, screenPadding } from '@/constants/tokens'
+import { ThemeColors } from '@/constants/tokens'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useUtilsStyles } from '@/styles'
@@ -228,10 +228,10 @@ const createStyles = (colors: ThemeColors, utilsStyles: ReturnType<typeof useUti
 	StyleSheet.create({
 		listContainer: {
 			flex: 1,
-			paddingHorizontal: screenPadding.horizontal,
+			paddingHorizontal: 18,
 		},
 		contentContainer: {
-			paddingBottom: 128,
+			paddingBottom: 24,
 		},
 		itemDivider: {
 			...utilsStyles.itemSeparator,
@@ -259,11 +259,13 @@ const createStyles = (colors: ThemeColors, utilsStyles: ReturnType<typeof useUti
 		headerRow: {
 			alignItems: 'center',
 			flexDirection: 'row',
+			flexWrap: 'wrap',
+			gap: 10,
 			justifyContent: 'space-between',
 			paddingBottom: 10,
-			paddingHorizontal: 20,
+			paddingHorizontal: 18,
 		},
-		headerActions: { flexDirection: 'row', gap: 14 },
+		headerActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
 		headerActionText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
 		editableRow: { alignItems: 'center', flexDirection: 'row' },
 		trackItem: { flex: 1 },

@@ -328,6 +328,7 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 		},
 		mainAction: {
 			flex: 1,
+			minWidth: 0,
 			borderRadius: 8,
 		},
 		trackItemContainer: {
@@ -341,6 +342,7 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 		},
 		trackInfo: {
 			flex: 1,
+			minWidth: 0,
 		},
 		shortcutsButton: {
 			width: 44,

@@ -113,7 +113,7 @@ function runtime(extraOverrides = {}) {
 				useUtilsStyles: () => ({ slider: {} }),
 			},
 			'@/constants/tokens': { fontSize: { xs: 12 } },
-			'@expo/vector-icons': { FontAwesome6: 'Icon' },
+			'@expo/vector-icons': { FontAwesome6: 'Icon', MaterialCommunityIcons: 'Icon' },
 			'react-native-awesome-slider': { Slider: 'Slider' },
 			'react-native-reanimated': {
 				View: 'AnimatedView',
@@ -931,6 +931,56 @@ await check(
 		assert.ok(
 			findElement(floatingPlayer, 'Text', (node) => node.props.children.includes(seekTrack.artist)),
 		)
+	},
+)
+
+await check(
+	'mini player artwork errors recover on track change and its progress stays bounded',
+	async () => {
+		const h = runtime({ '@/constants/images': { unknownTrackImageUri: 'fallback-cover' } })
+		await h.facade.play(song('broken-cover', { artwork: 'https://img.example/broken.jpg' }))
+		let failedUri = null
+		h.react.useState = () => [
+			failedUri,
+			(value) => {
+				failedUri = value
+			},
+		]
+		const { FloatingPlayer } = h.load('src/components/FloatingPlayer.tsx')
+		let tree = FloatingPlayer({})
+		let artwork = findElement(tree, 'Image')
+		artwork.props.onError()
+		tree = FloatingPlayer({})
+		assert.equal(findElement(tree, 'Image').props.source.uri, 'fallback-cover')
+		await h.facade.play(song('fresh-cover', { artwork: 'https://img.example/fresh.jpg' }))
+		tree = FloatingPlayer({})
+		assert.equal(findElement(tree, 'Image').props.source.uri, 'https://img.example/fresh.jpg')
+		// A late error from the previous image cannot hide the current track's cover.
+		artwork.props.onError()
+		tree = FloatingPlayer({})
+		assert.equal(findElement(tree, 'Image').props.source.uri, 'https://img.example/fresh.jpg')
+		const materialize = (node) => {
+			if (!node || typeof node !== 'object') return node
+			if (typeof node.type === 'function') return materialize(node.type(node.props))
+			return {
+				...node,
+				props: { ...node.props, children: (node.props?.children ?? []).map(materialize) },
+			}
+		}
+		for (const position of [-10, 120, NaN]) {
+			h.player.progress = { position, duration: 100, buffered: 0, cached: 0 }
+			const bar = findElement(
+				materialize(FloatingPlayer({})),
+				'View',
+				(node) =>
+					Array.isArray(node.props.style) &&
+					node.props.style.some(
+						(style) => typeof style?.width === 'string' && style.width.endsWith('%'),
+					),
+			)
+			const width = Number.parseFloat(bar.props.style.find((style) => style?.width).width)
+			assert.ok(Number.isFinite(width) && width >= 0 && width <= 100)
+		}
 	},
 )
 

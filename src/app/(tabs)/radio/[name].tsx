@@ -1,6 +1,5 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { unknownTrackImageUri } from '@/constants/images'
-import { screenPadding } from '@/constants/tokens'
 import { importPlaylistByLink } from '@/helpers/importPlaylist'
 import { isLeaderboardSource } from '@/helpers/leaderboard'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
@@ -125,7 +124,7 @@ const PublicPlaylistScreen = () => {
 		<View style={defaultStyles.container}>
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
+				contentContainerStyle={{ paddingHorizontal: 18 }}
 				refreshControl={
 					<RefreshControl
 						refreshing={loading}

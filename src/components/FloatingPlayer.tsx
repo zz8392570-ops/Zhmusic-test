@@ -8,7 +8,7 @@ import { useLastActiveTrack } from '@/hooks/useLastActiveTrack'
 import { useDefaultStyles } from '@/styles'
 import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
 	ActivityIndicator,
 	StyleSheet,
@@ -17,7 +17,7 @@ import {
 	View,
 	ViewProps,
 } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { MovingText } from './MovingText'
@@ -28,7 +28,10 @@ const ProgressIndicator = React.memo(() => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const { position, duration } = myTrackPlayer.useProgress(1)
-	const progress = duration > 0 ? position / duration : 0
+	const progress =
+		Number.isFinite(position) && Number.isFinite(duration) && duration > 0
+			? Math.max(0, Math.min(1, position / duration))
+			: 0
 	return (
 		<View style={styles.progressBarContainer}>
 			<View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
@@ -46,6 +49,9 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 	const lastActiveTrack = useLastActiveTrack()
 	const isTrackSourceLoading = trackSourceLoadingStore.useValue() !== null
 	const displayedTrack = currentMusic ?? lastActiveTrack
+	const sourceArtwork = displayedTrack?.artwork || unknownTrackImageUri
+	const [failedArtwork, setFailedArtwork] = useState<string | null>(null)
+	const artworkUri = failedArtwork === sourceArtwork ? unknownTrackImageUri : sourceArtwork
 
 	const artworkOpacity = useSharedValue(1)
 	const prevArtworkRef = useRef(displayedTrack?.artwork)
@@ -83,10 +89,9 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 							<Image
 								contentFit="cover"
 								cachePolicy="memory-disk"
-								recyclingKey={displayedTrack.artwork ?? unknownTrackImageUri ?? 'missing-artwork'}
-								source={{
-									uri: displayedTrack.artwork ?? unknownTrackImageUri,
-								}}
+								recyclingKey={artworkUri}
+								source={{ uri: artworkUri }}
+								onError={() => setFailedArtwork(sourceArtwork)}
 								style={StyleSheet.absoluteFill}
 							/>
 						</Animated.View>
@@ -123,9 +128,9 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 						onPress={() => router.navigate('/(modals)/playList')}
 						accessibilityRole="button"
 						accessibilityLabel={i18n.t('queue.title')}
-						style={{ padding: 6 }}
+						style={styles.queueButton}
 					>
-						<Ionicons name="list-outline" size={25} color={colors.text} />
+						<MaterialCommunityIcons name="playlist-music-outline" size={26} color={colors.text} />
 					</TouchableOpacity>
 				</View>
 
@@ -152,6 +157,7 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 		},
 		trackInfoAction: {
 			flex: 1,
+			minWidth: 0,
 			flexDirection: 'row',
 			alignItems: 'center',
 		},
@@ -163,6 +169,7 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 		},
 		trackTitleContainer: {
 			flex: 1,
+			minWidth: 0,
 			overflow: 'hidden',
 			marginLeft: 12,
 		},
@@ -189,8 +196,18 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 			paddingLeft: 12,
 		},
 		loadingIndicatorContainer: {
-			minWidth: 24,
-			minHeight: 24,
+			width: 38,
+			height: 38,
+			borderRadius: 19,
+			borderWidth: 1,
+			borderColor: colors.border,
+			backgroundColor: colors.overlaySoft,
+			alignItems: 'center',
+			justifyContent: 'center',
+		},
+		queueButton: {
+			width: 44,
+			height: 44,
 			alignItems: 'center',
 			justifyContent: 'center',
 		},
