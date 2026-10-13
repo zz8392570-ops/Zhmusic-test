@@ -9,6 +9,7 @@ const checks = [
 	'check-lx-auto-sync.mjs',
 	'check-player-background.mjs',
 	'check-public-playlists.mjs',
+	'check-hot-search.mjs',
 	'check-product-optimizations.mjs',
 	'check-request-timers.mjs',
 	'check-rntp-player.mjs',

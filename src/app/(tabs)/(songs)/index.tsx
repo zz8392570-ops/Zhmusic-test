@@ -136,7 +136,7 @@ const SongsScreen = () => {
 				</View>
 			) : (
 				<ScrollView
-					contentInsetAdjustmentBehavior="automatic"
+					contentInsetAdjustmentBehavior="never"
 					refreshControl={
 						<RefreshControl
 							refreshing={loadingTracks}
@@ -152,7 +152,7 @@ const SongsScreen = () => {
 						contentContainerStyle={{
 							paddingHorizontal: screenPadding.horizontal,
 							paddingTop: 4,
-							paddingBottom: 22,
+							paddingBottom: 12,
 							gap: 12,
 						}}
 					>
@@ -192,7 +192,7 @@ const SongsScreen = () => {
 								ListHeaderComponent={
 									<View
 										style={{
-											marginBottom: 18,
+											marginBottom: 10,
 											flexDirection: 'row',
 											alignItems: 'center',
 											justifyContent: 'space-between',

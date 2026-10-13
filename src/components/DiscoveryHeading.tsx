@@ -9,8 +9,8 @@ export default function DiscoveryHeading({ title, action }: { title: string; act
 	return (
 		<View
 			style={{
-				paddingTop: top + 12,
-				paddingBottom: 18,
+				paddingTop: top + 2,
+				paddingBottom: 6,
 				paddingHorizontal: 18,
 				flexDirection: 'row',
 				alignItems: 'center',
@@ -18,7 +18,7 @@ export default function DiscoveryHeading({ title, action }: { title: string; act
 				flexShrink: 0,
 			}}
 		>
-			<Text style={{ color: colors.text, fontSize: 34, lineHeight: 42, fontWeight: '800' }}>
+			<Text style={{ color: colors.text, fontSize: 28, lineHeight: 34, fontWeight: '800' }}>
 				{title}
 			</Text>
 			{action}

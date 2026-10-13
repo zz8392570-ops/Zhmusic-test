@@ -482,6 +482,7 @@
 		"addFailed": "Couldn't add the song"
 	},
 	"find": {
+		"trending": "Trending",
 		"inRadio": "Find in Charts",
 		"inSearch": "Find Songs, Artists, or Playlists Online",
 		"inSongs": "Find in Songs",

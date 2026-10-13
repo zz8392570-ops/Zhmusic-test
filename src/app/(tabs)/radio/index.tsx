@@ -110,7 +110,12 @@ const RadiolistsScreen = () => {
 		let active = true
 		setCategories([])
 		void getPublicPlaylistCategories(source).then((items) => {
-			if (active) setCategories(items)
+			if (!active) return
+			setCategories(items)
+			const stored = PersistStatus.get('music.publicPlaylistCategories') ?? {}
+			if (stored[source] && !items.some((item) => item.id === stored[source])) {
+				PersistStatus.set('music.publicPlaylistCategories', { ...stored, [source]: '' })
+			}
 		})
 		return () => {
 			active = false
@@ -244,11 +249,11 @@ const RadiolistsScreen = () => {
 				showsHorizontalScrollIndicator={false}
 				contentContainerStyle={{
 					paddingHorizontal: screenPadding.horizontal,
-					paddingTop: 4,
-					paddingBottom: 14,
+					paddingTop: 2,
+					paddingBottom: 4,
 					gap: 8,
 				}}
-				style={{ flexGrow: 0, flexShrink: 0, height: 64 }}
+				style={{ flexGrow: 0, flexShrink: 0, height: 46 }}
 			>
 				{categories.map((category) => {
 					const selected = category.id === categoryId
@@ -258,8 +263,8 @@ const RadiolistsScreen = () => {
 							onPress={() => selectCategory(category.id)}
 							style={{
 								paddingHorizontal: 15,
-								paddingVertical: 9,
-								minHeight: 38,
+								paddingVertical: 6,
+								minHeight: 34,
 								justifyContent: 'center',
 								borderRadius: 18,
 								backgroundColor: selected ? colors.primary : colors.surfaceMuted,
@@ -302,7 +307,7 @@ const RadiolistsScreen = () => {
 								flexDirection: 'row',
 								alignItems: 'center',
 								justifyContent: 'space-between',
-								paddingBottom: 14,
+								paddingBottom: 6,
 							}}
 						>
 							<Text style={{ color: colors.text, fontSize: 23, fontWeight: '800' }}>
@@ -326,12 +331,11 @@ const RadiolistsScreen = () => {
 					renderItem={({ item }) => (
 						<PublicPlaylistCard item={item} onPress={() => openPlaylist(item)} />
 					)}
-					columnWrapperStyle={{ gap: 14 }}
+					columnWrapperStyle={{ gap: 14, marginBottom: 18 }}
 					contentContainerStyle={{
 						paddingHorizontal: screenPadding.horizontal,
 						paddingTop: 4,
 						paddingBottom: 150,
-						gap: 22,
 					}}
 					refreshControl={
 						<RefreshControl

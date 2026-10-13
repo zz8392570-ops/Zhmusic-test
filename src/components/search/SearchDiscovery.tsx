@@ -1,3 +1,5 @@
+import { formatHotSearchScore, type HotSearchItem } from '@/helpers/hotSearch'
+import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 
@@ -9,7 +11,7 @@ import { useMemo } from 'react'
 
 type SearchDiscoveryProps = {
 	history: string[]
-	hotSearches: string[]
+	hotSearches: HotSearchItem[]
 	hotSearchTitle: string
 	hotRankOffset: number
 	canChangeHotSearch: boolean
@@ -126,19 +128,28 @@ const SearchDiscovery = ({
 					</Pressable>
 				) : (
 					<View style={styles.hotList}>
-						{hotSearches.map((keyword, index) => (
+						{hotSearches.map((item, index) => (
 							<Pressable
-								key={`${keyword}-${index}`}
+								key={`${item.platform}-${item.keyword}`}
 								accessibilityRole="button"
-								onPress={() => onSearch(keyword)}
+								onPress={() => onSearch(item.keyword)}
 								style={({ pressed }) => [styles.hotItem, pressed && styles.pressed]}
 							>
 								<Text style={[styles.rank, hotRankOffset + index < 3 && styles.topRank]}>
 									{hotRankOffset + index + 1}
 								</Text>
 								<Text style={styles.hotKeyword} numberOfLines={1}>
-									{keyword}
+									{item.keyword}
 								</Text>
+								<View style={styles.heat}>
+									<Text style={styles.heatPlatform}>
+										{i18n.t(getMusicPlatformLabelKey(item.platform))}
+									</Text>
+									<MaterialCommunityIcons name="fire" size={15} color={colors.textMuted} />
+									<Text style={styles.heatText}>
+										{formatHotSearchScore(item.score) || i18n.t('find.trending')}
+									</Text>
+								</View>
 							</Pressable>
 						))}
 					</View>
@@ -153,13 +164,16 @@ const createStyles = (colors: ThemeColors) =>
 		container: {
 			flex: 1,
 		},
+		heat: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 10 },
+		heatText: { color: colors.textMuted, fontSize: 13, fontVariant: ['tabular-nums'] },
+		heatPlatform: { color: colors.textMuted, fontSize: 10, marginRight: 3 },
 		content: {
 			paddingHorizontal: 18,
-			paddingTop: 20,
+			paddingTop: 12,
 			paddingBottom: 140,
 		},
 		section: {
-			marginBottom: 26,
+			marginBottom: 18,
 		},
 		sectionHeader: {
 			minHeight: 32,

@@ -7,7 +7,7 @@ import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll, { type SearchType } from '@/helpers/searchAll'
-import { getHotSearches } from '@/helpers/hotSearch'
+import { getHotSearchItems, type HotSearchItem } from '@/helpers/hotSearch'
 import {
 	deduplicateCrossPlatformTracks,
 	type MusicPlatform,
@@ -56,7 +56,7 @@ const SearchScreen = () => {
 	const [submittedQuery, setSubmittedQuery] = useState('')
 	const [searchRevision, setSearchRevision] = useState(0)
 	const [suggestions, setSuggestions] = useState<string[]>([])
-	const [hotSearches, setHotSearches] = useState<string[]>([])
+	const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([])
 	const [hotSearchBatch, setHotSearchBatch] = useState(0)
 	const [page, setPage] = useState(1)
 	const [isLoading, setIsLoading] = useState(false)
@@ -159,7 +159,7 @@ const SearchScreen = () => {
 		setHotSearchBatch(0)
 
 		try {
-			const result = await getHotSearches(platform, forceRefresh)
+			const result = await getHotSearchItems(platform, forceRefresh)
 			if (requestId !== hotSearchRequestRef.current) return
 			setHotSearches(result)
 		} catch (error) {
@@ -526,9 +526,9 @@ const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
 		searchField: {
 			flexShrink: 0,
-			minHeight: 46,
+			minHeight: 40,
 			marginHorizontal: 18,
-			marginBottom: 12,
+			marginBottom: 8,
 			paddingHorizontal: 14,
 			flexDirection: 'row',
 			alignItems: 'center',
@@ -536,7 +536,7 @@ const createStyles = (colors: ThemeColors) =>
 			borderRadius: 13,
 			backgroundColor: colors.surfaceMuted,
 		},
-		searchInput: { flex: 1, minHeight: 46, color: colors.text, fontSize: 16, paddingVertical: 10 },
+		searchInput: { flex: 1, minHeight: 40, color: colors.text, fontSize: 16, paddingVertical: 8 },
 		safeArea: {
 			flex: 1,
 			backgroundColor: colors.background,
@@ -547,11 +547,11 @@ const createStyles = (colors: ThemeColors) =>
 			paddingTop: 0,
 		},
 		segmentedControl: {
-			minHeight: 42,
+			minHeight: 38,
 			flexShrink: 0,
 			flexDirection: 'row',
 			marginHorizontal: 18,
-			marginBottom: 10,
+			marginBottom: 6,
 			padding: 0,
 			borderRadius: 12,
 			backgroundColor: colors.surfaceMuted,

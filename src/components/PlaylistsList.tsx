@@ -47,7 +47,13 @@ export const PlaylistsList = ({
 	)
 
 	const showDeleteAlert = (playlist: Playlist) => {
-		if (playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent') return
+		if (
+			playlist.id === 'favorites' ||
+			playlist.id === 'local' ||
+			playlist.id === 'recent' ||
+			playlist.id.startsWith('smart:')
+		)
+			return
 
 		Alert.alert(
 			i18n.t('library.deleteTitle'),
@@ -130,11 +136,18 @@ export const PlaylistsList = ({
 		Alert.alert(i18n.t('library.editTitle'), playlist.title || playlist.name, [
 			{
 				text: i18n.t(playlist.pinned ? 'library.unpin' : 'library.pin'),
-				onPress: () => myTrackPlayer.updateStoredPlaylist(playlist.id, { pinned: !playlist.pinned }),
+				onPress: () =>
+					myTrackPlayer.updateStoredPlaylist(playlist.id, { pinned: !playlist.pinned }),
 			},
 			{ text: i18n.t('library.folder'), onPress: changeFolder },
-			{ text: i18n.t('library.moveUp'), onPress: () => myTrackPlayer.reorderStoredPlaylist(playlist.id, 'up') },
-			{ text: i18n.t('library.moveDown'), onPress: () => myTrackPlayer.reorderStoredPlaylist(playlist.id, 'down') },
+			{
+				text: i18n.t('library.moveUp'),
+				onPress: () => myTrackPlayer.reorderStoredPlaylist(playlist.id, 'up'),
+			},
+			{
+				text: i18n.t('library.moveDown'),
+				onPress: () => myTrackPlayer.reorderStoredPlaylist(playlist.id, 'down'),
+			},
 			{ text: i18n.t('library.rename'), onPress: rename },
 			{ text: i18n.t('library.changeCover'), onPress: () => void changeCover() },
 			{ text: i18n.t('find.cancel'), style: 'cancel' },
@@ -152,17 +165,26 @@ export const PlaylistsList = ({
 					playlist={playlist}
 					onPress={() => handlePlaylistPress(playlist)}
 					onLongPress={
-						playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent'
+						playlist.id === 'favorites' ||
+						playlist.id === 'local' ||
+						playlist.id === 'recent' ||
+						playlist.id.startsWith('smart:')
 							? undefined
 							: () => showDeleteAlert(playlist)
 					}
 					onDeletePress={
-						playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent'
+						playlist.id === 'favorites' ||
+						playlist.id === 'local' ||
+						playlist.id === 'recent' ||
+						playlist.id.startsWith('smart:')
 							? undefined
 							: () => showDeleteAlert(playlist)
 					}
 					onEditPress={
-						playlist.id === 'favorites' || playlist.id === 'local' || playlist.id === 'recent'
+						playlist.id === 'favorites' ||
+						playlist.id === 'local' ||
+						playlist.id === 'recent' ||
+						playlist.id.startsWith('smart:')
 							? undefined
 							: () => editPlaylist(playlist)
 					}

@@ -483,6 +483,7 @@
 		"addFailed": "加入歌单失败"
 	},
 	"find": {
+		"trending": "热搜",
 		"inRadio": "在榜单中搜索",
 		"inSearch": "在线搜索歌曲、歌手或歌单",
 		"inSongs": "在歌曲中搜索",

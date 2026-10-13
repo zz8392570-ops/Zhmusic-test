@@ -75,17 +75,17 @@ const createStyles = (colors: ThemeColors, inset: number) =>
 		container: {
 			flexGrow: 0,
 			flexShrink: 0,
-			height: 50,
+			height: 40,
 		},
 		content: {
-			minHeight: 50,
+			minHeight: 40,
 			alignItems: 'center',
 			gap: 8,
 			paddingHorizontal: inset,
-			paddingBottom: 6,
+			paddingBottom: 4,
 		},
 		chip: {
-			minHeight: 36,
+			minHeight: 32,
 			justifyContent: 'center',
 			paddingHorizontal: 13,
 			borderRadius: 18,

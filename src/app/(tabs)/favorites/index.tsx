@@ -12,15 +12,17 @@ import {
 	recentlyPlayedStore,
 } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
-import { useNavigationSearch } from '@/hooks/useNavigationSearch'
+import DiscoveryHeading from '@/components/DiscoveryHeading'
+import GlobalButton from '@/components/GlobalButton'
+import AddPlayListButton from '@/components/AddPlayListButton'
 import { useFavorites } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { sortLibraryPlaylists } from '@/helpers/playlistOrganizer'
 import { router } from 'expo-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useIsPlaying } from '@rntp/player'
-import { Image, Pressable, ScrollView, Text, View } from 'react-native'
+import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import PersistStatus from '@/store/PersistStatus'
 import { getSmartPlaylistTracks, type SmartPlaylistKind } from '@/helpers/listeningStats'
 import { Ionicons } from '@expo/vector-icons'
@@ -30,12 +32,7 @@ const FavoritesScreen = () => {
 	const colors = useThemeColors()
 	const playing = useIsPlaying()
 	const currentTrack = myTrackPlayer.useCurrentMusic()
-	const search = useNavigationSearch({
-		searchBarOptions: {
-			placeholder: i18n.t('find.inFavorites'),
-			cancelButtonText: i18n.t('find.cancel'),
-		},
-	})
+	const [search, setSearch] = useState('')
 
 	const storedPlayLists = playListsStore.useValue()
 	const localTracks = importedLocalMusicStore.useValue()
@@ -118,11 +115,52 @@ const FavoritesScreen = () => {
 			router.push(`/(tabs)/favorites/${playlist.id}`)
 		}
 	}
+	const heading = (
+		<>
+			<DiscoveryHeading
+				title={i18n.t('appTab.favorites')}
+				action={
+					<View style={{ flexDirection: 'row', alignItems: 'center' }}>
+						<AddPlayListButton />
+						<GlobalButton />
+					</View>
+				}
+			/>
+			<View
+				style={{
+					marginHorizontal: screenPadding.horizontal,
+					marginBottom: 8,
+					minHeight: 38,
+					borderRadius: 12,
+					backgroundColor: colors.surfaceMuted,
+					paddingHorizontal: 12,
+					flexDirection: 'row',
+					alignItems: 'center',
+					gap: 8,
+				}}
+			>
+				<Ionicons name="search-outline" size={19} color={colors.textMuted} />
+				<TextInput
+					value={search}
+					onChangeText={setSearch}
+					placeholder={i18n.t('find.inFavorites')}
+					placeholderTextColor={colors.textMuted}
+					style={{ flex: 1, color: colors.text, minHeight: 38, paddingVertical: 8, fontSize: 14 }}
+				/>
+				{search ? (
+					<Pressable onPress={() => setSearch('')} accessibilityLabel={i18n.t('find.cancel')}>
+						<Ionicons name="close-circle" size={18} color={colors.textMuted} />
+					</Pressable>
+				) : null}
+			</View>
+		</>
+	)
 	if (search.trim()) {
 		return (
 			<View style={defaultStyles.container}>
+				{heading}
 				<ScrollView
-					contentInsetAdjustmentBehavior="automatic"
+					contentInsetAdjustmentBehavior="never"
 					style={{ paddingHorizontal: screenPadding.horizontal }}
 				>
 					{results.tracks.length ? (
@@ -178,8 +216,9 @@ const FavoritesScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
+			{heading}
 			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
+				contentInsetAdjustmentBehavior="never"
 				contentContainerStyle={{ paddingHorizontal: screenPadding.horizontal, paddingBottom: 150 }}
 			>
 				<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
@@ -190,8 +229,8 @@ const FavoritesScreen = () => {
 							style={({ pressed }) => ({
 								width: '48%',
 								flexGrow: 1,
-								minHeight: 112,
-								padding: 16,
+								minHeight: 90,
+								padding: 13,
 								borderRadius: 18,
 								backgroundColor: colors.surfaceElevated,
 								opacity: pressed ? 0.7 : 1,
@@ -199,19 +238,19 @@ const FavoritesScreen = () => {
 						>
 							<View
 								style={{
-									width: 38,
-									height: 38,
+									width: 30,
+									height: 30,
 									borderRadius: 12,
 									alignItems: 'center',
 									justifyContent: 'center',
 									backgroundColor: colors.overlaySoft,
 								}}
 							>
-								<Ionicons name={icon} size={21} color={colors.primary} />
+								<Ionicons name={icon} size={18} color={colors.primary} />
 							</View>
 							<Text
 								numberOfLines={1}
-								style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 13 }}
+								style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 8 }}
 							>
 								{playlist.title}
 							</Text>
@@ -222,7 +261,7 @@ const FavoritesScreen = () => {
 					))}
 				</View>
 
-				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 30 }}>
+				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 18 }}>
 					{i18n.t('library.smartPlaylists')}
 				</Text>
 				<PlaylistsList
@@ -232,7 +271,7 @@ const FavoritesScreen = () => {
 					onPlaylistPress={handlePlaylistPress}
 				/>
 
-				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 26 }}>
+				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 18 }}>
 					{i18n.t('library.myPlaylists')}
 				</Text>
 				<PlaylistsList

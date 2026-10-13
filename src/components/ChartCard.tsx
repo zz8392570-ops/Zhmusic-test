@@ -1,10 +1,7 @@
 import LeaderboardCover from '@/components/LeaderboardCover'
-import { unknownTrackImageUri } from '@/constants/images'
 import type { Playlist } from '@/helpers/types'
-import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useEffect, useState } from 'react'
 import { Pressable, Text, View, useWindowDimensions } from 'react-native'
 
 export default function ChartCard({
@@ -18,8 +15,6 @@ export default function ChartCard({
 }) {
 	const { width } = useWindowDimensions()
 	const cardWidth = Math.max(108, Math.min(180, (width - 48 - 24) / 3))
-	const [failed, setFailed] = useState(false)
-	useEffect(() => setFailed(false), [board.coverImg])
 	return (
 		<Pressable
 			onPress={onPress}
@@ -40,14 +35,7 @@ export default function ChartCard({
 				boardId={board.id}
 				style={{ width: '100%', height: '100%', borderRadius: 14 }}
 			/>
-			{!failed && board.coverImg && board.coverImg !== unknownTrackImageUri ? (
-				<Image
-					source={{ uri: board.coverImg }}
-					onError={() => setFailed(true)}
-					contentFit="cover"
-					style={{ position: 'absolute', width: '100%', height: '100%' }}
-				/>
-			) : null}
+
 			<LinearGradient
 				colors={['rgba(0,0,0,0.12)', 'rgba(0,0,0,0.5)']}
 				style={{

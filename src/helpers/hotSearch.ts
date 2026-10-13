@@ -5,27 +5,47 @@ import {
 	type SearchPlatform,
 } from '@/helpers/crossPlatformSearch'
 
-const hotSearchCache = new Map<SearchPlatform, string[]>()
+export type HotSearchItem = { keyword: string; platform: MusicPlatform; score?: number }
+const hotSearchCache = new Map<SearchPlatform, HotSearchItem[]>()
 
-const normalizeKeywords = (keywords: unknown[]) => {
-	const unique = new Set<string>()
-	for (const keyword of keywords) {
-		if (typeof keyword !== 'string') continue
-		const normalized = keyword.trim()
-		if (normalized) unique.add(normalized)
-	}
-	return Array.from(unique)
+export const normalizeHotSearchItems = (
+	items: unknown[],
+	platform: MusicPlatform,
+): HotSearchItem[] => {
+	const seen = new Set<string>()
+	return items.flatMap((raw) => {
+		const value =
+			typeof raw === 'string'
+				? { keyword: raw }
+				: (raw as { keyword?: unknown; score?: unknown } | null)
+		if (!value || typeof value.keyword !== 'string') return []
+		const keyword = value.keyword.trim()
+		if (!keyword || seen.has(keyword)) return []
+		seen.add(keyword)
+		const score = Number(value.score)
+		return [{ keyword, platform, score: Number.isFinite(score) && score > 0 ? score : undefined }]
+	})
 }
 
-const mergePlatformKeywords = (lists: string[][]) => {
-	const merged: string[] = []
+export const mergeHotSearchItems = (lists: HotSearchItem[][]): HotSearchItem[] => {
+	const merged = new Map<string, HotSearchItem>()
 	const longest = Math.max(0, ...lists.map((list) => list.length))
 	for (let index = 0; index < longest; index++) {
 		for (const list of lists) {
-			if (list[index]) merged.push(list[index])
+			const item = list[index]
+			if (!item) continue
+			const previous = merged.get(item.keyword)
+			if (!previous || (!previous.score && item.score)) merged.set(item.keyword, item)
 		}
 	}
-	return normalizeKeywords(merged)
+	return Array.from(merged.values())
+}
+
+export const formatHotSearchScore = (score?: number): string => {
+	if (!score || !Number.isFinite(score) || score <= 0) return ''
+	if (score >= 100_000_000) return `${(score / 100_000_000).toFixed(1)}亿`
+	if (score >= 10_000) return `${(score / 10_000).toFixed(1)}万`
+	return String(Math.round(score))
 }
 
 const loadPlatformHotSearches = async (platform: MusicPlatform, forceRefresh: boolean) => {
@@ -33,27 +53,27 @@ const loadPlatformHotSearches = async (platform: MusicPlatform, forceRefresh: bo
 		const cached = hotSearchCache.get(platform)
 		if (cached?.length) return cached
 	}
-
 	const provider = musicSdk[platform]?.hotSearch
 	if (!provider) throw new Error(`Trending searches are not available for ${platform}`)
 	const result = await provider.getList()
-	const keywords = normalizeKeywords(Array.isArray(result?.list) ? result.list : [])
-	if (!keywords.length) throw new Error(`No trending searches returned for ${platform}`)
-	hotSearchCache.set(platform, keywords)
-	return keywords
+	const items = normalizeHotSearchItems(
+		Array.isArray(result?.items) ? result.items : result?.list ?? [],
+		platform,
+	)
+	if (!items.length) throw new Error(`No trending searches returned for ${platform}`)
+	hotSearchCache.set(platform, items)
+	return items
 }
 
-export const getHotSearches = async (
+export const getHotSearchItems = async (
 	platform: SearchPlatform,
 	forceRefresh = false,
-): Promise<string[]> => {
+): Promise<HotSearchItem[]> => {
 	if (!forceRefresh) {
 		const cached = hotSearchCache.get(platform)
 		if (cached?.length) return cached
 	}
-
 	if (platform !== 'all') return loadPlatformHotSearches(platform, forceRefresh)
-
 	const results = await Promise.allSettled(
 		MUSIC_PLATFORMS.map((source) => loadPlatformHotSearches(source, forceRefresh)),
 	)
@@ -61,8 +81,13 @@ export const getHotSearches = async (
 		result.status === 'fulfilled' ? [result.value] : [],
 	)
 	if (!availableLists.length) throw new Error('All trending search providers failed')
-
-	const keywords = mergePlatformKeywords(availableLists)
-	hotSearchCache.set('all', keywords)
-	return keywords
+	const items = mergeHotSearchItems(availableLists)
+	hotSearchCache.set('all', items)
+	return items
 }
+
+export const getHotSearches = async (
+	platform: SearchPlatform,
+	forceRefresh = false,
+): Promise<string[]> =>
+	(await getHotSearchItems(platform, forceRefresh)).map((item) => item.keyword)
