@@ -7,7 +7,6 @@ import * as FileSystem from 'expo-file-system/legacy'
 import { produce } from 'immer'
 import * as Network from 'expo-network'
 import shuffle from 'lodash.shuffle'
-import FileSystemNative from '../../modules/cymusic-native'
 import ReactNativeTrackPlayer, {
 	Event,
 	PlaybackState,
@@ -46,6 +45,8 @@ import {
 	showSourceExhaustedNotice,
 } from '@/utils/sourceSwitchNotice'
 import { resolveLocalFile } from './localFile'
+import { importLocalMusic } from './localMusicImport'
+import { resolveLibraryTrack } from './libraryEdits'
 import {
 	enqueueDownload,
 	cancelCacheTask,
@@ -111,7 +112,6 @@ import {
 	clearCache as clearCacheFiles,
 	getCacheFileUri,
 	forgetCachedFile,
-	ensureDirExists,
 } from '@/player/CacheManager'
 
 import { clearPreloadedSources, resolveSource, preloadSource } from '@/player/MusicSourceResolver'
@@ -926,33 +926,28 @@ const addSongToStoredPlayList = (playlist: IMusic.PlayList, track: IMusic.IMusic
 }
 //从歌单删除指定歌曲
 //添加歌曲到指定歌单
-const deleteSongFromStoredPlayList = (playlist: IMusic.PlayList, trackId: string) => {
+const deleteSongFromStoredPlayList = (
+	playlist: IMusic.PlayList,
+	target: Pick<Track, 'id' | 'platform'> | string,
+) => {
 	try {
 		const nowPlayLists = playListsStore.getValue() || []
-		const updatedPlayLists = nowPlayLists.map((existingPlaylist) => {
-			if (existingPlaylist.id === playlist.id) {
-				// 检查歌曲是否已经存在于播放列表中
-				const songExists = existingPlaylist.songs.some((song) => song.id == trackId)
-
-				if (songExists) {
-					// 只有当歌曲存在时才删除
-					return {
-						...existingPlaylist,
-						songs: existingPlaylist.songs.filter((song) => song.id !== trackId),
-					}
-				} else {
-					logInfo('歌曲不存在')
-				}
-			}
-			return existingPlaylist
-		})
-
-		playListsStore.setValue(updatedPlayLists)
+		const current = nowPlayLists.find((item) => item.id === playlist.id)
+		if (!current) return 'not-found' as const
+		const selected = resolveLibraryTrack(current.songs, target)
+		if (!selected) return 'not-found-or-ambiguous' as const
+		const updatedPlayLists = nowPlayLists.map((item) =>
+			item.id === playlist.id
+				? { ...item, songs: item.songs.filter((song) => !isSameMediaItem(song, selected)) }
+				: item,
+		)
 		PersistStatus.set('music.playLists', updatedPlayLists)
+		playListsStore.setValue(updatedPlayLists)
 		logInfo('歌曲成功删除')
+		return 'success' as const
 	} catch (error) {
 		logError('删除歌曲到歌单时出错:', error)
-		// 可以在这里添加一些错误处理逻辑，比如显示一个错误提示给用户
+		return 'error' as const
 	}
 }
 const replaceStoredPlaylistSongs = (playlistId: string, songs: IMusic.IMusicItem[]) => {
@@ -1035,18 +1030,26 @@ const addPlayLists = (playlist: IMusic.PlayList) => {
 		return 'error' as const
 	}
 }
-const updateStoredPlaylist = (playlistId: string, patch: Partial<Omit<IMusic.PlayList, 'id'>>) => {
+const updateStoredPlaylist = (
+	playlistId: string,
+	patch:
+		| Partial<Omit<IMusic.PlayList, 'id'>>
+		| ((current: IMusic.PlayList) => Partial<Omit<IMusic.PlayList, 'id'>> | null),
+) => {
 	try {
 		if (playlistId === 'favorites' || playlistId === 'local' || playlistId === 'recent') {
 			return 'protected' as const
 		}
 		const nowPlayLists = playListsStore.getValue() || []
-		if (!nowPlayLists.some((playlist) => playlist.id === playlistId)) return 'not-found' as const
+		const current = nowPlayLists.find((playlist) => playlist.id === playlistId)
+		if (!current) return 'not-found' as const
+		const latestPatch = typeof patch === 'function' ? patch(current) : patch
+		if (!latestPatch) return 'conflict' as const
 		const updated = nowPlayLists.map((playlist) =>
-			playlist.id === playlistId ? { ...playlist, ...patch } : playlist,
+			playlist.id === playlistId ? { ...playlist, ...latestPatch } : playlist,
 		)
-		playListsStore.setValue(updated)
 		PersistStatus.set('music.playLists', updated)
+		playListsStore.setValue(updated)
 		return 'success' as const
 	} catch (error) {
 		logError('Error updating playlist:', error)
@@ -1573,64 +1576,32 @@ const addImportedLocalMusic = async (
 	shouldMoveToLibrary: boolean = true,
 	showSuccessAlert: boolean = shouldMoveToLibrary,
 ) => {
-	try {
-		console.log('addImportedLocalMusic', musicItem[0])
-		const importedLocalMusic = importedLocalMusicStore.getValue() || []
-		const newMusicItems = musicItem.filter(
-			(newItem) => !importedLocalMusic.some((existingItem) => existingItem.id == newItem.id),
+	const result = await importLocalMusic(musicItem, shouldMoveToLibrary)
+	if (showSuccessAlert && result.imported > 0) {
+		Alert.alert(
+			i18n.t(
+				result.status === 'partial' ? 'localMusic.importPartialTitle' : 'localMusic.importSuccessTitle',
+			),
+			i18n.t(
+				result.status === 'partial'
+					? 'localMusic.importPartialMessage'
+					: 'localMusic.importSuccessMessage',
+				{ count: result.imported, failed: result.failures.length },
+			),
 		)
-		if (newMusicItems.length === 0) {
-			// Alert.alert('提示', '所有选择的音乐已经存在，没有新的音乐被导入。')
-			return 'empty'
-		}
-		// 手动导入需要移动到应用文档目录；自动缓存已经位于应用目录中。
-		if (shouldMoveToLibrary) {
-			const targetDir = `${FileSystemNative.documentDirectoryPath}/importedLocalMusic`
-			await ensureDirExists(targetDir)
-
-			// 移动文件并更新musicItem的url
-			for (const item of newMusicItems) {
-				if (item.url.startsWith('file://')) {
-					const originalExtension = item.url.split('.').pop() || 'mp3'
-
-					// 创建一个安全的文件名（移除或替换不允许的字符）
-					const safeTitle = item.title.replace(/[/\\?%*:|"<>]/g, '-')
-					const safeArtist = item.artist.replace(/[/\\?%*:|"<>]/g, '-')
-					const fileName = `${safeTitle}-${safeArtist}.${originalExtension}`
-					const newPath = `${targetDir}/${fileName}`
-					await FileSystem.moveAsync({
-						from: item.url,
-						to: newPath,
-					})
-					item.url = newPath
-				}
-			}
-		}
-		const updatedImportedLocalMusic = [...importedLocalMusic, ...newMusicItems]
-		importedLocalMusicStore.setValue(updatedImportedLocalMusic)
-		PersistStatus.set('music.importedLocalMusic', updatedImportedLocalMusic)
-		if (showSuccessAlert) {
-			Alert.alert('成功', '音乐导入成功,请手动选择', [
-				{ text: '确定', onPress: () => logInfo('Add alert closed') },
-			])
-		}
-		return 'success'
-	} catch (error) {
-		logError('本地音乐保存时出错:', error)
-		return 'error'
 	}
+	return result
 }
-const deleteImportedLocalMusic = async (musicItemsIdToDelete: string) => {
+const deleteImportedLocalMusic = async (target: Pick<Track, 'id' | 'platform'> | string) => {
 	try {
 		const importedLocalMusic = importedLocalMusicStore.getValue() || []
-		const selectedItems = importedLocalMusic.filter((item) => item.id === musicItemsIdToDelete)
-		if (selectedItems.length !== 1) return
-		const selectedItem = selectedItems[0]
+		const selectedItem = resolveLibraryTrack(importedLocalMusic, target)
+		if (!selectedItem) return
 		const localFile = await resolveLocalFile(selectedItem.url, { requireOwnedMedia: true })
 		const currentItems = importedLocalMusicStore.getValue() || []
 		if (
 			!currentItems.includes(selectedItem) ||
-			currentItems.filter((item) => item.id === musicItemsIdToDelete).length !== 1
+			resolveLibraryTrack(currentItems, target) !== selectedItem
 		) {
 			return
 		}
@@ -1695,6 +1666,7 @@ const myTrackPlayer = {
 	setRepeatMode,
 	setQuality,
 	getProgress,
+	getPlaybackRevision: () => controlRevision,
 	useProgress: useMusicProgress,
 	seekTo,
 	isCurrentNativeItem,

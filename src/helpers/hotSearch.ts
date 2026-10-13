@@ -12,7 +12,14 @@ export type HotSearchItem = {
 	badgeUrl?: string
 	badgeText?: string
 }
-const hotSearchCache = new Map<SearchPlatform, HotSearchItem[]>()
+export const HOT_SEARCH_TTL_MS = 5 * 60_000
+type HotSearchCacheEntry = { items: HotSearchItem[]; updatedAt: number }
+export type HotSearchSnapshot = {
+	items: HotSearchItem[]
+	stalePlatforms: MusicPlatform[]
+}
+const hotSearchCache = new Map<MusicPlatform, HotSearchCacheEntry>()
+const pendingHotSearches = new Map<MusicPlatform, Promise<HotSearchCacheEntry>>()
 
 export const normalizeHotSearchItems = (
 	items: unknown[],
@@ -68,43 +75,64 @@ export const formatHotSearchScore = (score?: number): string => {
 	return String(Math.round(score))
 }
 
-const loadPlatformHotSearches = async (platform: MusicPlatform, forceRefresh: boolean) => {
-	if (!forceRefresh) {
-		const cached = hotSearchCache.get(platform)
-		if (cached?.length) return cached
-	}
-	const provider = musicSdk[platform]?.hotSearch
-	if (!provider) throw new Error(`Trending searches are not available for ${platform}`)
-	const result = await provider.getList()
-	const items = normalizeHotSearchItems(
-		Array.isArray(result?.items) ? result.items : result?.list ?? [],
-		platform,
+const loadPlatformHotSearches = (
+	platform: MusicPlatform,
+	forceRefresh: boolean,
+): Promise<HotSearchCacheEntry> => {
+	// A manual refresh and an all-platform refresh share the same provider request.
+	const pending = pendingHotSearches.get(platform)
+	if (pending) return pending
+	const cached = hotSearchCache.get(platform)
+	if (!forceRefresh && cached && Date.now() - cached.updatedAt < HOT_SEARCH_TTL_MS)
+		return Promise.resolve(cached)
+	const request = (async () => {
+		const provider = musicSdk[platform]?.hotSearch
+		if (!provider) throw new Error(`Trending searches are not available for ${platform}`)
+		const result = await provider.getList()
+		const items = normalizeHotSearchItems(
+			Array.isArray(result?.items) ? result.items : result?.list ?? [],
+			platform,
+		)
+		if (!items.length) throw new Error(`No trending searches returned for ${platform}`)
+		const entry = { items, updatedAt: Date.now() }
+		hotSearchCache.set(platform, entry)
+		return entry
+	})()
+	pendingHotSearches.set(platform, request)
+	void request
+		.finally(() => {
+			if (pendingHotSearches.get(platform) === request) pendingHotSearches.delete(platform)
+		})
+		.catch(() => {})
+	return request
+}
+
+export const getHotSearchSnapshot = async (
+	platform: SearchPlatform,
+	forceRefresh = false,
+): Promise<HotSearchSnapshot> => {
+	const sources = platform === 'all' ? MUSIC_PLATFORMS : [platform]
+	const results = await Promise.allSettled(
+		sources.map((source) => loadPlatformHotSearches(source, forceRefresh)),
 	)
-	if (!items.length) throw new Error(`No trending searches returned for ${platform}`)
-	hotSearchCache.set(platform, items)
-	return items
+	const stalePlatforms: MusicPlatform[] = []
+	const availableLists = results.flatMap((result, index) => {
+		const source = sources[index]
+		if (result.status === 'fulfilled')
+			return [hotSearchCache.get(source)?.items ?? result.value.items]
+		stalePlatforms.push(source)
+		const cached = hotSearchCache.get(source)
+		return cached ? [cached.items] : []
+	})
+	if (!availableLists.length) throw new Error('All trending search providers failed')
+	// Build aggregates from current provider entries, never an independently stale all cache.
+	return { items: mergeHotSearchItems(availableLists), stalePlatforms }
 }
 
 export const getHotSearchItems = async (
 	platform: SearchPlatform,
 	forceRefresh = false,
-): Promise<HotSearchItem[]> => {
-	if (!forceRefresh) {
-		const cached = hotSearchCache.get(platform)
-		if (cached?.length) return cached
-	}
-	if (platform !== 'all') return loadPlatformHotSearches(platform, forceRefresh)
-	const results = await Promise.allSettled(
-		MUSIC_PLATFORMS.map((source) => loadPlatformHotSearches(source, forceRefresh)),
-	)
-	const availableLists = results.flatMap((result) =>
-		result.status === 'fulfilled' ? [result.value] : [],
-	)
-	if (!availableLists.length) throw new Error('All trending search providers failed')
-	const items = mergeHotSearchItems(availableLists)
-	hotSearchCache.set('all', items)
-	return items
-}
+): Promise<HotSearchItem[]> => (await getHotSearchSnapshot(platform, forceRefresh)).items
 
 export const getHotSearches = async (
 	platform: SearchPlatform,

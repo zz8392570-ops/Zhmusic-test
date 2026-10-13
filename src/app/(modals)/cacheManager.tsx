@@ -68,7 +68,7 @@ const CacheManagerScreen = () => {
 					text: i18n.t('localMusic.delete'),
 					style: 'destructive',
 					onPress: async () => {
-						await myTrackPlayer.deleteImportedLocalMusic(track.id)
+						await myTrackPlayer.deleteImportedLocalMusic(track)
 						refreshSize()
 					},
 				},

@@ -88,6 +88,7 @@ export function createFixture() {
 			fs: [],
 			deletes: [],
 			moves: [],
+			copies: [],
 			writes: [],
 			timers: [],
 			errors: [],
@@ -219,6 +220,11 @@ export function createFixture() {
 			moveAsync: async (options) => {
 				calls.moves.push(options)
 				await fsp.rename(rawPath(options.from), rawPath(options.to))
+			},
+			copyAsync: async (options) => {
+				calls.copies.push(options)
+				if (hooks.copy) await hooks.copy(options)
+				await fsp.copyFile(rawPath(options.from), rawPath(options.to), fs.constants.COPYFILE_EXCL)
 			},
 			addListener: (event, listener) => {
 				assert.equal(event, 'expo-file-system.downloadProgress')

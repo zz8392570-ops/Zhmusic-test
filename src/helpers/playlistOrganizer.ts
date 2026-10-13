@@ -1,4 +1,5 @@
 import type { Track } from '@/player/types'
+import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 
 export type PlaylistSortField = 'title' | 'artist' | 'album' | 'duration' | 'source'
 export type PlaylistSortDirection = 'asc' | 'desc'
@@ -68,7 +69,7 @@ export const sortPlaylistTracks = (
 		.map(({ track }) => track)
 
 /** Keep the first strict title/artist/duration match and return later copies for review. */
-export const findDuplicateTrackIds = (tracks: Track[]): Set<string> => {
+export const findDuplicateTrackKeys = (tracks: Track[]): Set<string> => {
 	const groups = new Map<string, Track[]>()
 	const duplicates = new Set<string>()
 	for (const track of tracks) {
@@ -82,7 +83,7 @@ export const findDuplicateTrackIds = (tracks: Track[]): Set<string> => {
 			const candidateDuration = Number(candidate.duration || 0)
 			return !duration || !candidateDuration || Math.abs(duration - candidateDuration) <= 4
 		})
-		if (matches) duplicates.add(track.id)
+		if (matches) duplicates.add(getLibraryTrackKey(track))
 		else candidates.push(track)
 		groups.set(key, candidates)
 	}

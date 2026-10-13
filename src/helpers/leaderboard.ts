@@ -276,7 +276,7 @@ export const getBoardSongs = async (
 	source: LeaderboardSource,
 	bangid: string,
 	page = 1,
-): Promise<{ list: any[] }> => {
+): Promise<{ list: any[]; total?: number; limit?: number; page?: number }> => {
 	const leaderboard = musicSdk[source]?.leaderboard
 	if (!leaderboard?.getList) {
 		throw new Error(`No leaderboard for ${source}`)

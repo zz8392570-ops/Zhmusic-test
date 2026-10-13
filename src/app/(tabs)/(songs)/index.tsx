@@ -8,13 +8,16 @@ import {
 	DEFAULT_HOME_BOARD_ID,
 	DEFAULT_HOME_SOURCE,
 	fetchRadioPlaylists,
-	getBoardSongs,
-	mapLeaderboardTrack,
 	normalizeLeaderboardSource,
 	setHomeLeaderboard,
 } from '@/helpers/leaderboard'
 import { generateTracksListId } from '@/helpers/miscellaneous'
-import myTrackPlayer, { songsNumsToLoadStore } from '@/helpers/trackPlayerIndex'
+import myTrackPlayer from '@/helpers/trackPlayerIndex'
+import {
+	appendLeaderboardTracks,
+	getFullLeaderboard,
+	getLeaderboardPage,
+} from '@/helpers/leaderboardPagination'
 import type { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import type { Track } from '@/player/types'
@@ -43,11 +46,16 @@ const SongsScreen = () => {
 	const boardId = String(
 		PersistStatus.useValue('music.homeBoardId', DEFAULT_HOME_BOARD_ID) ?? DEFAULT_HOME_BOARD_ID,
 	)
-	const songsNumsToLoad = songsNumsToLoadStore.useValue()
 	const [boards, setBoards] = useState<Playlist[]>([])
 	const [tracks, setTracks] = useState<Track[]>([])
+	const tracksRef = useRef<Track[]>([])
+	const failedPage = useRef(1)
 	const [loadingBoards, setLoadingBoards] = useState(true)
 	const [loadingTracks, setLoadingTracks] = useState(true)
+	const [page, setPage] = useState(1)
+	const [total, setTotal] = useState(0)
+	const [hasMore, setHasMore] = useState(false)
+	const paging = useRef(false)
 	const [failed, setFailed] = useState(false)
 	const [playingBoard, setPlayingBoard] = useState<string | null>(null)
 	const playRequest = useRef(0)
@@ -57,10 +65,6 @@ const SongsScreen = () => {
 	const selectedBoard = useMemo(
 		() => boards.find((board) => boardIdOf(board) === boardId) ?? boards[0],
 		[boardId, boards],
-	)
-	const visibleTracks = useMemo(
-		() => tracks.slice(0, Math.max(1, songsNumsToLoad || tracks.length)),
-		[songsNumsToLoad, tracks],
 	)
 
 	const loadBoards = useCallback(async () => {
@@ -77,27 +81,49 @@ const SongsScreen = () => {
 			if (selected && boardIdOf(selected) !== preferredBoardId) {
 				setHomeLeaderboard(source, boardIdOf(selected))
 			}
+		} catch (error) {
+			console.error('Failed to fetch chart catalog:', error)
+			if (requestId === boardRequest.current) setFailed(true)
 		} finally {
 			if (requestId === boardRequest.current) setLoadingBoards(false)
 		}
 	}, [source])
 
-	const loadTracks = useCallback(async () => {
-		if (!boardId) return
-		const requestId = ++trackRequest.current
-		setLoadingTracks(true)
-		setFailed(false)
-		try {
-			const result = await getBoardSongs(source, boardId, 1)
-			if (requestId !== trackRequest.current) return
-			setTracks((result.list ?? []).map((item) => mapLeaderboardTrack(item, source)))
-		} catch (error) {
-			console.error('Failed to fetch leaderboard:', error)
-			if (requestId === trackRequest.current) setFailed(true)
-		} finally {
-			if (requestId === trackRequest.current) setLoadingTracks(false)
-		}
-	}, [boardId, source])
+	const loadTracks = useCallback(
+		async (nextPage = 1) => {
+			if (!boardId || (nextPage > 1 && paging.current)) return
+			const requestId = ++trackRequest.current
+			paging.current = true
+			setLoadingTracks(true)
+			setFailed(false)
+			try {
+				const result = await getLeaderboardPage(source, boardId, nextPage)
+				if (requestId !== trackRequest.current) return
+				if (nextPage > 1 && !result.tracks.length) throw new Error('Empty chart page')
+				const combined =
+					nextPage === 1 ? result.tracks : appendLeaderboardTracks(tracksRef.current, result.tracks)
+				if (nextPage > 1 && combined.length === tracksRef.current.length)
+					throw new Error('Repeated chart page')
+				tracksRef.current = combined
+				setTracks(combined)
+				setPage(nextPage)
+				setTotal(result.total)
+				setHasMore(result.hasMore)
+			} catch (error) {
+				console.error('Failed to fetch leaderboard:', error)
+				if (requestId === trackRequest.current) {
+					failedPage.current = nextPage
+					setFailed(true)
+				}
+			} finally {
+				if (requestId === trackRequest.current) {
+					paging.current = false
+					setLoadingTracks(false)
+				}
+			}
+		},
+		[boardId, source],
+	)
 
 	useEffect(() => {
 		playRequest.current += 1
@@ -111,7 +137,12 @@ const SongsScreen = () => {
 	}, [loadBoards])
 
 	useEffect(() => {
+		tracksRef.current = []
 		setTracks([])
+		setPage(1)
+		setTotal(0)
+		setHasMore(false)
+		paging.current = false
 		void loadTracks()
 		return () => {
 			trackRequest.current += 1
@@ -122,31 +153,37 @@ const SongsScreen = () => {
 		await Promise.all([loadBoards(), loadTracks()])
 	}, [loadBoards, loadTracks])
 
-	const selectBoard = (board: Playlist) => {
+	const cancelBoardPlayback = () => {
 		playRequest.current += 1
 		setPlayingBoard(null)
+	}
+	const selectBoard = (board: Playlist) => {
+		cancelBoardPlayback()
 		setHomeLeaderboard(source, boardIdOf(board))
 	}
 	const playBoard = async (board: Playlist) => {
 		const requestId = ++playRequest.current
+		const playbackRevision = myTrackPlayer.getPlaybackRevision()
+		const isCurrent = () =>
+			requestId === playRequest.current &&
+			myTrackPlayer.getPlaybackRevision() === playbackRevision &&
+			PersistStatus.get('music.homeBoardSource') === source &&
+			String(PersistStatus.get('music.homeBoardId')) === boardIdOf(board)
 		setPlayingBoard(board.id)
 		setHomeLeaderboard(source, boardIdOf(board))
 		try {
-			const result = await getBoardSongs(source, boardIdOf(board), 1)
-			if (
-				requestId !== playRequest.current ||
-				PersistStatus.get('music.homeBoardSource') !== source
-			)
-				return
-			const songs = (result.list ?? []).map((item) => mapLeaderboardTrack(item, source))
+			const songs = await getFullLeaderboard(source, boardIdOf(board), isCurrent)
+			if (!isCurrent()) return
 			if (!songs.length) throw new Error('Empty leaderboard')
 			await myTrackPlayer.playWithReplacePlayList(
 				songs[0] as IMusic.IMusicItem,
 				songs as IMusic.IMusicItem[],
 			)
 		} catch (error) {
-			if (requestId === playRequest.current) Alert.alert(i18n.t('home.loadFailed'))
-			console.error('Failed to play leaderboard:', error)
+			if (isCurrent()) {
+				Alert.alert(i18n.t('home.loadFailed'))
+				console.error('Failed to play leaderboard:', error)
+			}
 		} finally {
 			if (requestId === playRequest.current) setPlayingBoard(null)
 		}
@@ -183,7 +220,7 @@ const SongsScreen = () => {
 					refreshControl={
 						<RefreshControl
 							refreshing={loadingTracks}
-							onRefresh={refresh}
+							onRefresh={() => void refresh()}
 							tintColor={colors.primary}
 						/>
 					}
@@ -230,10 +267,29 @@ const SongsScreen = () => {
 						) : (
 							<TracksList
 								id={generateTracksListId('charts', `${source}_${boardId}`)}
-								tracks={visibleTracks}
+								tracks={tracks}
 								scrollEnabled={false}
+								onTrackPress={cancelBoardPlayback}
 								showRank
 								hideQueueControls
+								ListFooterComponent={
+									tracks.length > 0 && (hasMore || failed) ? (
+										<Pressable
+											disabled={loadingTracks}
+											onPress={() => void loadTracks(failed ? failedPage.current : page + 1)}
+											accessibilityRole="button"
+											style={{ paddingVertical: 14, alignItems: 'center' }}
+										>
+											{loadingTracks ? (
+												<ActivityIndicator color={colors.primary} />
+											) : (
+												<Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
+													{i18n.t(failed ? 'charts.pageFailed' : 'charts.loadMore')}
+												</Text>
+											)}
+										</Pressable>
+									) : null
+								}
 								ListHeaderComponent={
 									<View
 										style={{
@@ -250,17 +306,14 @@ const SongsScreen = () => {
 											</Text>
 											<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
 												{selectedBoard?.period ? `${selectedBoard.period} · ` : ''}
-												{i18n.t('charts.trackCount', { count: visibleTracks.length })}
+												{hasMore
+													? i18n.t('charts.loadedCount', { loaded: tracks.length, total })
+													: i18n.t('charts.trackCount', { count: tracks.length })}
 											</Text>
 										</View>
 										<Pressable
-											disabled={!visibleTracks.length}
-											onPress={() =>
-												void myTrackPlayer.playWithReplacePlayList(
-													visibleTracks[0] as IMusic.IMusicItem,
-													visibleTracks as IMusic.IMusicItem[],
-												)
-											}
+											disabled={!tracks.length || playingBoard === selectedBoard?.id}
+											onPress={() => selectedBoard && void playBoard(selectedBoard)}
 											style={{
 												backgroundColor: colors.primary,
 												flexDirection: 'row',
@@ -271,7 +324,11 @@ const SongsScreen = () => {
 												paddingVertical: 11,
 											}}
 										>
-											<Ionicons name="play" size={18} color="#fff" />
+											{playingBoard === selectedBoard?.id ? (
+												<ActivityIndicator size="small" color="#fff" />
+											) : (
+												<Ionicons name="play" size={18} color="#fff" />
+											)}
 											<Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
 												{i18n.t('charts.playAll')}
 											</Text>

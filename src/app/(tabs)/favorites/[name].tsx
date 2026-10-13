@@ -3,7 +3,7 @@ import myTrackPlayer, { playListsStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { searchSongsAcrossPlatforms } from '@/helpers/crossPlatformSearch'
 import {
-	findDuplicateTrackIds,
+	findDuplicateTrackKeys,
 	rankReplacementSources,
 	sortPlaylistTracks,
 	type PlaylistSortField,
@@ -11,7 +11,12 @@ import {
 } from '@/helpers/playlistOrganizer'
 import { serializePlaylistFile } from '@/helpers/playlistFile'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
-import { getImportedPlaylistSource, refreshImportedPlaylist } from '@/helpers/importPlaylist'
+import {
+	fetchImportedPlaylistSongs,
+	getImportedPlaylistSource,
+	mergeConcurrentImportedPlaylistRefresh,
+} from '@/helpers/importPlaylist'
+import { copyLibraryTracks, getLibraryTrackKey, mergePlaylistRepairs } from '@/helpers/libraryEdits'
 import { useDefaultStyles } from '@/styles'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { File, Paths } from 'expo-file-system'
@@ -43,8 +48,8 @@ const PlaylistScreen = () => {
 	}, [playlist])
 
 	const handleDeleteTrack = useCallback(
-		(trackId: string) => {
-			myTrackPlayer.deleteSongFromStoredPlayList(playlist as Playlist, trackId)
+		(track: Track) => {
+			myTrackPlayer.deleteSongFromStoredPlayList(playlist as Playlist, track)
 		},
 		[playlist],
 	)
@@ -76,7 +81,9 @@ const PlaylistScreen = () => {
 
 	const onSelectAll = useCallback(() => {
 		setSelectedTracks((current) =>
-			current.size === songs.length ? new Set() : new Set(songs.map((song) => song.id)),
+			songs.every((song) => current.has(getLibraryTrackKey(song)))
+				? new Set()
+				: new Set(songs.map(getLibraryTrackKey)),
 		)
 	}, [songs])
 
@@ -91,24 +98,36 @@ const PlaylistScreen = () => {
 					text: i18n.t('playlistTools.delete'),
 					style: 'destructive',
 					onPress: () => {
-						if (saveSongs(songs.filter((song) => !selectedTracks.has(song.id))) === 'success') {
+						const result = myTrackPlayer.updateStoredPlaylist(playlistID, (current) => ({
+							songs: current.songs.filter((song) => !selectedTracks.has(getLibraryTrackKey(song))),
+						}))
+						if (result === 'success') {
 							setSelectedTracks(new Set())
 							setIsMultiSelectMode(false)
+						} else {
+							Alert.alert(i18n.t('playlistTools.updateFailed'))
 						}
 					},
 				},
 			],
 		)
-	}, [saveSongs, selectedTracks, songs])
+	}, [playlistID, selectedTracks])
 
 	const organizeSelectedTracks = useCallback(
 		(action: 'add' | 'move' | 'top' | 'bottom') => {
-			const selected = songs.filter((song) => selectedTracks.has(song.id))
+			const selected = songs.filter((song) => selectedTracks.has(getLibraryTrackKey(song)))
 			if (!selected.length) return
 			if (action === 'top' || action === 'bottom') {
-				const rest = songs.filter((song) => !selectedTracks.has(song.id))
-				const next = action === 'top' ? [...selected, ...rest] : [...rest, ...selected]
-				if (saveSongs(next) === 'success') {
+				const result = myTrackPlayer.updateStoredPlaylist(playlistID, (current) => {
+					const latestSelected = current.songs.filter((song) =>
+						selectedTracks.has(getLibraryTrackKey(song)),
+					)
+					const rest = current.songs.filter((song) => !selectedTracks.has(getLibraryTrackKey(song)))
+					return {
+						songs: action === 'top' ? [...latestSelected, ...rest] : [...rest, ...latestSelected],
+					}
+				})
+				if (result === 'success') {
 					setSelectedTracks(new Set())
 					setIsMultiSelectMode(false)
 					Alert.alert(i18n.t('playlistTools.positionUpdated'))
@@ -127,14 +146,18 @@ const PlaylistScreen = () => {
 					...destinations.map((destination) => ({
 						text: destination.title || destination.name,
 						onPress: () => {
+							const latestSelected =
+								(playListsStore.getValue() ?? [])
+									.find((item) => item.id === playlistID)
+									?.songs.filter((song) => selectedTracks.has(getLibraryTrackKey(song))) ?? []
 							const result =
 								action === 'move'
 									? myTrackPlayer.moveSongsBetweenStoredPlaylists(
 											playlistID,
 											destination.id,
-											selected,
+											latestSelected,
 										)
-									: myTrackPlayer.addSongsToStoredPlayList(destination.id, selected)
+									: myTrackPlayer.addSongsToStoredPlayList(destination.id, latestSelected)
 							if (result.status === 'success') {
 								Alert.alert(
 									i18n.t('playlistTools.organizeComplete'),
@@ -155,7 +178,7 @@ const PlaylistScreen = () => {
 				],
 			)
 		},
-		[playlistID, playlists, saveSongs, selectedTracks, songs],
+		[playlistID, playlists, selectedTracks, songs],
 	)
 
 	const exportPlaylist = useCallback(async () => {
@@ -202,22 +225,43 @@ const PlaylistScreen = () => {
 		if (!playlist || !importedSource || isRefreshing) return
 		setIsRefreshing(true)
 		try {
-			const refreshed = await refreshImportedPlaylist(playlist)
-			const result = myTrackPlayer.updateStoredPlaylist(playlistID, {
-				songs: refreshed.songs,
-				sourcePlaylistId: refreshed.sourcePlaylistId,
-				sourceSnapshotKeys: refreshed.sourceSnapshotKeys,
-				sourceLastRefreshedAt: refreshed.sourceLastRefreshedAt,
-				sourceOverrides: refreshed.sourceOverrides,
+			const latest = (playListsStore.getValue() ?? []).find((item) => item.id === playlistID)
+			if (!latest) throw new Error('playlist removed')
+			const baseline = JSON.parse(JSON.stringify(latest)) as IMusic.PlayList
+			const remote = await fetchImportedPlaylistSongs(baseline)
+			const summary = { added: 0, removed: 0, preserved: 0 }
+			const result = myTrackPlayer.updateStoredPlaylist(playlistID, (current) => {
+				const source = getImportedPlaylistSource(current)
+				if (
+					!source ||
+					source.source !== baseline.platform ||
+					source.id !== remote.sourcePlaylistId ||
+					(current.sourceLastRefreshedAt ?? 0) !== (baseline.sourceLastRefreshedAt ?? 0)
+				)
+					return null
+				const refreshed = mergeConcurrentImportedPlaylistRefresh(
+					baseline,
+					current,
+					remote.songs,
+					remote.sourcePlaylistId,
+				)
+				Object.assign(summary, {
+					added: refreshed.added,
+					removed: refreshed.removed,
+					preserved: refreshed.preserved,
+				})
+				return {
+					songs: refreshed.songs,
+					sourcePlaylistId: refreshed.sourcePlaylistId,
+					sourceSnapshotKeys: refreshed.sourceSnapshotKeys,
+					sourceLastRefreshedAt: refreshed.sourceLastRefreshedAt,
+					sourceOverrides: refreshed.sourceOverrides,
+				}
 			})
 			if (result !== 'success') throw new Error(result)
 			Alert.alert(
 				i18n.t('playlistTools.refreshComplete'),
-				i18n.t('playlistTools.refreshSummary', {
-					added: refreshed.added,
-					removed: refreshed.removed,
-					preserved: refreshed.preserved,
-				}),
+				i18n.t('playlistTools.refreshSummary', summary),
 			)
 		} catch {
 			Alert.alert(i18n.t('playlistTools.refreshFailed'))
@@ -286,34 +330,25 @@ const PlaylistScreen = () => {
 	const repairUnavailableSongs = useCallback(async () => {
 		if (isRepairing || !songs.length) return
 		setIsRepairing(true)
-		const sourcePlaylist = playlist as (Playlist & IMusic.PlayList) | undefined
-		const sourceOverrides = { ...(sourcePlaylist?.sourceOverrides ?? {}) } as Record<string, string>
-		const snapshotKeys = new Set(
-			Array.isArray(sourcePlaylist?.sourceSnapshotKeys) ? sourcePlaylist.sourceSnapshotKeys : [],
-		)
 		try {
-			const result = await repairUnavailableTracks(songs)
-			for (const { original, replacement } of result.replacements) {
-				const originalKey = `${original.platform}@${original.id}`
-				const replacementKey = `${replacement.platform}@${replacement.id}`
-				const sourceKey = snapshotKeys.has(originalKey)
-					? originalKey
-					: Object.entries(sourceOverrides).find(([, value]) => value === originalKey)?.[0]
-				if (sourceKey) sourceOverrides[sourceKey] = replacementKey
+			const latest = (playListsStore.getValue() ?? []).find((item) => item.id === playlistID)
+			if (!latest) throw new Error('playlist removed')
+			const baseline = copyLibraryTracks(latest.songs)
+			const result = await repairUnavailableTracks(copyLibraryTracks(baseline))
+			let repaired = 0
+			if (result.repaired) {
+				const status = myTrackPlayer.updateStoredPlaylist(playlistID, (current) => {
+					const merged = mergePlaylistRepairs(current, baseline, result.replacements)
+					repaired = merged.repaired
+					return { songs: merged.songs, sourceOverrides: merged.sourceOverrides }
+				})
+				if (status !== 'success') throw new Error(status)
 			}
-			if (
-				result.repaired &&
-				myTrackPlayer.updateStoredPlaylist(playlistID, {
-					songs: result.tracks,
-					sourceOverrides,
-				}) !== 'success'
-			)
-				throw new Error('save failed')
 			Alert.alert(
 				i18n.t('playlistTools.repairComplete'),
 				i18n.t('playlistTools.repairSummary', {
 					unavailable: result.unavailable,
-					repaired: result.repaired,
+					repaired,
 					review: result.review.length,
 				}),
 			)
@@ -322,7 +357,7 @@ const PlaylistScreen = () => {
 		} finally {
 			setIsRepairing(false)
 		}
-	}, [isRepairing, playlist, playlistID, songs])
+	}, [isRepairing, playlistID, songs])
 
 	const onManagementAction = useCallback(
 		(actionId: string) => {
@@ -367,7 +402,7 @@ const PlaylistScreen = () => {
 				return
 			}
 			if (actionId === 'duplicates') {
-				const duplicates = findDuplicateTrackIds(songs as Track[])
+				const duplicates = findDuplicateTrackKeys(songs as Track[])
 				if (!duplicates.size) {
 					Alert.alert(i18n.t('playlistTools.noDuplicates'))
 					return

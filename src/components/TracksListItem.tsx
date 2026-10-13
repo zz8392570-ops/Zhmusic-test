@@ -25,6 +25,7 @@ import i18n from '@/utils/i18n'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import { hapticLight, hapticSelection } from '@/utils/haptics'
+import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 
 export type TracksListItemProps = {
 	track: Track
@@ -33,7 +34,7 @@ export type TracksListItemProps = {
 	isPlaying?: boolean
 	isSinger?: boolean
 	allowDelete?: boolean
-	onDeleteTrack?: (trackId: string) => void
+	onDeleteTrack?: (track: Track) => void
 	onReplaceSource?: (track: Track) => void
 	isMultiSelectMode?: boolean
 	onToggleSelection?: (trackId: string) => void
@@ -152,11 +153,12 @@ const TracksListItem = ({
 		: String(track.platform ?? '').toUpperCase()
 	const sourceCount = new Set(track.availablePlatforms ?? [track.platform]).size
 	const sourceBadgeLabel = sourceCount > 1 ? `${platformLabel} +${sourceCount - 1}` : platformLabel
-	const selected = selectedTracks?.has(track.id) === true
+	const selectionKey = getLibraryTrackKey(track)
+	const selected = selectedTracks?.has(selectionKey) === true
 	const handlePress = () => {
 		if (isMultiSelectMode) {
 			hapticSelection()
-			onToggleSelection?.(track.id)
+			onToggleSelection?.(selectionKey)
 			return
 		}
 		hapticLight()

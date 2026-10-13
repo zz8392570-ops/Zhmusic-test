@@ -24,6 +24,7 @@ import {
 	View,
 } from 'react-native'
 import type { Track } from '@/player/types'
+import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 
 type ImportProgress = {
 	current: number
@@ -80,8 +81,11 @@ const LocalMusicScreen = () => {
 					text: i18n.t('localMusic.delete'),
 					style: 'destructive',
 					onPress: async () => {
+						const selected = (importedLocalMusicStore.getValue() ?? []).filter((track) =>
+							selectedTracks.has(getLibraryTrackKey(track)),
+						)
 						await Promise.all(
-							[...selectedTracks].map((trackId) => myTrackPlayer.deleteImportedLocalMusic(trackId)),
+							selected.map((track) => myTrackPlayer.deleteImportedLocalMusic(track)),
 						)
 						setSelectedTracks(new Set())
 						setIsMultiSelectMode(false)
@@ -95,12 +99,12 @@ const LocalMusicScreen = () => {
 			// 如果 localTracks 未定义或不是数组，直接返回
 			return
 		}
-		if (selectedTracks.size === visibleTracks.length) {
+		if (visibleTracks.every((track) => selectedTracks.has(getLibraryTrackKey(track)))) {
 			// 如果当前所有曲目都被选中，则取消全选
 			setSelectedTracks(new Set())
 		} else {
 			// 否则，选择所有曲目
-			const allTrackIds = new Set(visibleTracks.map((track) => track.id))
+			const allTrackIds = new Set(visibleTracks.map(getLibraryTrackKey))
 			setSelectedTracks(allTrackIds)
 		}
 	}
@@ -124,7 +128,7 @@ const LocalMusicScreen = () => {
 		try {
 			setIsLoading(true)
 			setLoadingOperation('export')
-			const selected = localTracks.filter((track) => selectedTracks.has(track.id))
+			const selected = localTracks.filter((track) => selectedTracks.has(getLibraryTrackKey(track)))
 			const resolvedFiles = await Promise.all(
 				selected.map((track) => resolveLocalFile(track.url, { requireOwnedMedia: true })),
 			)
@@ -172,9 +176,9 @@ const LocalMusicScreen = () => {
 				Alert.alert(i18n.t('localMusic.notice'), i18n.t('localMusic.importLimit'))
 				return
 			}
-			const filesToImport = result.assets.filter(
-				(file) => !myTrackPlayer.isExistImportedLocalMusic(file.name),
-			)
+			// A filename alone cannot identify a song: different folders may contain
+			// different recordings with the same name. The importer checks source IDs.
+			const filesToImport = result.assets
 			if (filesToImport.length === 0) {
 				Alert.alert(i18n.t('localMusic.nothingNewTitle'), i18n.t('localMusic.nothingNewMessage'))
 				return
@@ -218,14 +222,30 @@ const LocalMusicScreen = () => {
 				})
 			}
 
-			const resultStatus = await myTrackPlayer.addImportedLocalMusic(newTracks, true, false)
-			if (resultStatus === 'success') {
+			const imported = await myTrackPlayer.addImportedLocalMusic(newTracks, true, false)
+			if (imported.status === 'success' || imported.status === 'partial') {
 				Alert.alert(
-					i18n.t('localMusic.importSuccessTitle'),
-					i18n.t('localMusic.importSuccessMessage', { count: newTracks.length }),
+					i18n.t(
+						imported.status === 'partial'
+							? 'localMusic.importPartialTitle'
+							: 'localMusic.importSuccessTitle',
+					),
+					[
+						i18n.t(
+							imported.status === 'partial'
+								? 'localMusic.importPartialMessage'
+								: 'localMusic.importSuccessMessage',
+							{ count: imported.imported, failed: imported.failures.length },
+						),
+						...imported.failures.slice(0, 3).map((failure) => failure.name),
+					]
+						.filter(Boolean)
+						.join('\n'),
 				)
+			} else if (imported.status === 'empty') {
+				Alert.alert(i18n.t('localMusic.nothingNewTitle'), i18n.t('localMusic.nothingNewMessage'))
 			} else {
-				Alert.alert(i18n.t('localMusic.importFailed'))
+				Alert.alert(i18n.t('localMusic.importFailed'), i18n.t('localMusic.importFailedMessage'))
 			}
 		} catch (err) {
 			logError('导入本地音乐时出错:', err)
@@ -237,8 +257,7 @@ const LocalMusicScreen = () => {
 		}
 	}
 
-	function deleteLocalMusic(trackId: string): void {
-		const track = localTracks.find((item) => item.id === trackId)
+	function deleteLocalMusic(track: Track): void {
 		Alert.alert(
 			i18n.t('localMusic.deleteTitle'),
 			i18n.t('localMusic.deleteOneMessage', { name: track?.title || i18n.t('find.unknownSong') }),
@@ -247,7 +266,7 @@ const LocalMusicScreen = () => {
 				{
 					text: i18n.t('localMusic.delete'),
 					style: 'destructive',
-					onPress: () => void myTrackPlayer.deleteImportedLocalMusic(trackId),
+					onPress: () => void myTrackPlayer.deleteImportedLocalMusic(track),
 				},
 			],
 		)

@@ -11,6 +11,10 @@ import {
 	type PublicPlaylist,
 	type PublicPlaylistCategory,
 } from '@/helpers/publicPlaylists'
+import {
+	createPublicPlaylistDiscovery,
+	publicPlaylistQueryKey,
+} from '@/helpers/publicPlaylistDiscovery'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
@@ -18,7 +22,7 @@ import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
 	ActivityIndicator,
 	Alert,
@@ -150,13 +154,14 @@ const RadiolistsScreen = () => {
 	const categorySelections = PersistStatus.useValue('music.publicPlaylistCategories', {}) ?? {}
 	const categoryId = categorySelections[source] ?? ''
 	const [categories, setCategories] = useState<PublicPlaylistCategory[]>([])
-	const [playlists, setPlaylists] = useState<PublicPlaylist[]>([])
-	const [loading, setLoading] = useState(true)
-	const [loadingMore, setLoadingMore] = useState(false)
-	const [failed, setFailed] = useState(false)
-	const [hasMore, setHasMore] = useState(false)
-	const [page, setPage] = useState(1)
-	const requestRef = useRef(0)
+	const discovery = useMemo(() => createPublicPlaylistDiscovery(getPublicPlaylists), [])
+	const discoveryState = useSyncExternalStore(discovery.subscribe, discovery.getSnapshot)
+	const isCurrentQuery = discoveryState.key === publicPlaylistQueryKey(source, categoryId)
+	const playlists = isCurrentQuery ? discoveryState.list : []
+	const loading = !isCurrentQuery || discoveryState.loading
+	const loadingMore = isCurrentQuery && discoveryState.loadingMore
+	const loadError = isCurrentQuery ? discoveryState.error : null
+	const failed = Boolean(loadError)
 
 	useEffect(() => {
 		let active = true
@@ -174,75 +179,19 @@ const RadiolistsScreen = () => {
 		}
 	}, [source])
 
-	const loadFirstPage = useCallback(async () => {
-		const requestId = ++requestRef.current
-		setLoading(true)
-		setFailed(false)
-		try {
-			const result = await getPublicPlaylists(source, categoryId, 1)
-			if (requestId !== requestRef.current) return
-			setPlaylists(result.list)
-			setPage(1)
-			setHasMore(result.hasMore)
-			setFailed(result.list.length === 0)
-		} catch (error) {
-			console.error('Failed to fetch public playlists:', error)
-			if (requestId === requestRef.current) {
-				setPlaylists([])
-				setFailed(true)
-			}
-		} finally {
-			if (requestId === requestRef.current) setLoading(false)
-		}
-	}, [categoryId, source])
-
 	useEffect(() => {
-		setPlaylists([])
-		setLoadingMore(false)
-		void loadFirstPage()
-		return () => {
-			requestRef.current += 1
-		}
-	}, [loadFirstPage])
+		discovery.setQuery(source, categoryId)
+		void discovery.refresh()
+		return discovery.cancel
+	}, [categoryId, discovery, source])
 
-	const loadMore = useCallback(async () => {
-		if (loading || loadingMore || !hasMore) return
-		const requestId = requestRef.current
-		setLoadingMore(true)
-		try {
-			const nextPage = page + 1
-			const result = await getPublicPlaylists(source, categoryId, nextPage)
-			if (requestId !== requestRef.current) return
-			setPlaylists((current) => {
-				const existing = new Set(current.map((item) => item.id))
-				return [...current, ...result.list.filter((item) => !existing.has(item.id))]
-			})
-			setPage(nextPage)
-			setHasMore(result.hasMore)
-		} catch (error) {
-			console.error('Failed to load more public playlists:', error)
-		} finally {
-			if (requestId === requestRef.current) setLoadingMore(false)
-		}
-	}, [categoryId, hasMore, loading, loadingMore, page, source])
-
-	const changeBatch = async () => {
-		if (loading || loadingMore) return
-		const requestId = ++requestRef.current
-		setLoading(true)
-		try {
-			const next = hasMore ? page + 1 : 1
-			const result = await getPublicPlaylists(source, categoryId, next)
-			if (requestId !== requestRef.current) return
-			setPlaylists(result.list)
-			setPage(next)
-			setHasMore(result.hasMore)
-		} catch (error) {
-			console.error('Failed to change playlist batch:', error)
-		} finally {
-			if (requestId === requestRef.current) setLoading(false)
-		}
-	}
+	const errorMessage = i18n.t(
+		loadError === 'more'
+			? 'publicPlaylists.loadMoreFailed'
+			: loadError === 'batch'
+				? 'publicPlaylists.batchFailed'
+				: 'publicPlaylists.refreshFailed',
+	)
 
 	const selectCategory = (nextCategory: string) => {
 		PersistStatus.set('music.publicPlaylistCategories', {
@@ -338,13 +287,24 @@ const RadiolistsScreen = () => {
 				})}
 			</ScrollView>
 
+			{playlists.length > 0 && loadError && loadError !== 'more' ? (
+				<Pressable
+					accessibilityRole="button"
+					onPress={() => void discovery.retry()}
+					style={{ marginHorizontal: 18, paddingVertical: 10 }}
+				>
+					<Text style={{ color: colors.textMuted }}>
+						{errorMessage} · <Text style={{ color: colors.primary }}>{i18n.t('home.retry')}</Text>
+					</Text>
+				</Pressable>
+			) : null}
 			{failed && !playlists.length ? (
 				<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
 					<Text style={{ color: colors.textMuted, fontSize: 16 }}>
 						{i18n.t('publicPlaylists.loadFailed')}
 					</Text>
 					<Pressable
-						onPress={() => void loadFirstPage()}
+						onPress={() => void discovery.retry()}
 						style={{ paddingHorizontal: 20, paddingVertical: 12 }}
 					>
 						<Text style={{ color: colors.primary, fontSize: 15, fontWeight: '600' }}>
@@ -367,7 +327,7 @@ const RadiolistsScreen = () => {
 								{i18n.t('publicPlaylists.hot')}
 							</Text>
 							<Pressable
-								onPress={() => void changeBatch()}
+								onPress={() => void discovery.changeBatch()}
 								disabled={loading || loadingMore}
 								style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8 }}
 							>
@@ -393,11 +353,11 @@ const RadiolistsScreen = () => {
 					refreshControl={
 						<RefreshControl
 							refreshing={loading}
-							onRefresh={loadFirstPage}
+							onRefresh={() => void discovery.refresh()}
 							tintColor={colors.primary}
 						/>
 					}
-					onEndReached={() => void loadMore()}
+					onEndReached={() => void discovery.loadMore()}
 					onEndReachedThreshold={0.45}
 					ListEmptyComponent={
 						loading ? (
@@ -407,7 +367,18 @@ const RadiolistsScreen = () => {
 						) : null
 					}
 					ListFooterComponent={
-						loadingMore ? (
+						loadError === 'more' ? (
+							<Pressable
+								accessibilityRole="button"
+								onPress={() => void discovery.retry()}
+								style={{ paddingVertical: 18, alignItems: 'center', gap: 5 }}
+							>
+								<Text style={{ color: colors.textMuted, textAlign: 'center' }}>{errorMessage}</Text>
+								<Text style={{ color: colors.primary, fontWeight: '600' }}>
+									{i18n.t('home.retry')}
+								</Text>
+							</Pressable>
+						) : loadingMore ? (
 							<ActivityIndicator color={colors.loading} style={{ marginVertical: 22 }} />
 						) : null
 					}

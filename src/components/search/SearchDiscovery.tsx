@@ -18,6 +18,7 @@ type SearchDiscoveryProps = {
 	canChangeHotSearch: boolean
 	isHotLoading: boolean
 	hasHotError: boolean
+	hasPartialHotError?: boolean
 	onSearch: (keyword: string) => void
 	onRemoveHistory: (keyword: string) => void
 	onClearHistory: () => void
@@ -33,6 +34,7 @@ const SearchDiscovery = ({
 	canChangeHotSearch,
 	isHotLoading,
 	hasHotError,
+	hasPartialHotError = false,
 	onSearch,
 	onRemoveHistory,
 	onClearHistory,
@@ -86,28 +88,41 @@ const SearchDiscovery = ({
 			<View style={styles.section}>
 				<View style={styles.sectionHeader}>
 					<Text style={styles.sectionTitle}>{hotSearchTitle}</Text>
-					{!isHotLoading && !hasHotError && canChangeHotSearch ? (
+					<View style={{ flexDirection: 'row', gap: 14 }}>
+						{!isHotLoading && canChangeHotSearch ? (
+							<Pressable
+								accessibilityRole="button"
+								accessibilityLabel={i18n.t('find.changeBatch')}
+								hitSlop={8}
+								onPress={() => {
+									hapticSelection()
+									onChangeHotSearch()
+								}}
+								style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
+							>
+								<MaterialCommunityIcons name="swap-horizontal" size={16} color={colors.primary} />
+								<Text style={styles.clearText}>{i18n.t('find.changeBatch')}</Text>
+							</Pressable>
+						) : null}
 						<Pressable
 							accessibilityRole="button"
-							accessibilityLabel={i18n.t('find.changeBatch')}
-							hitSlop={8}
-							onPress={() => {
-								hapticSelection()
-								onChangeHotSearch()
-							}}
+							accessibilityLabel={i18n.t('find.refreshHotSearch')}
+							disabled={isHotLoading}
+							onPress={onRetryHotSearch}
 							style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
 						>
 							<MaterialCommunityIcons name="refresh" size={16} color={colors.primary} />
-							<Text style={styles.clearText}>{i18n.t('find.changeBatch')}</Text>
+							<Text style={styles.clearText}>{i18n.t('find.refreshHotSearch')}</Text>
 						</Pressable>
-					) : null}
+					</View>
 				</View>
 				{isHotLoading ? (
 					<View style={styles.statusRow}>
 						<ActivityIndicator size="small" color={colors.loading} />
 						<Text style={styles.statusText}>{i18n.t('find.loadingHotSearch')}</Text>
 					</View>
-				) : hasHotError ? (
+				) : null}
+				{hasHotError ? (
 					<Pressable
 						accessibilityRole="button"
 						onPress={onRetryHotSearch}
@@ -115,11 +130,20 @@ const SearchDiscovery = ({
 					>
 						<MaterialCommunityIcons name="refresh" size={20} color={colors.primary} />
 						<View style={styles.errorContent}>
-							<Text style={styles.errorTitle}>{i18n.t('find.hotSearchFailed')}</Text>
+							<Text style={styles.errorTitle}>
+								{i18n.t(
+									hotSearches.length
+										? hasPartialHotError
+											? 'find.hotSearchPartial'
+											: 'find.hotSearchStale'
+										: 'find.hotSearchFailed',
+								)}
+							</Text>
 							<Text style={styles.statusText}>{i18n.t('find.tapToRetry')}</Text>
 						</View>
 					</Pressable>
-				) : (
+				) : null}
+				{hotSearches.length > 0 ? (
 					<View style={styles.hotList}>
 						{hotSearches.map((item, index) => (
 							<Pressable
@@ -170,7 +194,7 @@ const SearchDiscovery = ({
 							</Pressable>
 						))}
 					</View>
-				)}
+				) : null}
 			</View>
 		</ScrollView>
 	)

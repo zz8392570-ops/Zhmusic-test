@@ -96,5 +96,6 @@ await suite.check('standalone scrolling lists still use virtualization', () => {
 	const tree = TracksList({ id: 'scrolling', tracks })
 	assert.equal(tree.type, 'FlashList')
 	assert.equal(tree.props.data, tracks)
+	assert.notEqual(tree.props.keyExtractor(tracks[0]), tree.props.keyExtractor(tracks[1]))
 })
 suite.finish()

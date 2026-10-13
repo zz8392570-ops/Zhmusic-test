@@ -1,6 +1,7 @@
 import { unknownTrackImageUri } from '@/constants/images'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import { formatSingerName } from '@/components/utils/musicSdk/utils'
+import { getLibraryTrackKey, isUneditedLibraryTrack } from '@/helpers/libraryEdits'
 
 export type ParsedPlaylistLink = {
 	source: MusicPlatform
@@ -458,10 +459,75 @@ export const mergeImportedPlaylistRefresh = (
 export const refreshImportedPlaylist = async (
 	playlist: IMusic.PlayList,
 ): Promise<RefreshedImportedPlaylist> => {
+	const remote = await fetchImportedPlaylistSongs(playlist)
+	return mergeImportedPlaylistRefresh(playlist, remote.songs, remote.sourcePlaylistId)
+}
+
+export const fetchImportedPlaylistSongs = async (playlist: IMusic.PlayList) => {
 	const source = getImportedPlaylistSource(playlist)
 	if (!source) throw new Error('playlist is not refreshable')
 	const remote = await importers[source.source](source.id)
-	return mergeImportedPlaylistRefresh(playlist, remote.songs, source.id)
+	return { songs: remote.songs, sourcePlaylistId: source.id }
+}
+
+/** Rebase the remote response on the live library, protecting edits made during the request. */
+export const mergeConcurrentImportedPlaylistRefresh = (
+	baseline: IMusic.PlayList,
+	current: IMusic.PlayList,
+	remoteSongs: IMusic.IMusicItem[],
+	sourcePlaylistId: string,
+): RefreshedImportedPlaylist => {
+	const result = mergeImportedPlaylistRefresh(current, remoteSongs, sourcePlaylistId)
+	const initialByKey = new Map(baseline.songs.map((song) => [getLibraryTrackKey(song), song]))
+	const currentByKey = new Map(current.songs.map((song) => [getLibraryTrackKey(song), song]))
+	const removedKeys = new Set([...initialByKey.keys()].filter((key) => !currentByKey.has(key)))
+	const edited = new Map(
+		current.songs
+			.filter((song) => {
+				const initial = initialByKey.get(getLibraryTrackKey(song))
+				return !initial || !isUneditedLibraryTrack(song, initial)
+			})
+			.map((song) => [getLibraryTrackKey(song), song]),
+	)
+	const wasCleared = baseline.songs.length > 0 && removedKeys.size === initialByKey.size
+	let songs = wasCleared
+		? [...current.songs]
+		: result.songs
+				.filter((song) => !removedKeys.has(getLibraryTrackKey(song)))
+				.map((song) => edited.get(getLibraryTrackKey(song)) ?? song)
+	const resultKeys = new Set(songs.map(getLibraryTrackKey))
+	// Locally edited entries must also survive a concurrent remote removal.
+	for (const [key, song] of edited) {
+		if (!resultKeys.has(key)) {
+			songs.push(song)
+			resultKeys.add(key)
+		}
+	}
+	const orderChanged =
+		baseline.songs.map(getLibraryTrackKey).join('\n') !==
+		current.songs.map(getLibraryTrackKey).join('\n')
+	if (orderChanged) {
+		const byKey = new Map(songs.map((song) => [getLibraryTrackKey(song), song]))
+		const ordered = current.songs.flatMap((song) => {
+			const key = getLibraryTrackKey(song)
+			const merged = byKey.get(key)
+			byKey.delete(key)
+			return merged ? [merged] : []
+		})
+		songs = [...ordered, ...byKey.values()]
+	}
+	return {
+		...result,
+		songs,
+		added: songs.filter((song) => !currentByKey.has(getLibraryTrackKey(song))).length,
+		preserved: songs.filter(
+			(song) =>
+				currentByKey.has(getLibraryTrackKey(song)) &&
+				(wasCleared ||
+					edited.has(getLibraryTrackKey(song)) ||
+					!result.sourceSnapshotKeys.includes(getLibraryTrackKey(song))),
+		).length,
+	}
 }
 
 export const importPlaylistByLink = async (

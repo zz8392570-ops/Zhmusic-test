@@ -18,7 +18,7 @@ type TrackShortcutsMenuProps = PropsWithChildren<{
 	track: Track
 	isSinger?: boolean
 	allowDelete?: boolean
-	onDeleteTrack?: (trackId: string) => void
+	onDeleteTrack?: (track: Track) => void
 	onReplaceSource?: (track: Track) => void
 }>
 
@@ -179,7 +179,7 @@ export const TrackShortcutsMenu = ({
 				onReplaceSource?.(track)
 			})
 			.with('delete-track', async () => {
-				onDeleteTrack?.(track.id)
+				onDeleteTrack?.(track)
 			})
 			.with(
 				P.when((actionId) => actionId.startsWith('play-source-')),

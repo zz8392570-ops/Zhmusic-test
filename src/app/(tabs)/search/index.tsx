@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import SearchDiscovery from '@/components/search/SearchDiscovery'
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import SearchSuggestions from '@/components/search/SearchSuggestions'
@@ -7,9 +7,10 @@ import musicSdk from '@/components/utils/musicSdk'
 import { ThemeColors } from '@/constants/tokens'
 import { addSearchHistory, removeSearchHistory } from '@/helpers/searchHistory'
 import searchAll, { type SearchType } from '@/helpers/searchAll'
-import { getHotSearchItems, type HotSearchItem } from '@/helpers/hotSearch'
+import { getHotSearchSnapshot, HOT_SEARCH_TTL_MS, type HotSearchItem } from '@/helpers/hotSearch'
 import {
 	deduplicateCrossPlatformTracks,
+	MUSIC_PLATFORMS,
 	type MusicPlatform,
 	type SearchPlatform,
 } from '@/helpers/crossPlatformSearch'
@@ -22,7 +23,7 @@ import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
 import i18n from '@/utils/i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { AppState, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 const SEARCH_TABS: { type: SearchType; label: string }[] = [
@@ -65,6 +66,8 @@ const SearchScreen = () => {
 	const [hasMore, setHasMore] = useState(false)
 	const [hasSearchError, setHasSearchError] = useState(false)
 	const [hasHotError, setHasHotError] = useState(false)
+	const [hasPartialHotError, setHasPartialHotError] = useState(false)
+	const hotResultsPlatform = useRef<SearchPlatform | null>(null)
 	const [unavailablePlatforms, setUnavailablePlatforms] = useState<MusicPlatform[]>([])
 	const [pendingPlatforms, setPendingPlatforms] = useState<MusicPlatform[]>([])
 	const resultsRef = useRef<Track[]>([])
@@ -155,13 +158,24 @@ const SearchScreen = () => {
 		const requestId = ++hotSearchRequestRef.current
 		setIsHotLoading(true)
 		setHasHotError(false)
-		setHotSearches([])
-		setHotSearchBatch(0)
+		setHasPartialHotError(false)
+		if (hotResultsPlatform.current !== platform) {
+			setHotSearches([])
+			setHotSearchBatch(0)
+		}
+		hotResultsPlatform.current = platform
 
 		try {
-			const result = await getHotSearchItems(platform, forceRefresh)
+			const result = await getHotSearchSnapshot(platform, forceRefresh)
 			if (requestId !== hotSearchRequestRef.current) return
-			setHotSearches(result)
+			setHotSearches(result.items)
+			setHotSearchBatch(0)
+			setHasHotError(result.stalePlatforms.length > 0)
+			setHasPartialHotError(
+				platform === 'all' &&
+					result.stalePlatforms.length > 0 &&
+					result.stalePlatforms.length < MUSIC_PLATFORMS.length,
+			)
 		} catch (error) {
 			if (requestId !== hotSearchRequestRef.current) return
 			console.error('Failed to fetch hot searches:', error)
@@ -173,10 +187,23 @@ const SearchScreen = () => {
 		}
 	}, [])
 
-	useEffect(() => {
-		void loadHotSearches(hotSearchPlatform)
-		return cancelHotSearchRequest
-	}, [cancelHotSearchRequest, hotSearchPlatform, loadHotSearches])
+	useFocusEffect(
+		useCallback(() => {
+			void loadHotSearches(hotSearchPlatform)
+			const refreshIfActive = () => {
+				if (AppState.currentState === 'active') void loadHotSearches(hotSearchPlatform)
+			}
+			const timer = setInterval(refreshIfActive, HOT_SEARCH_TTL_MS)
+			const subscription = AppState.addEventListener('change', (state) => {
+				if (state === 'active') refreshIfActive()
+			})
+			return () => {
+				clearInterval(timer)
+				subscription.remove()
+				cancelHotSearchRequest()
+			}
+		}, [cancelHotSearchRequest, hotSearchPlatform, loadHotSearches]),
+	)
 
 	useEffect(() => {
 		const keyword = draftQuery.trim()
@@ -346,10 +373,12 @@ const SearchScreen = () => {
 	const showDiscovery = isEditing ? trimmedDraftQuery.length === 0 : submittedQuery.length === 0
 	const showResults = !isEditing && submittedQuery.length > 0
 	const hotSearchBatchCount = Math.ceil(hotSearches.length / HOT_SEARCH_BATCH_SIZE)
+	const hasCurrentHotSearch = hotResultsPlatform.current === hotSearchPlatform
 	const visibleHotSearches = useMemo(() => {
+		if (hotResultsPlatform.current !== hotSearchPlatform) return []
 		const start = hotSearchBatch * HOT_SEARCH_BATCH_SIZE
 		return hotSearches.slice(start, start + HOT_SEARCH_BATCH_SIZE)
-	}, [hotSearchBatch, hotSearches])
+	}, [hotSearchBatch, hotSearches, hotSearchPlatform])
 	const hotSearchTitle = i18n.t('find.hotSearch')
 	const handleChangeHotSearch = useCallback(() => {
 		setHotSearchBatch((currentBatch) =>
@@ -495,8 +524,9 @@ const SearchScreen = () => {
 						hotSearchTitle={hotSearchTitle}
 						hotRankOffset={hotSearchBatch * HOT_SEARCH_BATCH_SIZE}
 						canChangeHotSearch={hotSearchBatchCount > 1}
-						isHotLoading={isHotLoading}
-						hasHotError={hasHotError}
+						isHotLoading={!hasCurrentHotSearch || isHotLoading}
+						hasHotError={hasCurrentHotSearch && hasHotError}
+						hasPartialHotError={hasPartialHotError}
 						onSearch={handleKeywordSearch}
 						onRemoveHistory={handleRemoveHistory}
 						onClearHistory={() => PersistStatus.set('search.history', [])}

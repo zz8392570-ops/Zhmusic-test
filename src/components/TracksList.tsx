@@ -19,10 +19,11 @@ export type TracksListProps = {
 	scrollEnabled?: boolean
 	hideQueueControls?: boolean
 	ListHeaderComponent?: React.ReactNode
+	ListFooterComponent?: React.ReactNode
 	ListHeaderComponentStyle?: StyleProp<ViewStyle>
 	isSinger?: boolean
 	allowDelete?: boolean
-	onDeleteTrack?: (trackId: string) => void
+	onDeleteTrack?: (track: Track) => void
 	onReplaceSource?: (track: Track) => void
 	isMultiSelectMode?: boolean
 	selectedTracks?: Set<string>
@@ -30,6 +31,7 @@ export type TracksListProps = {
 	toggleMultiSelectMode?: () => void
 	numsToPlay?: number
 	showRank?: boolean
+	onTrackPress?: () => void
 }
 
 const EMPTY_SET = new Set<string>()
@@ -41,6 +43,7 @@ export const TracksList = React.memo(
 		scrollEnabled = true,
 		hideQueueControls = false,
 		ListHeaderComponent,
+		ListFooterComponent,
 		ListHeaderComponentStyle,
 		isSinger = false,
 		allowDelete = false,
@@ -52,6 +55,7 @@ export const TracksList = React.memo(
 		toggleMultiSelectMode,
 		numsToPlay,
 		showRank = false,
+		onTrackPress,
 	}: TracksListProps) => {
 		const utilsStyles = useUtilsStyles()
 		const { activeQueueId, setActiveQueueId } = useQueue()
@@ -86,6 +90,7 @@ export const TracksList = React.memo(
 
 		const handleTrackSelect = useCallback(
 			async (selectedTrack: Track) => {
+				onTrackPress?.()
 				const isCurrentTrack = isSameMediaItem(
 					selectedTrack as IMusic.IMusicItem,
 					currentMusic as IMusic.IMusicItem | null | undefined,
@@ -112,7 +117,7 @@ export const TracksList = React.memo(
 					}
 				}
 			},
-			[id, activeQueueId, tracks, setActiveQueueId, currentMusic, numsToPlay],
+			[id, activeQueueId, tracks, setActiveQueueId, currentMusic, numsToPlay, onTrackPress],
 		)
 
 		const renderItem = useCallback(
@@ -190,7 +195,7 @@ export const TracksList = React.memo(
 			[currentMusic?.id, currentMusic?.platform, playing, isMultiSelectMode, selectedTracks],
 		)
 
-		const keyExtractor = useCallback((item: Track) => item.id, [])
+		const keyExtractor = useCallback((item: Track) => JSON.stringify([item.platform, item.id]), [])
 
 		// The parent ScrollView owns scrolling in playlist/detail screens. Avoid
 		// recycled cell measurements inside that unbounded viewport.
@@ -207,6 +212,7 @@ export const TracksList = React.memo(
 							))
 						: emptyListComponent}
 					{tracks.length > 0 ? <ItemDivider /> : null}
+					{ListFooterComponent}
 				</View>
 			)
 		}
@@ -218,7 +224,12 @@ export const TracksList = React.memo(
 				scrollEnabled={scrollEnabled}
 				contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
 				ListHeaderComponent={combinedListHeader}
-				ListFooterComponent={tracks.length > 0 ? ItemDivider : null}
+				ListFooterComponent={
+					<View>
+						{tracks.length > 0 ? <ItemDivider /> : null}
+						{ListFooterComponent}
+					</View>
+				}
 				ItemSeparatorComponent={ItemDivider}
 				ListEmptyComponent={emptyListComponent}
 				renderItem={renderItem}

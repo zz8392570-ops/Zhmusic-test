@@ -31,6 +31,15 @@ await suite.check(
 const plays = [],
 	requests = [],
 	alerts = []
+let playbackRevision = 0
+const getBoardSongs = (_source, id) => {
+	const pending = deferred()
+	requests.push({ id, ...pending })
+	return pending.promise
+}
+const pagination = loadModule('src/helpers/leaderboardPagination.ts', {
+	'@/helpers/leaderboard': { ...leaderboard, getBoardSongs, mapLeaderboardTrack: (track) => track },
+})
 const react = {
 	createElement: (type, props, ...children) => ({
 		type,
@@ -41,9 +50,12 @@ const react = {
 	useEffect() {},
 	useRef: (value) => ({ current: value }),
 }
-function screen() {
+function screen(initialTracks = []) {
 	let stateIndex = 0
-	react.useState = (initial) => [stateIndex++ === 0 ? boards : initial, () => {}]
+	react.useState = (initial) => {
+		const index = stateIndex++
+		return [index === 0 ? boards : index === 1 ? initialTracks : initial, () => {}]
+	}
 	const Screen = loadModule(
 		'src/app/(tabs)/(songs)/index.tsx',
 		{
@@ -53,19 +65,15 @@ function screen() {
 			'@/components/DiscoveryHeading': 'Heading',
 			'@/components/ChartCard': 'Card',
 			'@expo/vector-icons': { Ionicons: 'Icon' },
-			'@/helpers/leaderboard': {
-				...leaderboard,
-				getBoardSongs: (_source, id) => {
-					const pending = deferred()
-					requests.push({ id, ...pending })
-					return pending.promise
-				},
-				mapLeaderboardTrack: (track) => track,
-			},
+			'@/helpers/leaderboard': leaderboard,
+			'@/helpers/leaderboardPagination': pagination,
 			'@/helpers/miscellaneous': { generateTracksListId: () => 'charts' },
 			'@/helpers/trackPlayerIndex': {
-				songsNumsToLoadStore: { useValue: () => 100 },
-				playWithReplacePlayList: async (track, list) => plays.push({ track, list }),
+				getPlaybackRevision: () => playbackRevision,
+				playWithReplacePlayList: async (track, list) => {
+					playbackRevision++
+					plays.push({ track, list })
+				},
 			},
 			'@/hooks/useAppTheme': { useThemeColors: () => ({}) },
 			'@/store/PersistStatus': persist,
@@ -90,7 +98,10 @@ function screen() {
 					...(node.type === 'Card' ? [node.props] : []),
 					...(node.props?.children ?? []).flatMap(find),
 				]
-	return find(Screen())
+	const tree = Screen()
+	const cards = find(tree)
+	cards.tree = tree
+	return cards
 }
 await suite.check(
 	'card play starts its own board; a slower previous tap cannot replace it',
@@ -133,4 +144,88 @@ await suite.check(
 		assert.equal(alerts.length, 1)
 	},
 )
+await suite.check('a later play or pause supersedes a pending chart queue', async () => {
+	const cards = screen()
+	const before = plays.length
+	cards[0].onPlay()
+	playbackRevision++
+	requests.at(-1).resolve({ list: [{ id: 'obsolete' }] })
+	await flush()
+	assert.equal(plays.length, before)
+})
+await suite.check('pressing an existing chart row cancels a pending card play', async () => {
+	const cards = screen([{ id: 'visible', platform: 'tx' }])
+	const findTracks = (node) =>
+		node?.type === 'Tracks' ? node : node?.props?.children?.map(findTracks).find(Boolean)
+	const list = findTracks(cards.tree)
+	assert.ok(list)
+	const before = plays.length
+	cards[0].onPlay()
+	list.props.onTrackPress()
+	requests.at(-1).resolve({ list: [{ id: 'obsolete' }] })
+	await flush()
+	assert.equal(plays.length, before)
+})
+await suite.check('complete TOP500 queue fetches all five distinct pages', async () => {
+	const pages = []
+	const helper = loadModule('src/helpers/leaderboardPagination.ts', {
+		'@/helpers/leaderboard': {
+			getBoardSongs: async (_source, _id, page) => {
+				pages.push(page)
+				return {
+					list: Array.from({ length: 100 }, (_, i) => ({
+						id: String((page - 1) * 100 + i),
+						platform: 'kg',
+					})),
+					total: 500,
+					limit: 100,
+					page,
+				}
+			},
+			mapLeaderboardTrack: (track) => track,
+		},
+	})
+	const result = await helper.getFullLeaderboard('kg', '8888')
+	assert.equal(result.length, 500)
+	assert.equal(pages.join(','), '1,2,3,4,5')
+	assert.equal(result.at(-1).id, '499')
+})
+await suite.check(
+	'later page failures, empty or repeated pages cannot masquerade as a complete queue',
+	async () => {
+		for (const mode of ['fail', 'empty', 'repeat']) {
+			const helper = loadModule('src/helpers/leaderboardPagination.ts', {
+				'@/helpers/leaderboard': {
+					getBoardSongs: async (_source, _id, page) => {
+						if (page === 2 && mode === 'fail') throw new Error('offline')
+						return {
+							list: page === 2 && mode === 'empty' ? [] : [{ id: 'one' }],
+							total: 2,
+							limit: 1,
+							page,
+						}
+					},
+					mapLeaderboardTrack: (track) => track,
+				},
+			})
+			await assert.rejects(helper.getFullLeaderboard('kw', '16'))
+		}
+	},
+)
+await suite.check('cancellation stops pagination before sending the next page', async () => {
+	let current = true
+	let calls = 0
+	const helper = loadModule('src/helpers/leaderboardPagination.ts', {
+		'@/helpers/leaderboard': {
+			getBoardSongs: async () => {
+				calls++
+				current = false
+				return { list: [{ id: 'one' }], total: 2, limit: 1 }
+			},
+			mapLeaderboardTrack: (track) => track,
+		},
+	})
+	await assert.rejects(helper.getFullLeaderboard('kg', '8888', () => current))
+	assert.equal(calls, 1)
+})
 suite.finish()

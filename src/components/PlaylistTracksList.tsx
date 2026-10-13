@@ -12,12 +12,13 @@ import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import { QueueControls } from './QueueControls'
 import { TracksList } from './TracksList'
+import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 
 type PlaylistTracksListProps = {
 	playlist: Playlist
 	tracks: Track[]
 	allowDelete?: boolean
-	onDeleteTrack?: (trackId: string) => void
+	onDeleteTrack?: (track: Track) => void
 	showImportMenu?: boolean
 	onImportTrack?: () => void
 	importLabel?: string
@@ -120,8 +121,11 @@ export const PlaylistTracksList = ({
 						importLabel={importLabel}
 						isMultiSelectMode={isMultiSelectMode}
 						onSelectAll={onSelectAll}
-						isAllSelected={selectedTracks.size === tracks.length}
-						hasSelection={selectedTracks.size > 0}
+						isAllSelected={
+							tracks.length > 0 &&
+							tracks.every((track) => selectedTracks.has(getLibraryTrackKey(track)))
+						}
+						hasSelection={tracks.some((track) => selectedTracks.has(getLibraryTrackKey(track)))}
 						deleteSelectedTracks={deleteSelectedTracks}
 						exportSelectedTracks={exportSelectedTracks}
 						managementActions={managementActions}
