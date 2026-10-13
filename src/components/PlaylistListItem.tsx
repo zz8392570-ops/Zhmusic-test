@@ -15,11 +15,13 @@ import {
 } from 'react-native'
 import { Image } from 'expo-image'
 import { hapticLight, hapticWarning } from '@/utils/haptics'
+import { MenuView } from '@/components/ActionMenu'
 
 type PlaylistListItemProps = {
 	playlist: Playlist
 	onDeletePress?: () => void
 	onEditPress?: () => void
+	presentation?: 'default' | 'library'
 } & TouchableHighlightProps
 
 export const PlaylistListItem = ({
@@ -28,6 +30,7 @@ export const PlaylistListItem = ({
 	onEditPress,
 	onPress,
 	onLongPress,
+	presentation = 'default',
 	...props
 }: PlaylistListItemProps) => {
 	const colors = useThemeColors()
@@ -60,34 +63,97 @@ export const PlaylistListItem = ({
 				{...props}
 			>
 				<View style={styles.playlistItemContainer}>
-					<Image
-						contentFit="cover"
-						cachePolicy="memory-disk"
-						priority="normal"
-						recyclingKey={
-							(playlist.coverImg ? playlist.coverImg : playlist.artwork) ?? 'missing-artwork'
-						}
-						source={{ uri: playlist.coverImg || playlist.artwork }}
-						style={styles.playlistArtworkImage}
-					/>
-						<View style={styles.playlistInfo}>
-							<View style={styles.titleRow}>
-								{playlist.pinned ? <Ionicons name="pin" size={14} color={colors.primary} /> : null}
-								<Text numberOfLines={1} style={styles.playlistNameText}>
-									{playlist.title || playlist.name}
+					<View>
+						<Image
+							contentFit="cover"
+							cachePolicy="memory-disk"
+							priority="normal"
+							recyclingKey={
+								(playlist.coverImg ? playlist.coverImg : playlist.artwork) ?? 'missing-artwork'
+							}
+							source={{ uri: playlist.coverImg || playlist.artwork }}
+							style={[
+								styles.playlistArtworkImage,
+								presentation === 'library' && { width: 88, height: 88, borderRadius: 12 },
+							]}
+						/>
+						{presentation === 'library' && playlist.pinned ? (
+							<View
+								style={{
+									position: 'absolute',
+									top: 5,
+									left: 5,
+									flexDirection: 'row',
+									alignItems: 'center',
+									gap: 3,
+									backgroundColor: colors.primary,
+									borderRadius: 9,
+									paddingHorizontal: 6,
+									paddingVertical: 3,
+								}}
+							>
+								<Ionicons name="pin" size={10} color="#fff" />
+								<Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+									{i18n.t('library.pinned')}
 								</Text>
 							</View>
-							<Text style={styles.playlistMetaText}>
-								{[
-									playlist.folder,
-									i18n.t('library.songCount', { count: songCount }),
-								].filter(Boolean).join(' · ')}
+						) : null}
+					</View>
+					<View style={styles.playlistInfo}>
+						<View style={styles.titleRow}>
+							{playlist.pinned && presentation !== 'library' ? (
+								<Ionicons name="pin" size={14} color={colors.primary} />
+							) : null}
+							<Text
+								numberOfLines={1}
+								style={[
+									styles.playlistNameText,
+									presentation === 'library' && { fontSize: 19, fontWeight: '700' },
+								]}
+							>
+								{playlist.title || playlist.name}
+							</Text>
+						</View>
+						<Text style={styles.playlistMetaText}>
+							{[playlist.folder, i18n.t('library.songCount', { count: songCount })]
+								.filter(Boolean)
+								.join(' · ')}
 						</Text>
 					</View>
-					<AntDesign name="right" size={16} color={colors.icon} style={{ opacity: 0.5 }} />
+					{presentation !== 'library' ? (
+						<AntDesign name="right" size={16} color={colors.icon} style={{ opacity: 0.5 }} />
+					) : null}
 				</View>
 			</TouchableHighlight>
-			{onEditPress ? (
+			{presentation === 'library' && (onEditPress || onDeletePress) ? (
+				<MenuView
+					title={playlist.title || playlist.name}
+					actions={[
+						...(onEditPress ? [{ id: 'edit', title: i18n.t('library.editTitle') }] : []),
+						...(onDeletePress
+							? [
+									{
+										id: 'delete',
+										title: i18n.t('library.delete'),
+										attributes: { destructive: true },
+									},
+								]
+							: []),
+					]}
+					onPressAction={({ nativeEvent: { event } }) =>
+						event === 'edit' ? onEditPress?.() : onDeletePress?.()
+					}
+				>
+					<TouchableOpacity
+						style={styles.deleteAction}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('library.editTitle')}
+					>
+						<Ionicons name="ellipsis-vertical" size={23} color={colors.textMuted} />
+					</TouchableOpacity>
+				</MenuView>
+			) : null}
+			{presentation !== 'library' && onEditPress ? (
 				<TouchableOpacity
 					accessibilityLabel={i18n.t('library.editTitle')}
 					accessibilityRole="button"
@@ -100,7 +166,7 @@ export const PlaylistListItem = ({
 					<Ionicons name="pencil-outline" size={20} color={colors.textMuted} />
 				</TouchableOpacity>
 			) : null}
-			{onDeletePress ? (
+			{presentation !== 'library' && onDeletePress ? (
 				<TouchableOpacity
 					accessibilityLabel={i18n.t('library.deleteTitle')}
 					accessibilityRole="button"
@@ -142,13 +208,13 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 			flex: 1,
 			rowGap: 5,
 		},
-			playlistNameText: {
-				...defaultStyles.text,
-				flex: 1,
+		playlistNameText: {
+			...defaultStyles.text,
+			flex: 1,
 			fontSize: 17,
 			fontWeight: '600',
-			},
-			titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+		},
+		titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 		playlistMetaText: {
 			fontSize: 13,
 			color: colors.textMuted,

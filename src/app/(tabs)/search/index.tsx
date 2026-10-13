@@ -394,7 +394,7 @@ const SearchScreen = () => {
 	return (
 		<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
 			<View style={styles.contentContainer}>
-				<DiscoveryHeading title={i18n.t('appTab.search')} />
+				<DiscoveryHeading large title={i18n.t('appTab.search')} />
 				<View style={styles.searchField}>
 					<Ionicons name="search-outline" size={23} color={colors.textMuted} />
 					<TextInput

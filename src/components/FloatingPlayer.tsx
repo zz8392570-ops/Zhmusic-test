@@ -1,5 +1,5 @@
 import { searchSongByTitle } from '@/helpers/songSearchNavigation'
-import { PlayPauseButton, SkipToNextButton } from '@/components/PlayerControls'
+import { PlayPauseButton } from '@/components/PlayerControls'
 import myTrackPlayer, { trackSourceLoadingStore } from '@/helpers/trackPlayerIndex'
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors } from '@/constants/tokens'
@@ -9,7 +9,15 @@ import { useDefaultStyles } from '@/styles'
 import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View, ViewProps } from 'react-native'
+import {
+	ActivityIndicator,
+	StyleSheet,
+	Text,
+	TouchableOpacity,
+	View,
+	ViewProps,
+} from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { MovingText } from './MovingText'
@@ -95,6 +103,9 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 							text={displayedTrack.title ?? ''}
 							animationThreshold={20}
 						/>
+						<Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
+							{displayedTrack.artist}
+						</Text>
 					</TouchableOpacity>
 				</View>
 
@@ -104,9 +115,18 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 							<ActivityIndicator size="small" color={colors.text} />
 						</View>
 					) : (
-						<PlayPauseButton iconSize={24} />
+						<View style={styles.playButton}>
+							<PlayPauseButton iconSize={20} />
+						</View>
 					)}
-					<SkipToNextButton iconSize={22} disabled={isTrackSourceLoading} />
+					<TouchableOpacity
+						onPress={() => router.navigate('/(modals)/playList')}
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('queue.title')}
+						style={{ padding: 6 }}
+					>
+						<Ionicons name="musical-notes-outline" size={25} color={colors.text} />
+					</TouchableOpacity>
 				</View>
 
 				{!isTrackSourceLoading && <ProgressIndicator />}
@@ -118,7 +138,7 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
 		container: {
-			borderRadius: 14,
+			borderRadius: 28,
 			borderCurve: 'continuous',
 			borderColor: colors.border,
 			borderWidth: StyleSheet.hairlineWidth,
@@ -128,7 +148,7 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 			flexDirection: 'row',
 			alignItems: 'center',
 			paddingHorizontal: 10,
-			paddingVertical: 10,
+			paddingVertical: 9,
 		},
 		trackInfoAction: {
 			flex: 1,
@@ -136,8 +156,8 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 			alignItems: 'center',
 		},
 		trackArtworkContainer: {
-			width: 40,
-			height: 40,
+			width: 44,
+			height: 44,
 			borderRadius: 8,
 			overflow: 'hidden',
 		},
@@ -148,14 +168,24 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 		},
 		trackTitle: {
 			...(defaultStyles?.text ?? {}),
-			fontSize: 17,
-			fontWeight: '500',
+			fontSize: 15,
+			fontWeight: '600',
+		},
+		playButton: {
+			width: 38,
+			height: 38,
+			borderRadius: 19,
+			borderWidth: 1,
+			borderColor: colors.border,
+			backgroundColor: colors.overlaySoft,
+			alignItems: 'center',
+			justifyContent: 'center',
 		},
 		trackControlsContainer: {
 			flexDirection: 'row',
 			alignItems: 'center',
-			columnGap: 18,
-			marginRight: 8,
+			columnGap: 8,
+			marginRight: 0,
 			paddingLeft: 12,
 		},
 		loadingIndicatorContainer: {
@@ -166,16 +196,16 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 		},
 		progressBarContainer: {
 			position: 'absolute',
-			bottom: 0,
-			left: 8,
-			right: 8,
+			bottom: 6,
+			left: 66,
+			right: 110,
 			height: 2,
 			backgroundColor: colors.overlaySoft,
 			borderRadius: 1,
 		},
 		progressBar: {
 			height: '100%',
-			backgroundColor: colors.minimumTrackTintColor,
+			backgroundColor: colors.primary,
 			borderRadius: 1,
 		},
 	})

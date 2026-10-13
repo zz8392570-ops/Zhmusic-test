@@ -3,7 +3,15 @@ import { Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { ReactNode } from 'react'
 
-export default function DiscoveryHeading({ title, action }: { title: string; action?: ReactNode }) {
+export default function DiscoveryHeading({
+	title,
+	action,
+	large = false,
+}: {
+	title: string
+	action?: ReactNode
+	large?: boolean
+}) {
 	const colors = useThemeColors()
 	const { top } = useSafeAreaInsets()
 	return (
@@ -18,7 +26,14 @@ export default function DiscoveryHeading({ title, action }: { title: string; act
 				flexShrink: 0,
 			}}
 		>
-			<Text style={{ color: colors.text, fontSize: 28, lineHeight: 34, fontWeight: '800' }}>
+			<Text
+				style={{
+					color: colors.text,
+					fontSize: large ? 34 : 28,
+					lineHeight: large ? 42 : 34,
+					fontWeight: '800',
+				}}
+			>
 				{title}
 			</Text>
 			{action}

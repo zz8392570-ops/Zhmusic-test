@@ -1,4 +1,6 @@
 import LeaderboardCover from '@/components/LeaderboardCover'
+import chartBackgrounds from '@/assets/chart-backgrounds.png'
+import { Image } from 'expo-image'
 import type { Playlist } from '@/helpers/types'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -15,6 +17,7 @@ export default function ChartCard({
 }) {
 	const { width } = useWindowDimensions()
 	const cardWidth = Math.max(108, Math.min(180, (width - 48 - 24) / 3))
+	const scene = /飙升|上升|趋势/.test(board.title) ? 1 : /新歌|新声|首发/.test(board.title) ? 2 : 0
 	return (
 		<Pressable
 			onPress={onPress}
@@ -34,6 +37,17 @@ export default function ChartCard({
 				platform={board.platform}
 				boardId={board.id}
 				style={{ width: '100%', height: '100%', borderRadius: 14 }}
+			/>
+			<Image
+				source={chartBackgrounds}
+				contentFit="fill"
+				style={{
+					position: 'absolute',
+					width: cardWidth * 3,
+					height: cardWidth,
+					left: -scene * cardWidth,
+					top: -cardWidth * 0.22,
+				}}
 			/>
 
 			<LinearGradient

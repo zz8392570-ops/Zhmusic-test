@@ -1,5 +1,7 @@
 import DiscoveryHeading from '@/components/DiscoveryHeading'
-import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
+import { MenuView } from '@/components/ActionMenu'
+import { importPlaylistByLink } from '@/helpers/importPlaylist'
+import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import SearchPlatformSelector from '@/components/search/SearchPlatformSelector'
 import { screenPadding } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
@@ -31,19 +33,40 @@ import {
 
 const PublicPlaylistCard = ({ item, onPress }: { item: PublicPlaylist; onPress: () => void }) => {
 	const colors = useThemeColors()
+	const platformColor = {
+		tx: '#31c27c',
+		wy: '#fc3c44',
+		kg: '#2999ef',
+		kw: '#e7b83b',
+		mg: '#ec398a',
+	}[item.source]
+	const save = async () => {
+		try {
+			const playlist = await importPlaylistByLink(item.id, item.source)
+			const result = myTrackPlayer.addPlayLists(playlist)
+			Alert.alert(
+				i18n.t(
+					result === 'success'
+						? 'publicPlaylists.importedTitle'
+						: result === 'duplicate'
+							? 'publicPlaylists.alreadyImportedTitle'
+							: 'publicPlaylists.importFailedTitle',
+				),
+			)
+		} catch {
+			Alert.alert(i18n.t('publicPlaylists.importFailedTitle'))
+		}
+	}
 	return (
-		<Pressable
-			onPress={onPress}
-			style={({ pressed }) => ({ flex: 1, minWidth: 0, opacity: pressed ? 0.72 : 1 })}
-		>
-			<View style={{ position: 'relative' }}>
+		<View style={{ flex: 1, minWidth: 0 }}>
+			<Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
 				<Image
 					source={{ uri: item.artwork }}
 					contentFit="cover"
 					transition={180}
 					style={{
 						width: '100%',
-						aspectRatio: 1,
+						aspectRatio: 1.1,
 						borderRadius: 14,
 						backgroundColor: colors.surface,
 					}}
@@ -52,39 +75,67 @@ const PublicPlaylistCard = ({ item, onPress }: { item: PublicPlaylist; onPress: 
 					<View
 						style={{
 							position: 'absolute',
-							bottom: 8,
-							left: 8,
+							bottom: 9,
+							left: 9,
 							flexDirection: 'row',
 							alignItems: 'center',
-							gap: 3,
-							paddingHorizontal: 7,
+							gap: 4,
+							paddingHorizontal: 9,
 							paddingVertical: 4,
-							borderRadius: 9,
+							borderRadius: 12,
 							backgroundColor: colors.overlay,
 						}}
 					>
-						<Ionicons name="play" size={11} color="#fff" />
-						<Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{item.playCount}</Text>
+						<Ionicons name="play" size={12} color="#fff" />
+						<Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{item.playCount}</Text>
 					</View>
 				) : null}
+			</Pressable>
+			<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+				<Pressable onPress={onPress} style={{ flex: 1, minWidth: 0 }}>
+					<Text
+						numberOfLines={2}
+						style={{ color: colors.text, fontSize: 15, lineHeight: 21, fontWeight: '700' }}
+					>
+						{item.name}
+					</Text>
+					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 }}>
+						<View
+							style={{
+								width: 18,
+								height: 18,
+								borderRadius: 9,
+								backgroundColor: platformColor,
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<Ionicons name="musical-note" size={11} color="#fff" />
+						</View>
+						<Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 12, flex: 1 }}>
+							{i18n.t(`publicPlaylists.platformNames.${item.source}`)}
+						</Text>
+					</View>
+				</Pressable>
+				<MenuView
+					title={item.name}
+					actions={[
+						{ id: 'open', title: i18n.t('library.openPlaylist') },
+						{ id: 'save', title: i18n.t('publicPlaylists.savePlaylist') },
+					]}
+					onPressAction={({ nativeEvent: { event } }) =>
+						event === 'open' ? onPress() : void save()
+					}
+				>
+					<Pressable
+						accessibilityLabel={i18n.t('playlistTools.title')}
+						style={{ width: 24, minHeight: 40, alignItems: 'center', justifyContent: 'center' }}
+					>
+						<Ionicons name="ellipsis-vertical" size={19} color={colors.textMuted} />
+					</Pressable>
+				</MenuView>
 			</View>
-			<Text
-				numberOfLines={2}
-				style={{
-					color: colors.text,
-					fontSize: 15,
-					fontWeight: '700',
-					lineHeight: 22,
-					minHeight: 44,
-					marginTop: 9,
-				}}
-			>
-				{item.name}
-			</Text>
-			<Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
-				{i18n.t(getMusicPlatformLabelKey(item.source))}
-			</Text>
-		</Pressable>
+		</View>
 	)
 }
 
@@ -217,6 +268,7 @@ const RadiolistsScreen = () => {
 	return (
 		<View style={[defaultStyles.container, { backgroundColor: colors.background }]}>
 			<DiscoveryHeading
+				large
 				title={i18n.t('appTab.radio')}
 				action={
 					<Pressable

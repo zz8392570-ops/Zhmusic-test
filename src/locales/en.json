@@ -365,6 +365,10 @@
 		"sections": { "new": "New", "improved": "Improved", "fixed": "Fixed" }
 	},
 	"library": {
+		"pinned": "Pinned",
+		"localMusic": "Local Music",
+		"collectionCount": "%{count} lists",
+		"shortSongCount": "%{count} songs",
 		"songCount": "%{count} songs",
 		"openPlaylist": "Open playlist",
 		"empty": "No playlists yet",
@@ -447,6 +451,14 @@
 		"trackCount": "%{count} songs"
 	},
 	"publicPlaylists": {
+		"savePlaylist": "Save to My",
+		"platformNames": {
+			"tx": "QQ Music",
+			"wy": "NetEase Music",
+			"kw": "Kuwo Music",
+			"kg": "Kugou Music",
+			"mg": "Migu Music"
+		},
 		"categories": "Playlist categories",
 		"hot": "Popular playlists",
 		"loadFailed": "Couldn't load playlists",

@@ -11,11 +11,13 @@ import * as ImagePicker from 'expo-image-picker'
 type PlaylistsListProps = {
 	playlists: Playlist[]
 	onPlaylistPress: (playlist: Playlist) => void
+	presentation?: 'default' | 'library'
 } & Partial<FlatListProps<Playlist>>
 
 export const PlaylistsList = ({
 	playlists,
 	onPlaylistPress: handlePlaylistPress,
+	presentation = 'default',
 	...flatListProps
 }: PlaylistsListProps) => {
 	const utilsStyles = useUtilsStyles()
@@ -163,6 +165,7 @@ export const PlaylistsList = ({
 			renderItem={({ item: playlist }) => (
 				<PlaylistListItem
 					playlist={playlist}
+					presentation={presentation}
 					onPress={() => handlePlaylistPress(playlist)}
 					onLongPress={
 						playlist.id === 'favorites' ||

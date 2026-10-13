@@ -68,21 +68,13 @@ const SearchDiscovery = ({
 								<Pressable
 									accessibilityRole="button"
 									onPress={() => onSearch(keyword)}
+									onLongPress={() => onRemoveHistory(keyword)}
 									style={({ pressed }) => [styles.historyLabelButton, pressed && styles.pressed]}
 								>
 									<MaterialCommunityIcons name="clock-outline" size={17} color={colors.textMuted} />
 									<Text style={styles.historyLabel} numberOfLines={1}>
 										{keyword}
 									</Text>
-								</Pressable>
-								<Pressable
-									accessibilityRole="button"
-									accessibilityLabel={`${i18n.t('find.removeHistory')}: ${keyword}`}
-									hitSlop={6}
-									onPress={() => onRemoveHistory(keyword)}
-									style={({ pressed }) => [styles.removeButton, pressed && styles.pressed]}
-								>
-									<MaterialCommunityIcons name="close" size={15} color={colors.textMuted} />
 								</Pressable>
 							</View>
 						))}
@@ -135,7 +127,17 @@ const SearchDiscovery = ({
 								onPress={() => onSearch(item.keyword)}
 								style={({ pressed }) => [styles.hotItem, pressed && styles.pressed]}
 							>
-								<Text style={[styles.rank, hotRankOffset + index < 3 && styles.topRank]}>
+								<Text
+									style={[
+										styles.rank,
+										{
+											color:
+												hotRankOffset + index < 3
+													? ['#fc3c44', '#ff784d', '#e8b550'][hotRankOffset + index]
+													: colors.textMuted,
+										},
+									]}
+								>
 									{hotRankOffset + index + 1}
 								</Text>
 								<Text style={styles.hotKeyword} numberOfLines={1}>
@@ -219,7 +221,7 @@ const createStyles = (colors: ThemeColors) =>
 			alignItems: 'center',
 			gap: 7,
 			paddingLeft: 13,
-			paddingRight: 5,
+			paddingRight: 13,
 		},
 		historyLabel: {
 			color: colors.text,

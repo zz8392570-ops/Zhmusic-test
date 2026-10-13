@@ -366,6 +366,10 @@
 		"sections": { "new": "新增", "improved": "优化", "fixed": "修复" }
 	},
 	"library": {
+		"pinned": "已置顶",
+		"localMusic": "本地音乐",
+		"collectionCount": "%{count} 个",
+		"shortSongCount": "%{count} 首",
 		"songCount": "%{count} 首歌曲",
 		"openPlaylist": "打开歌单",
 		"empty": "还没有歌单",
@@ -448,6 +452,14 @@
 		"trackCount": "%{count} 首歌曲"
 	},
 	"publicPlaylists": {
+		"savePlaylist": "收藏到我的",
+		"platformNames": {
+			"tx": "QQ音乐",
+			"wy": "网易云音乐",
+			"kw": "酷我音乐",
+			"kg": "酷狗音乐",
+			"mg": "咪咕音乐"
+		},
 		"categories": "歌单分类",
 		"hot": "热门歌单",
 		"loadFailed": "歌单加载失败",

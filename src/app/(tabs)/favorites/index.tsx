@@ -14,7 +14,6 @@ import {
 import { Playlist } from '@/helpers/types'
 import DiscoveryHeading from '@/components/DiscoveryHeading'
 import GlobalButton from '@/components/GlobalButton'
-import AddPlayListButton from '@/components/AddPlayListButton'
 import { useFavorites } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
@@ -33,6 +32,7 @@ const FavoritesScreen = () => {
 	const playing = useIsPlaying()
 	const currentTrack = myTrackPlayer.useCurrentMusic()
 	const [search, setSearch] = useState('')
+	const [showSearch, setShowSearch] = useState(false)
 
 	const storedPlayLists = playListsStore.useValue()
 	const localTracks = importedLocalMusicStore.useValue()
@@ -100,7 +100,9 @@ const FavoritesScreen = () => {
 		[playLists],
 	)
 	const handlePlaylistPress = (playlist: Playlist) => {
-		if (playlist.id.startsWith('smart:')) {
+		if (playlist.id === 'smartCollections') {
+			router.push('/(tabs)/favorites/smartPlaylists')
+		} else if (playlist.id.startsWith('smart:')) {
 			router.push({
 				pathname: '/(tabs)/favorites/smartPlaylist',
 				params: { kind: playlist.id.slice(6) },
@@ -117,44 +119,45 @@ const FavoritesScreen = () => {
 	}
 	const heading = (
 		<>
-			<DiscoveryHeading
-				title={i18n.t('appTab.favorites')}
-				action={
-					<View style={{ flexDirection: 'row', alignItems: 'center' }}>
-						<AddPlayListButton />
-						<GlobalButton />
-					</View>
-				}
-			/>
-			<View
-				style={{
-					marginHorizontal: screenPadding.horizontal,
-					marginBottom: 8,
-					minHeight: 38,
-					borderRadius: 12,
-					backgroundColor: colors.surfaceMuted,
-					paddingHorizontal: 12,
-					flexDirection: 'row',
-					alignItems: 'center',
-					gap: 8,
-				}}
-			>
-				<Ionicons name="search-outline" size={19} color={colors.textMuted} />
-				<TextInput
-					value={search}
-					onChangeText={setSearch}
-					placeholder={i18n.t('find.inFavorites')}
-					placeholderTextColor={colors.textMuted}
-					style={{ flex: 1, color: colors.text, minHeight: 38, paddingVertical: 8, fontSize: 14 }}
-				/>
-				{search ? (
-					<Pressable onPress={() => setSearch('')} accessibilityLabel={i18n.t('find.cancel')}>
+			<DiscoveryHeading large title={i18n.t('appTab.favorites')} action={<GlobalButton />} />
+			{showSearch ? (
+				<View
+					style={{
+						marginHorizontal: 18,
+						marginTop: 8,
+						marginBottom: 8,
+						minHeight: 38,
+						borderRadius: 12,
+						backgroundColor: colors.surfaceMuted,
+						paddingHorizontal: 12,
+						flexDirection: 'row',
+						alignItems: 'center',
+						gap: 8,
+					}}
+				>
+					<Ionicons name="search-outline" size={19} color={colors.textMuted} />
+					<TextInput
+						autoFocus
+						value={search}
+						onChangeText={setSearch}
+						placeholder={i18n.t('find.inFavorites')}
+						placeholderTextColor={colors.textMuted}
+						style={{ flex: 1, color: colors.text, minHeight: 38, paddingVertical: 8, fontSize: 14 }}
+					/>
+					<Pressable
+						onPress={() => {
+							setSearch('')
+							setShowSearch(false)
+						}}
+						accessibilityLabel={i18n.t('find.cancel')}
+					>
 						<Ionicons name="close-circle" size={18} color={colors.textMuted} />
 					</Pressable>
-				) : null}
-			</View>
+				</View>
+			) : null}
 		</>
 	)
+
 	if (search.trim()) {
 		return (
 			<View style={defaultStyles.container}>
@@ -207,76 +210,132 @@ const FavoritesScreen = () => {
 	}
 
 	const shortcuts = [
-		{ playlist: corePlaylists.favorites, icon: 'heart' as const },
-		{ playlist: corePlaylists.recent, icon: 'time' as const },
-		{ playlist: corePlaylists.local, icon: 'download' as const },
-		{ playlist: corePlaylists.mostPlayed, icon: 'sparkles' as const },
+		{
+			playlist: corePlaylists.favorites,
+			title: i18n.t('appTab.favoritesSongs'),
+			icon: 'heart' as const,
+			tint: '#fc3c44',
+		},
+		{
+			playlist: corePlaylists.local,
+			title: i18n.t('library.localMusic'),
+			icon: 'folder' as const,
+			tint: '#9b6cff',
+		},
+		{
+			playlist: corePlaylists.recent,
+			title: i18n.t('appTab.recentlyPlayed'),
+			icon: 'time' as const,
+			tint: '#50da8b',
+		},
+		{
+			playlist: {
+				id: 'smartCollections',
+				title: i18n.t('library.smartPlaylists'),
+				tracks: [],
+			} as unknown as Playlist,
+			title: i18n.t('library.smartPlaylists'),
+			icon: 'radio' as const,
+			tint: '#fc6d72',
+		},
 	]
-	const remainingSmartPlaylists = smartPlaylists.filter((item) => item.id !== 'smart:mostPlayed')
-
 	return (
 		<View style={defaultStyles.container}>
 			{heading}
 			<ScrollView
 				contentInsetAdjustmentBehavior="never"
-				contentContainerStyle={{ paddingHorizontal: screenPadding.horizontal, paddingBottom: 150 }}
+				contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 150 }}
 			>
-				<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
-					{shortcuts.map(({ playlist, icon }) => (
+				<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+					{shortcuts.map(({ playlist, title, icon, tint }) => (
 						<Pressable
 							key={playlist.id}
 							onPress={() => handlePlaylistPress(playlist)}
 							style={({ pressed }) => ({
 								width: '48%',
 								flexGrow: 1,
-								minHeight: 90,
-								padding: 13,
-								borderRadius: 18,
+								minHeight: 82,
+								paddingHorizontal: 12,
+								paddingVertical: 16,
+								borderRadius: 16,
 								backgroundColor: colors.surfaceElevated,
+								flexDirection: 'row',
+								alignItems: 'center',
+								gap: 9,
 								opacity: pressed ? 0.7 : 1,
 							})}
 						>
 							<View
 								style={{
-									width: 30,
-									height: 30,
-									borderRadius: 12,
+									width: 42,
+									height: 46,
+									borderRadius: 13,
+									backgroundColor: tint + '20',
 									alignItems: 'center',
 									justifyContent: 'center',
-									backgroundColor: colors.overlaySoft,
 								}}
 							>
-								<Ionicons name={icon} size={18} color={colors.primary} />
+								<Ionicons name={icon} size={27} color={tint} />
 							</View>
-							<Text
-								numberOfLines={1}
-								style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 8 }}
-							>
-								{playlist.title}
-							</Text>
-							<Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
-								{i18n.t('library.songCount', { count: playlist.tracks.length })}
-							</Text>
+							<View style={{ flex: 1, minWidth: 0 }}>
+								<Text
+									numberOfLines={1}
+									adjustsFontSizeToFit
+									minimumFontScale={0.85}
+									style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}
+								>
+									{title}
+								</Text>
+								<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
+									{playlist.id === 'smartCollections'
+										? i18n.t('library.collectionCount', { count: smartPlaylists.length })
+										: i18n.t('library.shortSongCount', { count: playlist.tracks.length })}
+								</Text>
+							</View>
+							<Ionicons name="chevron-forward" size={13} color={colors.textMuted} />
 						</Pressable>
 					))}
 				</View>
-
-				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 18 }}>
-					{i18n.t('library.smartPlaylists')}
-				</Text>
+				<View
+					style={{
+						flexDirection: 'row',
+						alignItems: 'center',
+						justifyContent: 'space-between',
+						marginTop: 24,
+						marginBottom: 8,
+					}}
+				>
+					<Text style={{ color: colors.text, fontSize: 25, fontWeight: '800' }}>
+						{i18n.t('library.myPlaylists')}
+					</Text>
+					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+						<Pressable
+							onPress={() => setShowSearch((value) => !value)}
+							accessibilityLabel={i18n.t('find.inFavorites')}
+							style={{ padding: 6 }}
+						>
+							<Ionicons name="search-outline" size={19} color={colors.textMuted} />
+						</Pressable>
+						<Pressable
+							onPress={() => router.navigate('/(modals)/importPlayList')}
+							accessibilityLabel={i18n.t('playlistManager.title')}
+							style={{
+								width: 34,
+								height: 34,
+								borderRadius: 17,
+								backgroundColor: colors.primary,
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<Ionicons name="add" size={25} color="#fff" />
+						</Pressable>
+					</View>
+				</View>
 				<PlaylistsList
+					presentation="library"
 					scrollEnabled={false}
-					contentContainerStyle={{ paddingTop: 10, paddingBottom: 10 }}
-					playlists={remainingSmartPlaylists as Playlist[]}
-					onPlaylistPress={handlePlaylistPress}
-				/>
-
-				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 18 }}>
-					{i18n.t('library.myPlaylists')}
-				</Text>
-				<PlaylistsList
-					scrollEnabled={false}
-					contentContainerStyle={{ paddingTop: 10, paddingBottom: 10 }}
+					contentContainerStyle={{ paddingTop: 4, paddingBottom: 0 }}
 					playlists={sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[])}
 					onPlaylistPress={handlePlaylistPress}
 				/>

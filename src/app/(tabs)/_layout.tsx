@@ -21,8 +21,8 @@ const TabBarBackground = ({ tint }: { tint: BlurTint }) => (
 			StyleSheet.absoluteFill,
 			{
 				overflow: 'hidden',
-				borderTopLeftRadius: 20,
-				borderTopRightRadius: 20,
+				borderTopLeftRadius: 0,
+				borderTopRightRadius: 0,
 			},
 		]}
 	/>
@@ -57,8 +57,8 @@ const TabsNavigation = () => {
 					headerShown: false,
 					tabBarStyle: {
 						position: 'absolute',
-						borderTopLeftRadius: 20,
-						borderTopRightRadius: 20,
+						borderTopLeftRadius: 0,
+						borderTopRightRadius: 0,
 						borderTopWidth: 0,
 						paddingTop: 6,
 						backgroundColor: 'transparent',

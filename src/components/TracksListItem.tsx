@@ -171,7 +171,12 @@ const TracksListItem = ({
 	return (
 		<View style={styles.rowContainer}>
 			{rank ? (
-				<Text style={[styles.rankText, { color: rank <= 3 ? colors.primary : colors.textMuted }]}>
+				<Text
+					style={[
+						styles.rankText,
+						{ color: rank <= 3 ? ['#f5ce58', '#bcc0ca', '#f69658'][rank - 1] : colors.textMuted },
+					]}
+				>
 					{rank}
 				</Text>
 			) : null}

@@ -61,6 +61,15 @@ const FavoritesScreenLayout = () => {
 					}}
 				/>
 				<Stack.Screen
+					name="smartPlaylists"
+					options={{
+						headerTitle: i18n.t('library.smartPlaylists'),
+						headerStyle: { backgroundColor: colors.background },
+						headerTintColor: colors.text,
+						headerShadowVisible: false,
+					}}
+				/>
+				<Stack.Screen
 					name="localMusic"
 					options={{
 						headerTitle: '',

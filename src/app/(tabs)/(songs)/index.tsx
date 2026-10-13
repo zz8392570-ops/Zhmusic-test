@@ -113,6 +113,7 @@ const SongsScreen = () => {
 	return (
 		<View style={defaultStyles.container}>
 			<DiscoveryHeading
+				large
 				title={i18n.t('appTab.songs')}
 				action={
 					<Pressable
