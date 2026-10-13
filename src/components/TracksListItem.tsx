@@ -40,6 +40,7 @@ export type TracksListItemProps = {
 	selectedTracks?: Set<string>
 	toggleMultiSelectMode?: () => void
 	showSourceBadge?: boolean
+	rank?: number
 }
 
 const TracksListItem = ({
@@ -56,6 +57,7 @@ const TracksListItem = ({
 	onReplaceSource,
 	toggleMultiSelectMode,
 	showSourceBadge = false,
+	rank,
 }: TracksListItemProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
@@ -168,6 +170,11 @@ const TracksListItem = ({
 
 	return (
 		<View style={styles.rowContainer}>
+			{rank ? (
+				<Text style={[styles.rankText, { color: rank <= 3 ? colors.primary : colors.textMuted }]}>
+					{rank}
+				</Text>
+			) : null}
 			<TouchableHighlight
 				onPress={handlePress}
 				onLongPress={handleLongPress}
@@ -306,6 +313,13 @@ const createStyles = (colors: ThemeColors, defaultStyles: ReturnType<typeof useD
 		rowContainer: {
 			flexDirection: 'row',
 			alignItems: 'center',
+		},
+		rankText: {
+			width: 30,
+			fontSize: 17,
+			fontWeight: '700',
+			fontVariant: ['tabular-nums'],
+			textAlign: 'left',
 		},
 		mainAction: {
 			flex: 1,

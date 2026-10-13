@@ -16,6 +16,7 @@ type QueueControlsProps = {
 	tracks: Track[]
 	showImportMenu?: boolean
 	onImportTrack?: () => void
+	importLabel?: string
 	isMultiSelectMode?: boolean
 	onSelectAll?: () => void
 	isAllSelected?: boolean
@@ -32,6 +33,7 @@ export const QueueControls = ({
 	style,
 	showImportMenu,
 	onImportTrack,
+	importLabel,
 	isMultiSelectMode = false,
 	onSelectAll,
 	isAllSelected = false,
@@ -204,11 +206,11 @@ export const QueueControls = ({
 							activeOpacity={0.8}
 							style={styles.button}
 							accessibilityRole="button"
-							accessibilityLabel={i18n.t('playButton.import')}
+							accessibilityLabel={importLabel || i18n.t('playButton.import')}
 						>
 							<Ionicons name={'enter-outline'} size={24} color={colors.primary} />
 
-							<Text style={styles.buttonText}>{i18n.t('playButton.import')}</Text>
+							<Text style={styles.buttonText}>{importLabel || i18n.t('playButton.import')}</Text>
 						</TouchableOpacity>
 					)}
 				</View>

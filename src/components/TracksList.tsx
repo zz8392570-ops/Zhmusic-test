@@ -29,6 +29,7 @@ export type TracksListProps = {
 	onToggleSelection?: (trackId: string) => void
 	toggleMultiSelectMode?: () => void
 	numsToPlay?: number
+	showRank?: boolean
 }
 
 const EMPTY_SET = new Set<string>()
@@ -50,6 +51,7 @@ export const TracksList = React.memo(
 		onToggleSelection,
 		toggleMultiSelectMode,
 		numsToPlay,
+		showRank = false,
 	}: TracksListProps) => {
 		const utilsStyles = useUtilsStyles()
 		const { activeQueueId, setActiveQueueId } = useQueue()
@@ -114,7 +116,7 @@ export const TracksList = React.memo(
 		)
 
 		const renderItem = useCallback(
-			({ item: track }: { item: Track }) => {
+			({ item: track, index }: { item: Track; index: number }) => {
 				const isActiveTrack = isSameMediaItem(
 					track as IMusic.IMusicItem,
 					currentMusic as IMusic.IMusicItem | null | undefined,
@@ -125,6 +127,7 @@ export const TracksList = React.memo(
 						onTrackSelect={handleTrackSelect}
 						isActiveTrack={isActiveTrack}
 						isPlaying={isActiveTrack && !!playing}
+						rank={showRank ? index + 1 : undefined}
 						isSinger={isSinger}
 						allowDelete={allowDelete}
 						onDeleteTrack={onDeleteTrack}
@@ -141,6 +144,7 @@ export const TracksList = React.memo(
 				currentMusic,
 				playing,
 				isSinger,
+				showRank,
 				allowDelete,
 				onDeleteTrack,
 				onReplaceSource,

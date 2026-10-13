@@ -329,10 +329,10 @@
 		"diagnosticsCopied": "Playback diagnostics copied to the clipboard"
 	},
 	"appTab": {
-		"songs": "Songs",
+		"songs": "Charts",
 		"search": "Search",
-		"radio": "Charts",
-		"favorites": "My Music",
+		"radio": "Playlists",
+		"favorites": "My",
 		"favoritesSongs": "Favorite Songs",
 		"localOrCachedSongs": "Local & Offline",
 		"recentlyPlayed": "Recently Played"
@@ -401,7 +401,9 @@
 		},
 		"songResults": "Songs · %{count}",
 		"playlistResults": "Playlists · %{count}",
-		"searchNoResults": "No matching playlists. Try another name."
+		"searchNoResults": "No matching playlists. Try another name.",
+		"smartPlaylists": "Smart Playlists",
+		"myPlaylists": "My Playlists"
 	},
 	"localMusic": {
 		"notice": "Notice",
@@ -438,6 +440,22 @@
 		"loadFailed": "Couldn't load this chart",
 		"retry": "Try Again",
 		"refreshFailed": "Refresh failed. Tap to retry"
+	},
+	"charts": {
+		"updated": "Updated live",
+		"trackCount": "%{count} songs"
+	},
+	"publicPlaylists": {
+		"loadFailed": "Couldn't load playlists",
+		"detailFailed": "Couldn't load this playlist",
+		"playsUnit": "plays",
+		"saveToMy": "Save",
+		"importedTitle": "Saved to My",
+		"importedMessage": "This playlist is now in My and can be played or refreshed later.",
+		"alreadyImportedTitle": "Already saved",
+		"alreadyImportedMessage": "This playlist is already in My.",
+		"importFailedTitle": "Couldn't save playlist",
+		"importFailedMessage": "Try saving this playlist again later."
 	},
 	"startup": {
 		"preparing": "Preparing the player…",

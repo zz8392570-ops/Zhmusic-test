@@ -330,10 +330,10 @@
 		"diagnosticsCopied": "播放诊断信息已复制到剪贴板"
 	},
 	"appTab": {
-		"songs": "音乐",
+		"songs": "榜单",
 		"search": "搜索",
-		"radio": "榜单",
-		"favorites": "我的音乐",
+		"radio": "歌单",
+		"favorites": "我的",
 		"favoritesSongs": "喜欢的歌曲",
 		"localOrCachedSongs": "本地与离线",
 		"recentlyPlayed": "最近播放"
@@ -402,7 +402,9 @@
 		},
 		"songResults": "歌曲 · %{count}",
 		"playlistResults": "歌单 · %{count}",
-		"searchNoResults": "没有匹配的歌单，试试其他名称"
+		"searchNoResults": "没有匹配的歌单，试试其他名称",
+		"smartPlaylists": "智能歌单",
+		"myPlaylists": "我的歌单"
 	},
 	"localMusic": {
 		"notice": "提示",
@@ -439,6 +441,22 @@
 		"loadFailed": "榜单加载失败",
 		"retry": "重新加载",
 		"refreshFailed": "刷新失败，点此重试"
+	},
+	"charts": {
+		"updated": "实时更新",
+		"trackCount": "%{count} 首歌曲"
+	},
+	"publicPlaylists": {
+		"loadFailed": "歌单加载失败",
+		"detailFailed": "歌单详情加载失败",
+		"playsUnit": "次播放",
+		"saveToMy": "收藏",
+		"importedTitle": "已收藏到我的",
+		"importedMessage": "这张歌单已经加入“我的”，以后可以直接播放和刷新。",
+		"alreadyImportedTitle": "歌单已收藏",
+		"alreadyImportedMessage": "“我的”中已经有这张歌单。",
+		"importFailedTitle": "收藏失败",
+		"importFailedMessage": "暂时无法保存这张歌单，请稍后重试。"
 	},
 	"startup": {
 		"preparing": "正在准备播放器…",

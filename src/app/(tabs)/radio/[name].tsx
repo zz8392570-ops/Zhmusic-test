@@ -1,113 +1,124 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { unknownTrackImageUri } from '@/constants/images'
 import { screenPadding } from '@/constants/tokens'
-import {
-	getBoardSongs,
-	getLeaderboardBoardName,
-	mapLeaderboardTrack,
-	parseBoardKey,
-} from '@/helpers/leaderboard'
+import { importPlaylistByLink } from '@/helpers/importPlaylist'
+import { isLeaderboardSource } from '@/helpers/leaderboard'
+import myTrackPlayer from '@/helpers/trackPlayerIndex'
+import type { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { Redirect, useLocalSearchParams } from 'expo-router'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
-import type { Track } from '@/player/types'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+	ActivityIndicator,
+	Alert,
+	Pressable,
+	RefreshControl,
+	ScrollView,
+	Text,
+	View,
+} from 'react-native'
 
-const RadioListScreen = () => {
+const valueOf = (value?: string | string[]) => (Array.isArray(value) ? value[0] : value) ?? ''
+
+const PublicPlaylistScreen = () => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
-	const { name: playlistName } = useLocalSearchParams<{ name: string }>()
-	const boardKey = Array.isArray(playlistName) ? playlistName[0] : playlistName
-	const parsedBoard = useMemo(() => (boardKey ? parseBoardKey(boardKey) : null), [boardKey])
-	const [tracks, setTracks] = useState<Track[]>([])
+	const params = useLocalSearchParams<{
+		name: string
+		source?: string
+		title?: string
+		artwork?: string
+		author?: string
+		playCount?: string
+		description?: string
+	}>()
+	const id = valueOf(params.name)
+	const sourceValue = valueOf(params.source)
+	const source = isLeaderboardSource(sourceValue) ? sourceValue : null
+	const [playlist, setPlaylist] = useState<IMusic.PlayList | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [failed, setFailed] = useState(false)
 	const requestRef = useRef(0)
-	const cancelRequest = useCallback(() => {
-		requestRef.current += 1
-	}, [])
 
-	const loadBoard = useCallback(async () => {
+	const loadPlaylist = useCallback(async () => {
+		if (!source || !id) return
 		const requestId = ++requestRef.current
-		if (!parsedBoard) {
-			setLoading(false)
-			setFailed(false)
-			return
-		}
 		setLoading(true)
 		setFailed(false)
 		try {
-			const detail = await getBoardSongs(parsedBoard.source, parsedBoard.bangid, 1)
-			if (requestId !== requestRef.current) return
-			setTracks((detail.list ?? []).map((track) => mapLeaderboardTrack(track, parsedBoard.source)))
+			const result = await importPlaylistByLink(id, source)
+			if (requestId === requestRef.current) setPlaylist(result)
 		} catch (error) {
-			console.error('Failed to fetch leaderboard:', error)
-			setFailed(true)
+			console.error('Failed to fetch public playlist detail:', error)
+			if (requestId === requestRef.current) setFailed(true)
 		} finally {
 			if (requestId === requestRef.current) setLoading(false)
 		}
-	}, [parsedBoard])
+	}, [id, source])
 
 	useEffect(() => {
-		void loadBoard()
-		return cancelRequest
-	}, [cancelRequest, loadBoard])
+		void loadPlaylist()
+		return () => {
+			requestRef.current += 1
+		}
+	}, [loadPlaylist])
 
-	if (!parsedBoard) {
-		return <Redirect href={'/(tabs)/radio'} />
-	}
+	if (!source || !id) return <Redirect href="/(tabs)/radio" />
 
-	if (loading && !tracks.length) {
+	if (loading && !playlist) {
 		return (
-			<View
-				style={{
-					flex: 1,
-					justifyContent: 'center',
-					alignItems: 'center',
-					backgroundColor: colors.background,
-				}}
-			>
+			<View style={[defaultStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
 				<ActivityIndicator size="large" color={colors.loading} />
 			</View>
 		)
 	}
 
-	if (failed && !tracks.length) {
+	if (failed && !playlist) {
 		return (
-			<View
-				style={[
-					defaultStyles.container,
-					{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
-				]}
-			>
-				<Text style={{ color: colors.textMuted, fontSize: 16, marginBottom: 12 }}>
-					{i18n.t('home.loadFailed')}
+			<View style={[defaultStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+				<Text style={{ color: colors.textMuted, fontSize: 16 }}>
+					{i18n.t('publicPlaylists.detailFailed')}
 				</Text>
-				<Pressable accessibilityRole="button" onPress={loadBoard}>
-					<Text style={{ color: colors.primary, fontSize: 15, fontWeight: '600' }}>
-						{i18n.t('find.tapToRetry')}
-					</Text>
+				<Pressable onPress={() => void loadPlaylist()} style={{ padding: 14 }}>
+					<Text style={{ color: colors.primary, fontWeight: '600' }}>{i18n.t('home.retry')}</Text>
 				</Pressable>
 			</View>
 		)
 	}
 
-	const playlist = {
-		id: boardKey,
-		title: getLeaderboardBoardName(parsedBoard.source, parsedBoard.bangid),
-		name: getLeaderboardBoardName(parsedBoard.source, parsedBoard.bangid),
-		coverImg: tracks[0]?.artwork || unknownTrackImageUri,
-		artwork: tracks[0]?.artwork || unknownTrackImageUri,
-		artworkPreview: tracks[0]?.artwork || unknownTrackImageUri,
+	const displayPlaylist: Playlist = {
+		id: playlist?.id ?? `${source}__${id}`,
+		name: playlist?.name || valueOf(params.title),
+		title: playlist?.title || valueOf(params.title),
+		artist: playlist?.artist || valueOf(params.author),
+		artwork: playlist?.artwork || valueOf(params.artwork) || unknownTrackImageUri,
+		coverImg: playlist?.artwork || valueOf(params.artwork) || unknownTrackImageUri,
+		artworkPreview: playlist?.artwork || valueOf(params.artwork) || unknownTrackImageUri,
 		singerImg: unknownTrackImageUri,
 		period: '',
-		description: '',
-		platform: parsedBoard.source,
-		artist: '',
-		tracks,
-		songs: [],
+		description: valueOf(params.description),
+		platform: source,
+		tracks: playlist?.songs ?? [],
+		songs: playlist?.songs ?? [],
+	}
+
+	const savePlaylist = () => {
+		if (!playlist) return
+		const result = myTrackPlayer.addPlayLists(playlist)
+		Alert.alert(
+			result === 'success'
+				? i18n.t('publicPlaylists.importedTitle')
+				: result === 'duplicate'
+					? i18n.t('publicPlaylists.alreadyImportedTitle')
+					: i18n.t('publicPlaylists.importFailedTitle'),
+			result === 'success'
+				? i18n.t('publicPlaylists.importedMessage')
+				: result === 'duplicate'
+					? i18n.t('publicPlaylists.alreadyImportedMessage')
+					: i18n.t('publicPlaylists.importFailedMessage'),
+		)
 	}
 
 	return (
@@ -116,27 +127,39 @@ const RadioListScreen = () => {
 				contentInsetAdjustmentBehavior="automatic"
 				style={{ paddingHorizontal: screenPadding.horizontal }}
 				refreshControl={
-					<RefreshControl refreshing={loading} onRefresh={loadBoard} tintColor={colors.primary} />
+					<RefreshControl
+						refreshing={loading}
+						onRefresh={loadPlaylist}
+						tintColor={colors.primary}
+					/>
 				}
 			>
 				{failed ? (
-					<Pressable accessibilityRole="button" onPress={loadBoard}>
-						<Text
-							style={{
-								color: colors.primary,
-								fontSize: 13,
-								paddingVertical: 10,
-								textAlign: 'center',
-							}}
-						>
+					<Pressable onPress={() => void loadPlaylist()}>
+						<Text style={{ color: colors.primary, textAlign: 'center', paddingVertical: 10 }}>
 							{i18n.t('home.refreshFailed')}
 						</Text>
 					</Pressable>
 				) : null}
-				<PlaylistTracksList playlist={playlist} tracks={tracks} />
+				<PlaylistTracksList
+					playlist={displayPlaylist}
+					tracks={displayPlaylist.tracks}
+					showMetadata
+					metadata={[
+						valueOf(params.playCount)
+							? `${valueOf(params.playCount)} ${i18n.t('publicPlaylists.playsUnit')}`
+							: '',
+						i18n.t('charts.trackCount', { count: displayPlaylist.tracks.length }),
+					]
+						.filter(Boolean)
+						.join(' · ')}
+					showImportMenu
+					onImportTrack={savePlaylist}
+					importLabel={i18n.t('publicPlaylists.saveToMy')}
+				/>
 			</ScrollView>
 		</View>
 	)
 }
 
-export default RadioListScreen
+export default PublicPlaylistScreen

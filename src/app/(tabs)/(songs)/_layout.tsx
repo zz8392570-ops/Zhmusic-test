@@ -1,9 +1,9 @@
 import GlobalButton from '@/components/GlobalButton'
-import HomeHeaderTitle from '@/components/HomeHeaderTitle'
 import { getStackScreenWithSearchBar } from '@/constants/layout'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import { nowLanguage } from '@/utils/i18n'
+import i18n from '@/utils/i18n'
 import { Stack } from 'expo-router'
 import { View } from 'react-native'
 const SongsScreenLayout = () => {
@@ -18,7 +18,7 @@ const SongsScreenLayout = () => {
 					options={{
 						...getStackScreenWithSearchBar(colors),
 						headerLargeTitle: false,
-						headerTitle: () => <HomeHeaderTitle />,
+						headerTitle: i18n.t('appTab.songs'),
 						headerRight: () => <GlobalButton />,
 					}}
 				/>

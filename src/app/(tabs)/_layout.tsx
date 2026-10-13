@@ -71,11 +71,7 @@ const TabsNavigation = () => {
 					options={{
 						title: i18n.t('appTab.songs'),
 						tabBarIcon: ({ color, focused }) => (
-							<Ionicons
-								name={focused ? 'musical-notes' : 'musical-notes-outline'}
-								size={24}
-								color={color}
-							/>
+							<Ionicons name={focused ? 'podium' : 'podium-outline'} size={24} color={color} />
 						),
 					}}
 				/>
@@ -84,16 +80,7 @@ const TabsNavigation = () => {
 					options={{
 						title: i18n.t('appTab.radio'),
 						tabBarIcon: ({ color, focused }) => (
-							<Ionicons name={focused ? 'podium' : 'podium-outline'} size={24} color={color} />
-						),
-					}}
-				/>
-				<Tabs.Screen
-					name="favorites"
-					options={{
-						title: i18n.t('appTab.favorites'),
-						tabBarIcon: ({ color, focused }) => (
-							<Ionicons name={focused ? 'library' : 'library-outline'} size={24} color={color} />
+							<Ionicons name={focused ? 'albums' : 'albums-outline'} size={24} color={color} />
 						),
 					}}
 				/>
@@ -103,6 +90,15 @@ const TabsNavigation = () => {
 						title: i18n.t('appTab.search'),
 						tabBarIcon: ({ color, focused }) => (
 							<Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
+						),
+					}}
+				/>
+				<Tabs.Screen
+					name="favorites"
+					options={{
+						title: i18n.t('appTab.favorites'),
+						tabBarIcon: ({ color, focused }) => (
+							<Ionicons name={focused ? 'library' : 'library-outline'} size={24} color={color} />
 						),
 					}}
 				/>

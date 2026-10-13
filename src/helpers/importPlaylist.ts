@@ -35,6 +35,44 @@ const fetchJson = async (url: string, headers?: Record<string, string>) => {
 	return response.json()
 }
 
+const fetchText = async (url: string, headers?: Record<string, string>) => {
+	const response = await fetch(url, { headers })
+	if (!response.ok) throw new Error(`HTTP ${response.status}`)
+	return response.text()
+}
+
+const parseAssignedJson = (html: string, variable: string) => {
+	const marker = `var ${variable}`
+	const markerIndex = html.indexOf(marker)
+	if (markerIndex < 0) return null
+	const equalsIndex = html.indexOf('=', markerIndex + marker.length)
+	if (equalsIndex < 0) return null
+	let start = equalsIndex + 1
+	while (/\s/.test(html[start] ?? '')) start += 1
+	const opening = html[start]
+	if (opening !== '[' && opening !== '{') return null
+	const closing = opening === '[' ? ']' : '}'
+	let depth = 0
+	let inString = false
+	let escaped = false
+	for (let index = start; index < html.length; index += 1) {
+		const char = html[index]
+		if (inString) {
+			if (escaped) escaped = false
+			else if (char === '\\') escaped = true
+			else if (char === '"') inString = false
+			continue
+		}
+		if (char === '"') inString = true
+		else if (char === opening) depth += 1
+		else if (char === closing) {
+			depth -= 1
+			if (depth === 0) return JSON.parse(html.slice(start, index + 1))
+		}
+	}
+	return null
+}
+
 const firstMatch = (text: string, patterns: RegExp[]) => {
 	for (const pattern of patterns) {
 		const match = text.match(pattern)
@@ -223,7 +261,7 @@ const importKw = async (id: string): Promise<IMusic.PlayList> => {
 	let meta: any = null
 	while (musiclist.length < total && page < 20) {
 		const body = await fetchJson(
-			`http://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=${id}&pn=${page}&rn=${pageSize}&encode=utf8&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.5.0_W1&newver=1`,
+			`https://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=${id}&pn=${page}&rn=${pageSize}&encode=utf8&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.5.0_W1&newver=1`,
 		)
 		if (body.result && body.result !== 'ok') throw new Error('kw playlist failed')
 		if (!meta) meta = body
@@ -257,49 +295,38 @@ const importKw = async (id: string): Promise<IMusic.PlayList> => {
 }
 
 const importKg = async (id: string): Promise<IMusic.PlayList> => {
-	const info = await fetchJson(
-		`http://mobilecdnbj.kugou.com/api/v5/special/info?specialid=${id}&plat=0&version=9108`,
-	)
-	const pageSize = 100
-	let page = 1
-	let total = Infinity
-	const items: any[] = []
-	while (items.length < total && page <= 20) {
-		const body = await fetchJson(
-			`http://mobilecdnbj.kugou.com/api/v3/special/song?specialid=${id}&page=${page}&pagesize=${pageSize}&plat=0&version=9108`,
-		)
-		const list = body?.data?.info ?? []
-		total = Number(body?.data?.total || list.length)
-		items.push(...list)
-		if (!list.length) break
-		page += 1
-	}
+	const html = await fetchText(`https://m.kugou.com/plist/list/${id}`, {
+		'User-Agent': 'Mozilla/5.0',
+		Referer: 'https://m.kugou.com/',
+	})
+	const items = (parseAssignedJson(html, 'data') ?? []) as any[]
+	const data = (parseAssignedJson(html, 'specialInfo') ?? {}) as any
 	if (!items.length) throw new Error('kg playlist empty')
 	const songs = items.map((item) => {
-		const filename = String(item.filename || '')
+		const filename = String(item.audio_name || item.filename || '')
 		const separator = filename.indexOf(' - ')
 		const artist = separator > 0 ? filename.slice(0, separator) : item.singername || ''
-		const title = separator > 0 ? filename.slice(separator + 3) : filename
+		const title = item.songname || (separator > 0 ? filename.slice(separator + 3) : filename)
+		const duration = Number(item.duration) || 0
 		return toTrack('kg', {
 			id: item.audio_id || item.hash,
 			songmid: item.audio_id || item.hash,
 			hash: item.hash,
 			title,
 			artist,
-			album: item.remark || '',
+			album: item.album_name || item.remark || '',
 			artwork: item.trans_param?.union_cover,
-			duration: Number(item.duration) || 0,
+			duration: duration > 10_000 ? Math.round(duration / 1000) : duration,
 			albumid: item.album_id,
 		})
 	})
-	const data = info?.data || {}
 	return toPlaylist(
 		'kg',
 		id,
 		{
-			name: data.specialname || '未命名歌单',
+			name: data.specialname || data.name || '未命名歌单',
 			artist: data.nickname || data.singername,
-			artwork: data.imgurl || data.user_avatar,
+			artwork: data.imgurl || data.image || data.user_avatar,
 		},
 		songs,
 	)

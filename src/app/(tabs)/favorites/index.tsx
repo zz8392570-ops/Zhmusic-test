@@ -20,9 +20,10 @@ import { sortLibraryPlaylists } from '@/helpers/playlistOrganizer'
 import { router } from 'expo-router'
 import { useMemo } from 'react'
 import { useIsPlaying } from '@rntp/player'
-import { Image, ScrollView, Text, View } from 'react-native'
+import { Image, Pressable, ScrollView, Text, View } from 'react-native'
 import PersistStatus from '@/store/PersistStatus'
 import { getSmartPlaylistTracks, type SmartPlaylistKind } from '@/helpers/listeningStats'
+import { Ionicons } from '@expo/vector-icons'
 
 const FavoritesScreen = () => {
 	const defaultStyles = useDefaultStyles()
@@ -58,39 +59,49 @@ const FavoritesScreen = () => {
 		)
 	}, [listeningStats])
 	const playLists = useMemo(
-		() => [
-			...smartPlaylists,
-			{
-				name: 'Recent',
-				id: 'recent',
-				tracks: recentlyPlayed,
-				title: i18n.t('appTab.recentlyPlayed'),
-				coverImg: recentlyPlayed[0]?.artwork || Image.resolveAssetSource(localImage).uri,
-				description: i18n.t('appTab.recentlyPlayed'),
-			},
-			{
-				name: 'Favorites',
-				id: 'favorites',
-				tracks: favorites,
-				title: i18n.t('appTab.favoritesSongs'),
-				coverImg: 'https://y.qq.com/mediastyle/global/img/cover_like.png?max_age=2592000',
-				description: i18n.t('appTab.favoritesSongs'),
-			},
-			{
-				name: 'Local',
-				id: 'local',
-				tracks: localTracks ?? [],
-				title: i18n.t('appTab.localOrCachedSongs'),
-				coverImg: Image.resolveAssetSource(localImage).uri,
-				description: i18n.t('appTab.localOrCachedSongs'),
-			},
-			...sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[]),
-		],
+		() =>
+			[
+				...smartPlaylists,
+				{
+					name: 'Recent',
+					id: 'recent',
+					tracks: recentlyPlayed,
+					title: i18n.t('appTab.recentlyPlayed'),
+					coverImg: recentlyPlayed[0]?.artwork || Image.resolveAssetSource(localImage).uri,
+					description: i18n.t('appTab.recentlyPlayed'),
+				},
+				{
+					name: 'Favorites',
+					id: 'favorites',
+					tracks: favorites,
+					title: i18n.t('appTab.favoritesSongs'),
+					coverImg: 'https://y.qq.com/mediastyle/global/img/cover_like.png?max_age=2592000',
+					description: i18n.t('appTab.favoritesSongs'),
+				},
+				{
+					name: 'Local',
+					id: 'local',
+					tracks: localTracks ?? [],
+					title: i18n.t('appTab.localOrCachedSongs'),
+					coverImg: Image.resolveAssetSource(localImage).uri,
+					description: i18n.t('appTab.localOrCachedSongs'),
+				},
+				...sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[]),
+			] as Playlist[],
 		[storedPlayLists, favorites, localTracks, recentlyPlayed, smartPlaylists],
 	)
 
 	const results = useMemo(() => searchPersonalLibrary(playLists, search), [playLists, search])
 	const filteredPlayLists = results.playlists as Playlist[]
+	const corePlaylists = useMemo(
+		() => ({
+			favorites: playLists.find((item) => item.id === 'favorites')!,
+			recent: playLists.find((item) => item.id === 'recent')!,
+			local: playLists.find((item) => item.id === 'local')!,
+			mostPlayed: playLists.find((item) => item.id === 'smart:mostPlayed')!,
+		}),
+		[playLists],
+	)
 	const handlePlaylistPress = (playlist: Playlist) => {
 		if (playlist.id.startsWith('smart:')) {
 			router.push({
@@ -107,56 +118,127 @@ const FavoritesScreen = () => {
 			router.push(`/(tabs)/favorites/${playlist.id}`)
 		}
 	}
+	if (search.trim()) {
+		return (
+			<View style={defaultStyles.container}>
+				<ScrollView
+					contentInsetAdjustmentBehavior="automatic"
+					style={{ paddingHorizontal: screenPadding.horizontal }}
+				>
+					{results.tracks.length ? (
+						<View style={{ paddingTop: 16, gap: 14 }}>
+							<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
+								{i18n.t('library.songResults', { count: results.tracks.length })}
+							</Text>
+							{results.tracks.map(({ track, collections }) => (
+								<View key={JSON.stringify([track.platform, track.id])}>
+									<TracksListItem
+										track={track}
+										onTrackSelect={(selectedTrack) =>
+											void myTrackPlayer.play(selectedTrack as IMusic.IMusicItem)
+										}
+										isActiveTrack={isSameMediaItem(track as IMusic.IMusicItem, currentTrack)}
+										isPlaying={playing}
+									/>
+									<Text
+										style={{ color: colors.textMuted, fontSize: 12, marginLeft: 64, marginTop: 5 }}
+										numberOfLines={2}
+									>
+										{collections.map((item) => item.title).join(' · ')}
+									</Text>
+								</View>
+							))}
+						</View>
+					) : null}
+					<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600', marginTop: 20 }}>
+						{i18n.t('library.playlistResults', { count: filteredPlayLists.length })}
+					</Text>
+					<PlaylistsList
+						ListEmptyComponent={
+							<Text style={{ color: colors.textMuted, paddingVertical: 20 }}>
+								{i18n.t('library.searchNoResults')}
+							</Text>
+						}
+						scrollEnabled={false}
+						playlists={filteredPlayLists}
+						onPlaylistPress={handlePlaylistPress}
+					/>
+				</ScrollView>
+			</View>
+		)
+	}
+
+	const shortcuts = [
+		{ playlist: corePlaylists.favorites, icon: 'heart' as const },
+		{ playlist: corePlaylists.recent, icon: 'time' as const },
+		{ playlist: corePlaylists.local, icon: 'download' as const },
+		{ playlist: corePlaylists.mostPlayed, icon: 'sparkles' as const },
+	]
+	const remainingSmartPlaylists = smartPlaylists.filter((item) => item.id !== 'smart:mostPlayed')
+
 	return (
 		<View style={defaultStyles.container}>
 			<ScrollView
 				contentInsetAdjustmentBehavior="automatic"
-				style={{
-					paddingHorizontal: screenPadding.horizontal,
-				}}
+				contentContainerStyle={{ paddingHorizontal: screenPadding.horizontal, paddingBottom: 150 }}
 			>
-				{search.trim() && results.tracks.length ? (
-					<View style={{ paddingTop: 16, gap: 14 }}>
-						<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
-							{i18n.t('library.songResults', { count: results.tracks.length })}
-						</Text>
-						{results.tracks.map(({ track, collections }) => (
-							<View key={JSON.stringify([track.platform, track.id])}>
-								<TracksListItem
-									track={track}
-									onTrackSelect={(selectedTrack) =>
-										void myTrackPlayer.play(selectedTrack as IMusic.IMusicItem)
-									}
-									isActiveTrack={isSameMediaItem(track as IMusic.IMusicItem, currentTrack)}
-									isPlaying={playing}
-								/>
-								<Text
-									style={{ color: colors.textMuted, fontSize: 12, marginLeft: 64, marginTop: 5 }}
-									numberOfLines={2}
-								>
-									{collections.map((item) => item.title).join(' · ')}
-								</Text>
+				<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
+					{shortcuts.map(({ playlist, icon }) => (
+						<Pressable
+							key={playlist.id}
+							onPress={() => handlePlaylistPress(playlist)}
+							style={({ pressed }) => ({
+								width: '48%',
+								flexGrow: 1,
+								minHeight: 112,
+								padding: 16,
+								borderRadius: 18,
+								backgroundColor: colors.surfaceElevated,
+								opacity: pressed ? 0.7 : 1,
+							})}
+						>
+							<View
+								style={{
+									width: 38,
+									height: 38,
+									borderRadius: 12,
+									alignItems: 'center',
+									justifyContent: 'center',
+									backgroundColor: colors.overlaySoft,
+								}}
+							>
+								<Ionicons name={icon} size={21} color={colors.primary} />
 							</View>
-						))}
-					</View>
-				) : null}
-				{search.trim() ? (
-					<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600', marginTop: 20 }}>
-						{i18n.t('library.playlistResults', { count: filteredPlayLists.length })}
-					</Text>
-				) : null}
+							<Text
+								numberOfLines={1}
+								style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginTop: 13 }}
+							>
+								{playlist.title}
+							</Text>
+							<Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
+								{i18n.t('library.songCount', { count: playlist.tracks.length })}
+							</Text>
+						</Pressable>
+					))}
+				</View>
+
+				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 30 }}>
+					{i18n.t('library.smartPlaylists')}
+				</Text>
 				<PlaylistsList
-					{...(search.trim()
-						? {
-								ListEmptyComponent: (
-									<Text style={{ color: colors.textMuted, paddingVertical: 20 }}>
-										{i18n.t('library.searchNoResults')}
-									</Text>
-								),
-							}
-						: {})}
 					scrollEnabled={false}
-					playlists={filteredPlayLists as Playlist[]}
+					contentContainerStyle={{ paddingTop: 10, paddingBottom: 10 }}
+					playlists={remainingSmartPlaylists as Playlist[]}
+					onPlaylistPress={handlePlaylistPress}
+				/>
+
+				<Text style={{ color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 26 }}>
+					{i18n.t('library.myPlaylists')}
+				</Text>
+				<PlaylistsList
+					scrollEnabled={false}
+					contentContainerStyle={{ paddingTop: 10, paddingBottom: 10 }}
+					playlists={sortLibraryPlaylists((storedPlayLists ?? []) as Playlist[])}
 					onPlaylistPress={handlePlaylistPress}
 				/>
 			</ScrollView>

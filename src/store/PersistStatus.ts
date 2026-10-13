@@ -52,6 +52,7 @@ export interface IPersistConfig {
 	'music.homeBoardId': string | number
 	'music.homeBoardSource': 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
 	'music.radioBoardSource': 'tx' | 'kw' | 'kg' | 'wy' | 'mg'
+	'music.publicPlaylistCategories': Partial<Record<'tx' | 'kw' | 'kg' | 'wy' | 'mg', string>>
 	'search.history': string[]
 	'search.type': 'songs' | 'artists' | 'playlists'
 	'search.platform': 'all' | 'tx' | 'kw' | 'kg' | 'wy' | 'mg'

@@ -19,6 +19,7 @@ type PlaylistTracksListProps = {
 	onDeleteTrack?: (trackId: string) => void
 	showImportMenu?: boolean
 	onImportTrack?: () => void
+	importLabel?: string
 	isMultiSelectMode?: boolean
 	selectedTracks?: Set<string>
 	toggleMultiSelectMode?: () => void
@@ -41,6 +42,7 @@ export const PlaylistTracksList = ({
 	onDeleteTrack,
 	showImportMenu = false,
 	onImportTrack,
+	importLabel,
 	isMultiSelectMode = false,
 	selectedTracks = new Set(),
 	onToggleSelection,
@@ -109,6 +111,7 @@ export const PlaylistTracksList = ({
 						tracks={tracks}
 						showImportMenu={showImportMenu}
 						onImportTrack={onImportTrack}
+						importLabel={importLabel}
 						isMultiSelectMode={isMultiSelectMode}
 						onSelectAll={onSelectAll}
 						isAllSelected={selectedTracks.size === tracks.length}
