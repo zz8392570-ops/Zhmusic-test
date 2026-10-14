@@ -4,8 +4,8 @@ import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
 import { unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors } from '@/constants/tokens'
-import { getCachedQuality } from '@/player/CacheManager'
-import { cacheRevisionStore } from '@/player/PlayerStore'
+import { cacheDisplayLookup } from '@/helpers/cacheDisplayLookup'
+import { cacheRevisionStore, qualityStore } from '@/player/PlayerStore'
 import { isCachedIconVisibleStore } from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
@@ -16,11 +16,7 @@ import { StyleSheet, Text, TouchableHighlight, TouchableOpacity, View } from 're
 import { Image } from 'expo-image'
 import LoaderKit from 'react-native-loader-kit'
 import type { Track } from '@/player/types'
-import {
-	inferAudioQualityFromPath,
-	normalizeAudioQuality,
-	type AudioQuality,
-} from '@/helpers/audioQuality'
+import { type AudioQuality } from '@/helpers/audioQuality'
 import i18n from '@/utils/i18n'
 import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
@@ -67,15 +63,11 @@ const TracksListItem = ({
 	const isFavorite = favorites.some((item) => isSameMediaItem(item, track as IMusic.IMusicItem))
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const cacheRevision = cacheRevisionStore.useValue()
-	const embeddedCachedQuality = useMemo(
-		() =>
-			normalizeAudioQuality(track.cachedQuality) ??
-			(typeof track.url === 'string' && track.url.includes('/musicCache/')
-				? inferAudioQualityFromPath(track.url)
-				: null),
-		[track.cachedQuality, track.url],
-	)
-	const [cachedQuality, setCachedQuality] = useState<AudioQuality | null>(embeddedCachedQuality)
+	const preferredCacheQuality = qualityStore.useValue()
+	const [cachedState, setCachedState] = useState<{
+		key: string
+		quality: AudioQuality | null
+	} | null>(null)
 	const cacheLookupTrack = useMemo(
 		() =>
 			({
@@ -109,6 +101,11 @@ const TracksListItem = ({
 	const [hasArtworkError, setHasArtworkError] = useState(false)
 	const artworkUri = hasArtworkError ? unknownTrackImageUri : resolvedArtworkUri
 	const artworkSource = useMemo(() => ({ uri: artworkUri }), [artworkUri])
+	const cacheLookupKey = cacheDisplayLookup.key(cacheLookupTrack)
+	const cachedQuality =
+		cachedState?.key === cacheLookupKey
+			? cachedState.quality
+			: cacheDisplayLookup.peek(cacheLookupTrack)?.quality ?? null
 
 	useEffect(() => {
 		let isMounted = true
@@ -125,26 +122,20 @@ const TracksListItem = ({
 
 	useEffect(() => {
 		let isMounted = true
-		setCachedQuality(embeddedCachedQuality)
-		const checkCachedState = async () => {
-			try {
-				const quality = await getCachedQuality(cacheLookupTrack)
-				if (isMounted) {
-					setCachedQuality(quality)
-				}
-			} catch {
-				if (isMounted) {
-					setCachedQuality(null)
-				}
+		void cacheDisplayLookup.get(cacheLookupTrack).then((result) => {
+			if (
+				isMounted &&
+				result.status !== 'stale' &&
+				cacheDisplayLookup.key(cacheLookupTrack) === cacheLookupKey
+			) {
+				setCachedState({ key: cacheLookupKey, quality: result.quality })
 			}
-		}
-
-		checkCachedState()
+		})
 
 		return () => {
 			isMounted = false
 		}
-	}, [cacheLookupTrack, cacheRevision, embeddedCachedQuality])
+	}, [cacheLookupKey, cacheLookupTrack, cacheRevision, preferredCacheQuality])
 
 	const isCachedTrack = cachedQuality !== null
 	const platformLabelKey = getMusicPlatformLabelKey(track.platform)

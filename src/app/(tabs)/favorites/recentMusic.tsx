@@ -1,6 +1,6 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { unknownTrackImageUri } from '@/constants/images'
-import { ThemeColors, screenPadding } from '@/constants/tokens'
+import { ThemeColors } from '@/constants/tokens'
 import { importedLocalMusicStore, recentlyPlayedStore } from '@/helpers/trackPlayerIndex'
 import { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
@@ -8,7 +8,7 @@ import type { Track } from '@/player/types'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import React, { useMemo, useState } from 'react'
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native'
 import { repairUnavailableTracks } from '@/helpers/libraryRepair'
 import type { MenuAction } from '@react-native-menu/menu'
 import PersistStatus from '@/store/PersistStatus'
@@ -75,55 +75,55 @@ const RecentMusicScreen = () => {
 			setIsRepairing(false)
 		}
 	}
-	const managementActions: MenuAction[] = [{
-		id: 'repair',
-		title: i18n.t(isRepairing ? 'playlistTools.repairing' : 'playlistTools.repairUnavailable'),
-		image: 'wrench.and.screwdriver',
-		attributes: { disabled: isRepairing },
-	}]
+	const managementActions: MenuAction[] = [
+		{
+			id: 'repair',
+			title: i18n.t(isRepairing ? 'playlistTools.repairing' : 'playlistTools.repairUnavailable'),
+			image: 'wrench.and.screwdriver',
+			attributes: { disabled: isRepairing },
+		},
+	]
 
 	return (
 		<View style={defaultStyles.container}>
-			<View style={styles.controls}>
-				{(['all', 'offline'] as const).map((item) => (
-					<Pressable
-						key={item}
-						accessibilityRole="button"
-						accessibilityState={{ selected: filter === item }}
-						onPress={() => setFilter(item)}
-						style={[styles.chip, filter === item && styles.activeChip]}
-					>
-						<Text style={[styles.chipText, filter === item && styles.activeText]}>
-							{i18n.t(`library.filters.${item}`)}
-						</Text>
-					</Pressable>
-				))}
-				<View style={styles.spacer} />
-				{(['recent', 'title', 'artist'] as const).map((item) => (
-					<Pressable
-						key={item}
-						accessibilityRole="button"
-						accessibilityState={{ selected: sort === item }}
-						onPress={() => setSort(item)}
-						style={[styles.chip, sort === item && styles.activeChip]}
-					>
-						<Text style={[styles.chipText, sort === item && styles.activeText]}>
-							{i18n.t(`library.sort.${item}`)}
-						</Text>
-					</Pressable>
-				))}
-			</View>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
-			>
-				<PlaylistTracksList
-					playlist={playlist}
-					tracks={tracks as Track[]}
-					managementActions={managementActions}
-					onManagementAction={() => void repairRecent()}
-				/>
-			</ScrollView>
+			<PlaylistTracksList
+				contentContainerStyle={{ paddingHorizontal: 18 }}
+				headerContent={
+					<View style={styles.controls}>
+						{(['all', 'offline'] as const).map((item) => (
+							<Pressable
+								key={item}
+								accessibilityRole="button"
+								accessibilityState={{ selected: filter === item }}
+								onPress={() => setFilter(item)}
+								style={[styles.chip, filter === item && styles.activeChip]}
+							>
+								<Text style={[styles.chipText, filter === item && styles.activeText]}>
+									{i18n.t(`library.filters.${item}`)}
+								</Text>
+							</Pressable>
+						))}
+						<View style={styles.spacer} />
+						{(['recent', 'title', 'artist'] as const).map((item) => (
+							<Pressable
+								key={item}
+								accessibilityRole="button"
+								accessibilityState={{ selected: sort === item }}
+								onPress={() => setSort(item)}
+								style={[styles.chip, sort === item && styles.activeChip]}
+							>
+								<Text style={[styles.chipText, sort === item && styles.activeText]}>
+									{i18n.t(`library.sort.${item}`)}
+								</Text>
+							</Pressable>
+						))}
+					</View>
+				}
+				playlist={playlist}
+				tracks={tracks as Track[]}
+				managementActions={managementActions}
+				onManagementAction={() => void repairRecent()}
+			/>
 		</View>
 	)
 }
@@ -133,8 +133,8 @@ const createStyles = (colors: ThemeColors) =>
 		controls: {
 			alignItems: 'center',
 			flexDirection: 'row',
+			flexWrap: 'wrap',
 			gap: 6,
-			paddingHorizontal: 16,
 			paddingVertical: 8,
 		},
 		chip: {

@@ -29,7 +29,7 @@ export const ArtistTracksList = ({ artist }: { artist: Artist }) => {
 	return (
 		<TracksList
 			id={generateTracksListId(artist.name, search)}
-			scrollEnabled={false}
+			contentContainerStyle={{ paddingHorizontal: 18 }}
 			hideQueueControls={true}
 			ListHeaderComponentStyle={styles.artistHeaderContainer}
 			ListHeaderComponent={
@@ -62,25 +62,24 @@ export const ArtistTracksList = ({ artist }: { artist: Artist }) => {
 
 const createStyles = (defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	artistHeaderContainer: {
-		flex: 1,
-		marginBottom: 32,
-	},
-	artworkImageContainer: {
-		flexDirection: 'row',
-		justifyContent: 'center',
-		height: 200,
-	},
-	artistImage: {
-		width: '60%',
-		height: '100%',
-		borderRadius: 128,
-	},
-	artistNameText: {
-		...defaultStyles.text,
-		marginTop: 22,
-		textAlign: 'center',
-		fontSize: fontSize.lg,
-		fontWeight: '800',
-	},
+		artistHeaderContainer: {
+			marginBottom: 32,
+		},
+		artworkImageContainer: {
+			flexDirection: 'row',
+			justifyContent: 'center',
+			height: 200,
+		},
+		artistImage: {
+			width: '60%',
+			height: '100%',
+			borderRadius: 128,
+		},
+		artistNameText: {
+			...defaultStyles.text,
+			marginTop: 22,
+			textAlign: 'center',
+			fontSize: fontSize.lg,
+			fontWeight: '800',
+		},
 	})

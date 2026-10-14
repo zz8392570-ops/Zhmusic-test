@@ -19,6 +19,7 @@ const checks = [
 	'check-request-timers.mjs',
 	'check-rntp-player.mjs',
 	'check-search-playback.mjs',
+	'check-search-cache-display.mjs',
 	'check-sleep-timer.mjs',
 	'check-source-host.mjs',
 	'check-system-commands.mjs',

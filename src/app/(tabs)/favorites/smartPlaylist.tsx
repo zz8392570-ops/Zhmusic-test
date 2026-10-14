@@ -14,7 +14,7 @@ import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { useLocalSearchParams } from 'expo-router'
 import { useMemo } from 'react'
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 
 const kinds: SmartPlaylistKind[] = ['frequent', 'mostPlayed', 'recentlyAdded', 'forgotten']
 
@@ -48,35 +48,33 @@ const SmartPlaylistScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
+			<PlaylistTracksList
 				contentContainerStyle={{ paddingHorizontal: 18 }}
-			>
-				<View style={styles.settings}>
-					<View style={styles.settingText}>
-						<Text style={styles.settingTitle}>{i18n.t('listeningStats.enabled')}</Text>
-						<Text style={styles.settingDescription}>{i18n.t('listeningStats.privateHint')}</Text>
+				headerContent={
+					<View style={styles.settings}>
+						<View style={styles.settingText}>
+							<Text style={styles.settingTitle}>{i18n.t('listeningStats.enabled')}</Text>
+							<Text style={styles.settingDescription}>{i18n.t('listeningStats.privateHint')}</Text>
+						</View>
+						<Switch
+							value={enabled}
+							onValueChange={setListeningStatsEnabled}
+							trackColor={{ false: colors.surfaceMuted, true: colors.primary }}
+						/>
+						<Pressable onPress={clear} accessibilityRole="button" style={styles.clearAction}>
+							<Text style={styles.clear}>{i18n.t('listeningStats.clear')}</Text>
+						</Pressable>
 					</View>
-					<Switch
-						value={enabled}
-						onValueChange={setListeningStatsEnabled}
-						trackColor={{ false: colors.surfaceMuted, true: colors.primary }}
-					/>
-					<Pressable onPress={clear} accessibilityRole="button" style={styles.clearAction}>
-						<Text style={styles.clear}>{i18n.t('listeningStats.clear')}</Text>
-					</Pressable>
-				</View>
-				<PlaylistTracksList
-					playlist={playlist}
-					tracks={tracks}
-					compactHeader
-					showMetadata
-					metadata={i18n.t('listeningStats.summary', {
-						count: stats.length,
-						hours: (totalSeconds / 3600).toFixed(1),
-					})}
-				/>
-			</ScrollView>
+				}
+				playlist={playlist}
+				tracks={tracks}
+				compactHeader
+				showMetadata
+				metadata={i18n.t('listeningStats.summary', {
+					count: stats.length,
+					hours: (totalSeconds / 3600).toFixed(1),
+				})}
+			/>
 		</View>
 	)
 }

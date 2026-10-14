@@ -215,7 +215,13 @@ const SongsScreen = () => {
 					<ActivityIndicator size="large" color={colors.loading} />
 				</View>
 			) : (
-				<ScrollView
+				<TracksList
+					id={generateTracksListId('charts', `${source}_${boardId}`)}
+					tracks={tracks}
+					showRank
+					hideQueueControls
+					onTrackPress={cancelBoardPlayback}
+					contentContainerStyle={{ paddingHorizontal: 18 }}
 					contentInsetAdjustmentBehavior="never"
 					refreshControl={
 						<RefreshControl
@@ -224,121 +230,115 @@ const SongsScreen = () => {
 							tintColor={colors.primary}
 						/>
 					}
-					contentContainerStyle={{ paddingBottom: 0 }}
-				>
-					<ScrollView
-						horizontal
-						showsHorizontalScrollIndicator={false}
-						contentContainerStyle={{
-							paddingHorizontal: 18,
-							paddingTop: 4,
-							paddingBottom: 12,
-							gap: 12,
-						}}
-					>
-						{boards.map((board) => (
-							<ChartCard
-								key={board.id}
-								board={board}
-								selected={boardIdOf(board) === boardId}
-								onPress={() => selectBoard(board)}
-								onPlay={() => void playBoard(board)}
-								playing={playingBoard === board.id}
-							/>
-						))}
-					</ScrollView>
-
-					<View style={{ paddingHorizontal: 18 }}>
-						{failed && !tracks.length ? (
-							<View style={{ alignItems: 'center', paddingVertical: 80 }}>
+					ListHeaderComponent={
+						<View>
+							<ScrollView
+								horizontal
+								showsHorizontalScrollIndicator={false}
+								contentContainerStyle={{ paddingTop: 4, paddingBottom: 12, gap: 12 }}
+							>
+								{boards.map((board) => (
+									<ChartCard
+										key={board.id}
+										board={board}
+										selected={boardIdOf(board) === boardId}
+										onPress={() => selectBoard(board)}
+										onPlay={() => void playBoard(board)}
+										playing={playingBoard === board.id}
+									/>
+								))}
+							</ScrollView>
+							<View
+								style={{
+									marginBottom: 10,
+									flexDirection: 'row',
+									alignItems: 'center',
+									justifyContent: 'space-between',
+									gap: 10,
+								}}
+							>
+								<View style={{ flex: 1, minWidth: 0 }}>
+									<Text style={{ color: colors.text, fontSize: 23, fontWeight: '800' }}>
+										{selectedBoard?.title || i18n.t('appTab.songs')}
+									</Text>
+									<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
+										{selectedBoard?.period ? `${selectedBoard.period} · ` : ''}
+										{hasMore
+											? i18n.t('charts.loadedCount', { loaded: tracks.length, total })
+											: i18n.t('charts.trackCount', { count: tracks.length })}
+									</Text>
+								</View>
+								<Pressable
+									disabled={!tracks.length || playingBoard === selectedBoard?.id}
+									accessibilityRole="button"
+									accessibilityState={{
+										busy: playingBoard === selectedBoard?.id,
+										disabled: !tracks.length || playingBoard === selectedBoard?.id,
+									}}
+									onPress={() => selectedBoard && void playBoard(selectedBoard)}
+									style={{
+										backgroundColor: colors.primary,
+										flexDirection: 'row',
+										alignItems: 'center',
+										gap: 6,
+										borderRadius: 22,
+										paddingHorizontal: 15,
+										paddingVertical: 11,
+									}}
+								>
+									{playingBoard === selectedBoard?.id ? (
+										<ActivityIndicator size="small" color="#fff" />
+									) : (
+										<Ionicons name="play" size={18} color="#fff" />
+									)}
+									<Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+										{i18n.t('charts.playAll')}
+									</Text>
+								</Pressable>
+							</View>
+						</View>
+					}
+					ListEmptyComponent={
+						failed ? (
+							<View style={{ alignItems: 'center', paddingVertical: 64 }}>
 								<Text style={{ color: colors.textMuted, fontSize: 16 }}>
 									{i18n.t('home.loadFailed')}
 								</Text>
-								<Pressable onPress={() => void loadTracks()} style={{ padding: 14 }}>
+								<Pressable
+									onPress={() => void loadTracks()}
+									style={{ padding: 14 }}
+									accessibilityRole="button"
+								>
 									<Text style={{ color: colors.primary, fontWeight: '600' }}>
 										{i18n.t('home.retry')}
 									</Text>
 								</Pressable>
 							</View>
-						) : loadingTracks && !tracks.length ? (
-							<View style={{ alignItems: 'center', paddingVertical: 80 }}>
+						) : loadingTracks ? (
+							<View style={{ paddingVertical: 64, alignItems: 'center' }}>
 								<ActivityIndicator color={colors.loading} />
 							</View>
-						) : (
-							<TracksList
-								id={generateTracksListId('charts', `${source}_${boardId}`)}
-								tracks={tracks}
-								scrollEnabled={false}
-								onTrackPress={cancelBoardPlayback}
-								showRank
-								hideQueueControls
-								ListFooterComponent={
-									tracks.length > 0 && (hasMore || failed) ? (
-										<Pressable
-											disabled={loadingTracks}
-											onPress={() => void loadTracks(failed ? failedPage.current : page + 1)}
-											accessibilityRole="button"
-											style={{ paddingVertical: 14, alignItems: 'center' }}
-										>
-											{loadingTracks ? (
-												<ActivityIndicator color={colors.primary} />
-											) : (
-												<Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
-													{i18n.t(failed ? 'charts.pageFailed' : 'charts.loadMore')}
-												</Text>
-											)}
-										</Pressable>
-									) : null
-								}
-								ListHeaderComponent={
-									<View
-										style={{
-											marginBottom: 10,
-											flexDirection: 'row',
-											alignItems: 'center',
-											justifyContent: 'space-between',
-											gap: 10,
-										}}
-									>
-										<View style={{ flex: 1 }}>
-											<Text style={{ color: colors.text, fontSize: 23, fontWeight: '800' }}>
-												{selectedBoard?.title || i18n.t('appTab.songs')}
-											</Text>
-											<Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 5 }}>
-												{selectedBoard?.period ? `${selectedBoard.period} · ` : ''}
-												{hasMore
-													? i18n.t('charts.loadedCount', { loaded: tracks.length, total })
-													: i18n.t('charts.trackCount', { count: tracks.length })}
-											</Text>
-										</View>
-										<Pressable
-											disabled={!tracks.length || playingBoard === selectedBoard?.id}
-											onPress={() => selectedBoard && void playBoard(selectedBoard)}
-											style={{
-												backgroundColor: colors.primary,
-												flexDirection: 'row',
-												alignItems: 'center',
-												gap: 6,
-												borderRadius: 22,
-												paddingHorizontal: 15,
-												paddingVertical: 11,
-											}}
-										>
-											{playingBoard === selectedBoard?.id ? (
-												<ActivityIndicator size="small" color="#fff" />
-											) : (
-												<Ionicons name="play" size={18} color="#fff" />
-											)}
-											<Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
-												{i18n.t('charts.playAll')}
-											</Text>
-										</Pressable>
-									</View>
-								}
-							/>
-						)}
-					</View>
-				</ScrollView>
+						) : undefined
+					}
+					ListFooterComponent={
+						tracks.length > 0 && (hasMore || failed) ? (
+							<Pressable
+								disabled={loadingTracks}
+								onPress={() => void loadTracks(failed ? failedPage.current : page + 1)}
+								accessibilityRole="button"
+								style={{ paddingVertical: 14, alignItems: 'center' }}
+							>
+								{loadingTracks ? (
+									<ActivityIndicator color={colors.primary} />
+								) : (
+									<Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
+										{i18n.t(failed ? 'charts.pageFailed' : 'charts.loadMore')}
+									</Text>
+								)}
+							</Pressable>
+						) : null
+					}
+				/>
 			)}
 		</View>
 	)

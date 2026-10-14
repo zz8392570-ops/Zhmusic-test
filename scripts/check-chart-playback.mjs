@@ -97,6 +97,8 @@ function screen(initialTracks = []) {
 			: [
 					...(node.type === 'Card' ? [node.props] : []),
 					...(node.props?.children ?? []).flatMap(find),
+					...find(node.props?.ListHeaderComponent),
+					...find(node.props?.ListFooterComponent),
 				]
 	const tree = Screen()
 	const cards = find(tree)

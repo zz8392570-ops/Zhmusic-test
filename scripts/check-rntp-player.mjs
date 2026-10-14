@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { I18n } from 'i18n-js'
 import { createFixture, deferred, deepFreeze, item } from './file-system-fixture.mjs'
-import { flush, loadModule } from './native-services-fixture.mjs'
+import { flush, loadModule, deferred as rejectableDeferred } from './native-services-fixture.mjs'
 
 const fixture = createFixture()
 const results = []
@@ -980,6 +980,46 @@ await check(
 			)
 			const width = Number.parseFloat(bar.props.style.find((style) => style?.width).width)
 			assert.ok(Number.isFinite(width) && width >= 0 && width <= 100)
+		}
+	},
+)
+
+await check(
+	'mini player cancellation remains actionable while loading and discards late source results',
+	async () => {
+		for (const outcome of ['resolve', 'reject']) {
+			const h = runtime()
+			const pending = rejectableDeferred()
+			h.setResolver(() => pending.promise)
+			const selecting = h.facade.play(song(`mini-cancel-${outcome}`))
+			await flush()
+			const { FloatingPlayer } = h.load('src/components/FloatingPlayer.tsx')
+			const cancel = findElement(
+				FloatingPlayer({}),
+				'TouchableOpacity',
+				(node) => node.props.accessibilityLabel === 'player.cancelLoading',
+			)
+			assert.ok(cancel)
+			assert.equal(cancel.props.accessibilityState.busy, true)
+			cancel.props.onPress()
+			assert.equal(h.sourceCalls[0].options.signal.aborted, true)
+			assert.equal(h.stores.trackSourceLoadingStore.getValue(), null)
+			assert.equal(h.stores.playbackIntentStore.getValue(), 'stop')
+			if (outcome === 'resolve')
+				pending.resolve({ url: 'https://example.test/late.mp3', wasCached: false })
+			else pending.reject(new Error('late source error'))
+			await selecting
+			assert.equal(h.count('items'), 0)
+			assert.equal(h.count('play'), 0)
+			assert.equal(h.stores.sourceLoadingErrorStore.getValue(), null)
+			assert.equal(
+				findElement(
+					FloatingPlayer({}),
+					'TouchableOpacity',
+					(node) => node.props.accessibilityLabel === 'player.cancelLoading',
+				),
+				undefined,
+			)
 		}
 	},
 )

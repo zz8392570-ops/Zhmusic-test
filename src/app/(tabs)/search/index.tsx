@@ -15,8 +15,8 @@ import {
 	type SearchPlatform,
 } from '@/helpers/crossPlatformSearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
-import { cacheRevisionStore } from '@/helpers/trackPlayerIndex'
-import { getCachedQuality } from '@/player/CacheManager'
+import { cacheRevisionStore, qualityStore } from '@/player/PlayerStore'
+import { cacheDisplayLookup } from '@/helpers/cacheDisplayLookup'
 import DiscoveryHeading from '@/components/DiscoveryHeading'
 import { Ionicons } from '@expo/vector-icons'
 import type { Track } from '@/player/types'
@@ -40,7 +40,14 @@ const SONG_FILTERS: { type: SongFilter; label: string }[] = [
 ]
 const HOT_SEARCH_BATCH_SIZE = 10
 
-const trackKey = (track: Track) => `${track.platform ?? 'unknown'}:${track.id}`
+type CacheScanState = {
+	owner: string
+	context: string
+	results: Track[]
+	keys: Set<string>
+	loading: boolean
+	hasErrors: boolean
+}
 
 const SearchScreen = () => {
 	const { query: incomingQuery, songSearchRequest } = useLocalSearchParams<{
@@ -74,8 +81,19 @@ const SearchScreen = () => {
 	const unavailableRef = useRef<MusicPlatform[]>([])
 	const [isEditing, setIsEditing] = useState(false)
 	const [songFilter, setSongFilter] = useState<SongFilter>('all')
-	const [cachedResultKeys, setCachedResultKeys] = useState<Set<string>>(new Set())
+	const [cacheScan, setCacheScan] = useState<CacheScanState | null>(null)
+	const [cacheScanRetry, setCacheScanRetry] = useState(0)
 	const cacheRevision = cacheRevisionStore.useValue()
+	const preferredCacheQuality = qualityStore.useValue()
+	const cacheScanOwner = JSON.stringify([
+		searchType,
+		searchPlatform,
+		submittedQuery,
+		searchRevision,
+	])
+	const cacheScanOwnerRef = useRef(cacheScanOwner)
+	cacheScanOwnerRef.current = cacheScanOwner
+	const cacheContext = cacheDisplayLookup.contextKey()
 	const searchRequestRef = useRef(0)
 	const suggestionRequestRef = useRef(0)
 	const hotSearchRequestRef = useRef(0)
@@ -388,37 +406,76 @@ const SearchScreen = () => {
 
 	useEffect(() => {
 		let cancelled = false
-		if (searchType !== 'songs' || !searchResults.length) {
-			setCachedResultKeys(new Set())
+		if (searchType !== 'songs' || songFilter !== 'cached' || !searchResults.length) {
 			return
 		}
-		void Promise.all(
-			searchResults.map(async (track) => {
-				const candidates = [track, ...(track.sourceAlternatives ?? [])]
-				const qualities = await Promise.all(
-					candidates.map((candidate) => getCachedQuality(candidate as IMusic.IMusicItem)),
-				)
-				return qualities.some(Boolean) ? trackKey(track) : null
-			}),
-		).then((keys) => {
-			if (!cancelled) setCachedResultKeys(new Set(keys.filter((key): key is string => !!key)))
-		})
+		const isCancelled = () =>
+			cancelled ||
+			cacheDisplayLookup.contextKey() !== cacheContext ||
+			cacheScanOwnerRef.current !== cacheScanOwner ||
+			resultsRef.current !== searchResults
+		const publish = (keys: Set<string>, hasErrors: boolean, loading: boolean) => {
+			if (!isCancelled())
+				setCacheScan({
+					owner: cacheScanOwner,
+					context: cacheContext,
+					results: searchResults,
+					keys,
+					hasErrors,
+					loading,
+				})
+		}
+		setCacheScan((previous) => ({
+			owner: cacheScanOwner,
+			context: cacheContext,
+			results: searchResults,
+			keys:
+				previous?.owner === cacheScanOwner && previous.context === cacheContext
+					? previous.keys
+					: new Set(),
+			hasErrors: false,
+			loading: true,
+		}))
+		void cacheDisplayLookup
+			.scan(searchResults, {
+				isCancelled,
+				onProgress: ({ keys, hasErrors }) => publish(keys, hasErrors, true),
+			})
+			.then(({ keys, hasErrors }) => publish(keys, hasErrors, false))
+			.catch(() => publish(new Set(), true, false))
 		return () => {
 			cancelled = true
 		}
-	}, [cacheRevision, searchResults, searchType])
+	}, [
+		cacheContext,
+		cacheRevision,
+		cacheScanOwner,
+		cacheScanRetry,
+		preferredCacheQuality,
+		searchResults,
+		searchType,
+		songFilter,
+	])
+	const hasCurrentCacheScan =
+		cacheScan?.owner === cacheScanOwner && cacheScan.context === cacheContext
+	const isCacheLoading =
+		searchType === 'songs' &&
+		songFilter === 'cached' &&
+		searchResults.length > 0 &&
+		(!hasCurrentCacheScan || cacheScan?.results !== searchResults || !!cacheScan.loading)
 
 	const visibleSearchResults = useMemo(() => {
 		if (searchType !== 'songs' || songFilter === 'all') return searchResults
 		return searchResults.filter((track) => {
-			if (songFilter === 'cached') return cachedResultKeys.has(trackKey(track))
+			if (songFilter === 'cached')
+				return hasCurrentCacheScan && cacheScan!.keys.has(cacheDisplayLookup.trackKey(track))
 			if (songFilter === 'multiSource') {
 				return new Set(track.availablePlatforms ?? [track.platform]).size > 1
 			}
 			const quality = track.qualities as Record<string, unknown> | undefined
 			return Boolean(quality?.flac || quality?.flac24bit || track.source?.flac)
 		})
-	}, [cachedResultKeys, searchResults, searchType, songFilter])
+	}, [cacheScan, hasCurrentCacheScan, searchResults, searchType, songFilter])
 
 	return (
 		<SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
@@ -545,6 +602,12 @@ const SearchScreen = () => {
 						isLoading={isLoading}
 						unavailablePlatforms={unavailablePlatforms}
 						pendingPlatforms={pendingPlatforms}
+						isFiltered={searchType === 'songs' && songFilter !== 'all'}
+						unfilteredCount={searchResults.length}
+						isCacheLoading={isCacheLoading}
+						hasCacheError={songFilter === 'cached' && hasCurrentCacheScan && !!cacheScan?.hasErrors}
+						onClearFilter={() => setSongFilter('all')}
+						onRetryCache={() => setCacheScanRetry((value) => value + 1)}
 					/>
 				) : null}
 			</View>

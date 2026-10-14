@@ -1,11 +1,10 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
-import { screenPadding } from '@/constants/tokens'
 import { Playlist } from '@/helpers/types'
 import { replaceFavorites, useFavorites, useLibraryStore } from '@/store/library'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import React, { useCallback, useMemo, useState } from 'react'
-import { Alert, ScrollView, View } from 'react-native'
+import { Alert, View } from 'react-native'
 import type { Track } from '@/player/types'
 import { repairUnavailableTracks } from '@/helpers/libraryRepair'
 import type { MenuAction } from '@react-native-menu/menu'
@@ -73,17 +72,13 @@ const FavoriteMusicScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
-			>
-				<PlaylistTracksList
-					playlist={playListItem as Playlist}
-					tracks={filteredFavoritesTracks}
-					managementActions={managementActions}
-					onManagementAction={() => void repairFavorites()}
-				/>
-			</ScrollView>
+			<PlaylistTracksList
+				contentContainerStyle={{ paddingHorizontal: 18 }}
+				playlist={playListItem as Playlist}
+				tracks={filteredFavoritesTracks}
+				managementActions={managementActions}
+				onManagementAction={() => void repairFavorites()}
+			/>
 		</View>
 	)
 }

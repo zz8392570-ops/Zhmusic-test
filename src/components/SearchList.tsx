@@ -20,6 +20,7 @@ import { unknownArtistImageUri, unknownTrackImageUri } from '@/constants/images'
 import { ThemeColors } from '@/constants/tokens'
 import type { MusicPlatform } from '@/helpers/crossPlatformSearch'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
+import { getSearchEmptyState } from '@/helpers/searchResultState'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import type { Track } from '@/player/types'
 import { useDefaultStyles } from '@/styles'
@@ -37,6 +38,12 @@ export type SearchListProps = {
 	isLoading: boolean
 	unavailablePlatforms?: MusicPlatform[]
 	pendingPlatforms?: MusicPlatform[]
+	isFiltered?: boolean
+	unfilteredCount?: number
+	isCacheLoading?: boolean
+	hasCacheError?: boolean
+	onClearFilter?: () => void
+	onRetryCache?: () => void
 }
 
 const PLATFORM_LABEL_KEYS: Record<MusicPlatform, string> = {
@@ -102,15 +109,57 @@ const SearchResultState = ({
 	isLoading,
 	hasError,
 	onRetry,
-}: Pick<SearchListProps, 'query' | 'isLoading' | 'hasError' | 'onRetry'>) => {
+	isFiltered,
+	unfilteredCount,
+	isCacheLoading,
+	hasCacheError,
+	onClearFilter,
+	onRetryCache,
+}: Pick<
+	SearchListProps,
+	| 'query'
+	| 'isLoading'
+	| 'hasError'
+	| 'onRetry'
+	| 'isFiltered'
+	| 'unfilteredCount'
+	| 'isCacheLoading'
+	| 'hasCacheError'
+	| 'onClearFilter'
+	| 'onRetryCache'
+>) => {
 	const colors = useThemeColors()
 	const themedStyles = useMemo(() => createStyles(colors), [colors])
+	const state = getSearchEmptyState({
+		isLoading,
+		hasError,
+		isFiltered,
+		unfilteredCount,
+		isCacheLoading,
+		hasCacheError,
+	})
+	const isFilterEmpty =
+		state === 'filteredEmpty' ||
+		state === 'cacheError' ||
+		(state === 'searchError' && isFiltered && (unfilteredCount ?? 0) > 0)
+	const isError = state === 'searchError' || state === 'cacheError'
 
-	if (isLoading) {
+	if (state === 'searching' || state === 'checkingCache') {
 		return (
 			<View style={themedStyles.stateContainer}>
 				<ActivityIndicator size="large" color={colors.loading} />
-				<Text style={themedStyles.stateTitle}>{i18n.t('find.loadingResults')}</Text>
+				<Text style={themedStyles.stateTitle}>
+					{i18n.t(state === 'checkingCache' ? 'find.checkingCache' : 'find.loadingResults')}
+				</Text>
+				{state === 'checkingCache' && onClearFilter ? (
+					<Pressable
+						accessibilityRole="button"
+						onPress={onClearFilter}
+						style={themedStyles.retryButton}
+					>
+						<Text style={themedStyles.retryText}>{i18n.t('find.clearFilter')}</Text>
+					</Pressable>
+				) : null}
 			</View>
 		)
 	}
@@ -118,23 +167,50 @@ const SearchResultState = ({
 	return (
 		<View style={themedStyles.stateContainer}>
 			<MaterialCommunityIcons
-				name={hasError ? 'cloud-alert-outline' : 'magnify-close'}
+				name={
+					isError
+						? 'cloud-alert-outline'
+						: isFilterEmpty
+							? 'filter-remove-outline'
+							: 'magnify-close'
+				}
 				size={42}
 				color={colors.textMuted}
 			/>
 			<Text style={themedStyles.stateTitle}>
-				{hasError ? i18n.t('find.searchFailed') : i18n.t('find.noResultsFor', { keyword: query })}
+				{state === 'cacheError'
+					? i18n.t('find.cacheCheckFailed')
+					: state === 'filteredEmpty'
+						? i18n.t('find.noFilterResults')
+						: isError
+							? i18n.t('find.searchFailed')
+							: i18n.t('find.noResultsFor', { keyword: query })}
 			</Text>
 			<Text style={themedStyles.stateDescription}>
-				{hasError ? i18n.t('find.checkNetwork') : i18n.t('find.tryAnotherKeyword')}
+				{isFilterEmpty
+					? i18n.t(state === 'cacheError' ? 'find.cacheCheckHint' : 'find.clearFilterHint')
+					: isError
+						? i18n.t('find.checkNetwork')
+						: i18n.t('find.tryAnotherKeyword')}
 			</Text>
-			{hasError ? (
+			{isFilterEmpty && onClearFilter ? (
 				<Pressable
 					accessibilityRole="button"
-					onPress={onRetry}
+					onPress={onClearFilter}
 					style={({ pressed }) => [themedStyles.retryButton, pressed && themedStyles.pressed]}
 				>
-					<Text style={themedStyles.retryText}>{i18n.t('find.retry')}</Text>
+					<Text style={themedStyles.retryText}>{i18n.t('find.clearFilter')}</Text>
+				</Pressable>
+			) : null}
+			{isError ? (
+				<Pressable
+					accessibilityRole="button"
+					onPress={state === 'cacheError' ? onRetryCache : onRetry}
+					style={({ pressed }) => [themedStyles.retryButton, pressed && themedStyles.pressed]}
+				>
+					<Text style={themedStyles.retryText}>
+						{i18n.t(state === 'cacheError' ? 'find.retryCacheCheck' : 'find.retry')}
+					</Text>
 				</Pressable>
 			) : null}
 		</View>
@@ -146,7 +222,19 @@ const ResultsFooter = ({
 	hasMore,
 	hasError,
 	onRetry,
-}: Pick<SearchListProps, 'isLoading' | 'hasMore' | 'hasError' | 'onRetry'>) => {
+	isCacheLoading,
+	hasCacheError,
+	onRetryCache,
+}: Pick<
+	SearchListProps,
+	| 'isLoading'
+	| 'hasMore'
+	| 'hasError'
+	| 'onRetry'
+	| 'isCacheLoading'
+	| 'hasCacheError'
+	| 'onRetryCache'
+>) => {
 	const colors = useThemeColors()
 	const themedStyles = useMemo(() => createStyles(colors), [colors])
 
@@ -155,6 +243,22 @@ const ResultsFooter = ({
 			<View style={themedStyles.footer}>
 				<ActivityIndicator size="small" color={colors.loading} />
 			</View>
+		)
+	}
+	if (isCacheLoading) {
+		return (
+			<View style={themedStyles.footer}>
+				<ActivityIndicator size="small" color={colors.primary} />
+				<Text style={themedStyles.footerText}>{i18n.t('find.checkingCache')}</Text>
+			</View>
+		)
+	}
+	if (hasCacheError) {
+		return (
+			<Pressable accessibilityRole="button" onPress={onRetryCache} style={themedStyles.footer}>
+				<MaterialCommunityIcons name="refresh" size={18} color={colors.primary} />
+				<Text style={themedStyles.footerAction}>{i18n.t('find.cacheCheckPartial')}</Text>
+			</Pressable>
 		)
 	}
 	if (hasError) {
@@ -354,6 +458,12 @@ export const SearchList = ({
 	isLoading,
 	unavailablePlatforms = [],
 	pendingPlatforms = [],
+	isFiltered = false,
+	unfilteredCount = tracks.length,
+	isCacheLoading = false,
+	hasCacheError = false,
+	onClearFilter,
+	onRetryCache,
 }: SearchListProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
@@ -474,23 +584,46 @@ export const SearchList = ({
 	)
 
 	const handleEndReached = useCallback(() => {
+		if (isFiltered && tracks.length === 0) return
 		if (hasMore && !hasError && !isLoading) {
 			onLoadMore()
 		}
-	}, [hasError, hasMore, isLoading, onLoadMore])
+	}, [hasError, hasMore, isFiltered, isLoading, onLoadMore, tracks.length])
 
-	const footerComponent = useMemo(
-		() =>
-			tracks.length > 0 ? (
+	const footerComponent = useMemo(() => {
+		if (tracks.length > 0)
+			return (
 				<ResultsFooter
 					isLoading={isLoading}
 					hasMore={hasMore}
 					hasError={hasError}
 					onRetry={onRetry}
+					isCacheLoading={isCacheLoading}
+					hasCacheError={hasCacheError}
+					onRetryCache={onRetryCache}
 				/>
-			) : null,
-		[hasError, hasMore, isLoading, onRetry, tracks.length],
-	)
+			)
+		if (isFiltered && unfilteredCount > 0 && hasMore && !isLoading && !isCacheLoading && !hasError)
+			return (
+				<Pressable accessibilityRole="button" onPress={onLoadMore} style={themedStyles.footer}>
+					<Text style={themedStyles.footerAction}>{i18n.t('find.loadMoreFilteredResults')}</Text>
+				</Pressable>
+			)
+		return null
+	}, [
+		hasCacheError,
+		hasError,
+		hasMore,
+		isCacheLoading,
+		isFiltered,
+		isLoading,
+		onLoadMore,
+		onRetry,
+		onRetryCache,
+		themedStyles,
+		tracks.length,
+		unfilteredCount,
+	])
 
 	return (
 		<View style={defaultStyles.container}>
@@ -513,6 +646,12 @@ export const SearchList = ({
 						isLoading={isLoading}
 						hasError={hasError}
 						onRetry={onRetry}
+						isFiltered={isFiltered}
+						unfilteredCount={unfilteredCount}
+						isCacheLoading={isCacheLoading}
+						hasCacheError={hasCacheError}
+						onClearFilter={onClearFilter}
+						onRetryCache={onRetryCache}
 					/>
 				}
 				ListHeaderComponent={

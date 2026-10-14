@@ -9,15 +9,7 @@ import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-	ActivityIndicator,
-	Alert,
-	Pressable,
-	RefreshControl,
-	ScrollView,
-	Text,
-	View,
-} from 'react-native'
+import { ActivityIndicator, Alert, Pressable, RefreshControl, Text, View } from 'react-native'
 
 const valueOf = (value?: string | string[]) => (Array.isArray(value) ? value[0] : value) ?? ''
 
@@ -122,7 +114,7 @@ const PublicPlaylistScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
-			<ScrollView
+			<PlaylistTracksList
 				contentInsetAdjustmentBehavior="automatic"
 				contentContainerStyle={{ paddingHorizontal: 18 }}
 				refreshControl={
@@ -132,31 +124,30 @@ const PublicPlaylistScreen = () => {
 						tintColor={colors.primary}
 					/>
 				}
-			>
-				{failed ? (
-					<Pressable onPress={() => void loadPlaylist()}>
-						<Text style={{ color: colors.primary, textAlign: 'center', paddingVertical: 10 }}>
-							{i18n.t('home.refreshFailed')}
-						</Text>
-					</Pressable>
-				) : null}
-				<PlaylistTracksList
-					playlist={displayPlaylist}
-					tracks={displayPlaylist.tracks}
-					showMetadata
-					metadata={[
-						valueOf(params.playCount)
-							? `${valueOf(params.playCount)} ${i18n.t('publicPlaylists.playsUnit')}`
-							: '',
-						i18n.t('charts.trackCount', { count: displayPlaylist.tracks.length }),
-					]
-						.filter(Boolean)
-						.join(' · ')}
-					showImportMenu
-					onImportTrack={savePlaylist}
-					importLabel={i18n.t('publicPlaylists.saveToMy')}
-				/>
-			</ScrollView>
+				headerContent={
+					failed ? (
+						<Pressable onPress={() => void loadPlaylist()}>
+							<Text style={{ color: colors.primary, textAlign: 'center', paddingVertical: 10 }}>
+								{i18n.t('home.refreshFailed')}
+							</Text>
+						</Pressable>
+					) : null
+				}
+				playlist={displayPlaylist}
+				tracks={displayPlaylist.tracks}
+				showMetadata
+				metadata={[
+					valueOf(params.playCount)
+						? `${valueOf(params.playCount)} ${i18n.t('publicPlaylists.playsUnit')}`
+						: '',
+					i18n.t('charts.trackCount', { count: displayPlaylist.tracks.length }),
+				]
+					.filter(Boolean)
+					.join(' · ')}
+				showImportMenu
+				onImportTrack={savePlaylist}
+				importLabel={i18n.t('publicPlaylists.saveToMy')}
+			/>
 		</View>
 	)
 }

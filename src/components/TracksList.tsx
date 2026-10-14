@@ -4,7 +4,7 @@ import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useQueue } from '@/store/queue'
 import { useUtilsStyles } from '@/styles'
 import { isSameMediaItem } from '@/utils/mediaItem'
-import { FlashList } from '@shopify/flash-list'
+import { FlashList, type FlashListProps } from '@shopify/flash-list'
 import { router } from 'expo-router'
 import React, { useCallback, useMemo } from 'react'
 import { StyleProp, Text, View, ViewStyle } from 'react-native'
@@ -13,7 +13,18 @@ import type { Track } from '@/player/types'
 import { useIsPlaying } from '@rntp/player'
 import { QueueControls } from './QueueControls'
 import i18n from '@/utils/i18n'
-export type TracksListProps = {
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+export type TracksListScrollProps = {
+	style?: FlashListProps<Track>['style']
+	contentContainerStyle?: FlashListProps<Track>['contentContainerStyle']
+	contentInsetAdjustmentBehavior?: FlashListProps<Track>['contentInsetAdjustmentBehavior']
+	refreshControl?: FlashListProps<Track>['refreshControl']
+	onEndReached?: FlashListProps<Track>['onEndReached']
+	onEndReachedThreshold?: FlashListProps<Track>['onEndReachedThreshold']
+	ListEmptyComponent?: FlashListProps<Track>['ListEmptyComponent']
+}
+
+export type TracksListProps = TracksListScrollProps & {
 	id: string
 	tracks: Track[]
 	scrollEnabled?: boolean
@@ -56,11 +67,19 @@ export const TracksList = React.memo(
 		numsToPlay,
 		showRank = false,
 		onTrackPress,
+		style,
+		contentContainerStyle,
+		contentInsetAdjustmentBehavior = 'automatic',
+		refreshControl,
+		onEndReached,
+		onEndReachedThreshold,
+		ListEmptyComponent,
 	}: TracksListProps) => {
 		const utilsStyles = useUtilsStyles()
 		const { activeQueueId, setActiveQueueId } = useQueue()
 		const currentMusic = myTrackPlayer.useCurrentMusic()
 		const playing = useIsPlaying()
+		const { bottom } = useSafeAreaInsets()
 
 		const ItemDivider = useCallback(
 			() => <View style={{ ...utilsStyles.itemSeparator, marginVertical: 9, marginLeft: 60 }} />,
@@ -197,32 +216,20 @@ export const TracksList = React.memo(
 
 		const keyExtractor = useCallback((item: Track) => JSON.stringify([item.platform, item.id]), [])
 
-		// The parent ScrollView owns scrolling in playlist/detail screens. Avoid
-		// recycled cell measurements inside that unbounded viewport.
-		if (!scrollEnabled) {
-			return (
-				<View style={{ paddingTop: 10, paddingBottom: 128 }}>
-					{combinedListHeader}
-					{tracks.length
-						? tracks.map((track, index) => (
-								<View key={JSON.stringify([track.platform, track.id, track.url, index])}>
-									{index > 0 ? <ItemDivider /> : null}
-									{renderItem({ item: track, index })}
-								</View>
-							))
-						: emptyListComponent}
-					{tracks.length > 0 ? <ItemDivider /> : null}
-					{ListFooterComponent}
-				</View>
-			)
-		}
-
 		return (
 			<FlashList
+				style={{ flex: 1, ...style }}
 				data={tracks}
 				extraData={listExtraData}
 				scrollEnabled={scrollEnabled}
-				contentContainerStyle={{ paddingTop: 10, paddingBottom: 128 }}
+				contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior}
+				contentContainerStyle={[
+					{ paddingTop: 10, paddingBottom: 128 + bottom },
+					contentContainerStyle,
+				]}
+				refreshControl={refreshControl}
+				onEndReached={onEndReached}
+				onEndReachedThreshold={onEndReachedThreshold}
 				ListHeaderComponent={combinedListHeader}
 				ListFooterComponent={
 					<View>
@@ -231,7 +238,9 @@ export const TracksList = React.memo(
 					</View>
 				}
 				ItemSeparatorComponent={ItemDivider}
-				ListEmptyComponent={emptyListComponent}
+				ListEmptyComponent={
+					ListEmptyComponent === undefined ? emptyListComponent : ListEmptyComponent
+				}
 				renderItem={renderItem}
 				keyExtractor={keyExtractor}
 				maintainVisibleContentPosition={{ disabled: true }}

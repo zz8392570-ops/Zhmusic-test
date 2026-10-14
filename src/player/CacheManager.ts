@@ -185,6 +185,33 @@ export const getCachedAudioInfo = async (
 export const getCachedQuality = async (musicItem: IMusic.IMusicItem) =>
 	(await getCachedAudioInfo(musicItem, true))?.quality ?? null
 
+/** Display-only query identity; playback still checks the actual files on every lookup. */
+export const getCacheDisplayProbeKey = (musicItem: IMusic.IMusicItem) => {
+	musicItem = {
+		...musicItem,
+		title: String(musicItem.title ?? ''),
+		artist: String(musicItem.artist ?? ''),
+	}
+	const preferredQuality = normalizeAudioQuality(musicItem.cachedQuality) ?? qualityStore.getValue()
+	return JSON.stringify([
+		musicItem.platform,
+		musicItem.id,
+		musicItem.title,
+		musicItem.artist,
+		musicItem.url,
+		musicItem.cachedQuality,
+		preferredQuality,
+		...Array.from(
+			new Set(
+				[preferredQuality, 'flac', '320k'].flatMap((quality) => [
+					getLocalFilePath(musicItem, quality as AudioQuality),
+					`${cacheDir}${getLegacyCacheFilename(musicItem, quality as AudioQuality)}`,
+				]),
+			),
+		),
+	])
+}
+
 export const isCached = async (musicItem: IMusic.IMusicItem): Promise<boolean> =>
 	(await getCachedAudioInfo(musicItem)) !== null
 

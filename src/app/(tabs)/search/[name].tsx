@@ -1,7 +1,7 @@
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import musicSdk from '@/components/utils/musicSdk'
 import { unknownTrackImageUri } from '@/constants/images'
-import { screenPadding, ThemeColors } from '@/constants/tokens'
+import { ThemeColors } from '@/constants/tokens'
 import type { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import type { Track } from '@/player/types'
@@ -9,7 +9,7 @@ import i18n from '@/utils/i18n'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 
 type RemotePlaylistTrack = {
 	singer?: string
@@ -156,17 +156,13 @@ const PlaylistScreen = () => {
 					</Pressable>
 				</View>
 			) : playlist && tracks.length > 0 ? (
-				<ScrollView
-					contentInsetAdjustmentBehavior="automatic"
-					contentContainerStyle={styles.scrollContent}
-				>
-					<PlaylistTracksList
-						playlist={playlist}
-						tracks={tracks}
-						showMetadata
-						metadata={metadata}
-					/>
-				</ScrollView>
+				<PlaylistTracksList
+					contentContainerStyle={styles.listContent}
+					playlist={playlist}
+					tracks={tracks}
+					showMetadata
+					metadata={metadata}
+				/>
 			) : (
 				<View style={styles.stateContainer}>
 					<MaterialCommunityIcons
@@ -188,9 +184,8 @@ const createStyles = (colors: ThemeColors) =>
 			flex: 1,
 			backgroundColor: colors.background,
 		},
-		scrollContent: {
-			paddingHorizontal: screenPadding.horizontal,
-			paddingBottom: 32,
+		listContent: {
+			paddingHorizontal: 18,
 		},
 		stateContainer: {
 			flex: 1,

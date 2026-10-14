@@ -5,16 +5,16 @@ import { Playlist } from '@/helpers/types'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Image } from 'expo-image'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import { QueueControls } from './QueueControls'
-import { TracksList } from './TracksList'
+import { TracksList, type TracksListScrollProps } from './TracksList'
 import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 
-type PlaylistTracksListProps = {
+type PlaylistTracksListProps = TracksListScrollProps & {
 	playlist: Playlist
 	tracks: Track[]
 	allowDelete?: boolean
@@ -36,6 +36,8 @@ type PlaylistTracksListProps = {
 	showMetadata?: boolean
 	metadata?: string
 	compactHeader?: boolean
+	headerContent?: ReactNode
+	footerContent?: ReactNode
 }
 
 export const PlaylistTracksList = ({
@@ -60,6 +62,9 @@ export const PlaylistTracksList = ({
 	showMetadata = false,
 	metadata,
 	compactHeader = false,
+	headerContent,
+	footerContent,
+	...listProps
 }: PlaylistTracksListProps) => {
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
@@ -70,12 +75,13 @@ export const PlaylistTracksList = ({
 
 	return (
 		<TracksList
+			{...listProps}
 			id={generateTracksListId(playlist.id || playlist.title)}
-			scrollEnabled={false}
 			hideQueueControls={true}
 			ListHeaderComponentStyle={styles.playlistHeaderContainer}
 			ListHeaderComponent={
 				<View>
+					{headerContent}
 					<View style={compactHeader && styles.compactHeader}>
 						<View style={styles.artworkImageContainer}>
 							<Image
@@ -134,6 +140,7 @@ export const PlaylistTracksList = ({
 					/>
 				</View>
 			}
+			ListFooterComponent={footerContent}
 			tracks={tracks}
 			allowDelete={allowDelete}
 			onDeleteTrack={onDeleteTrack}

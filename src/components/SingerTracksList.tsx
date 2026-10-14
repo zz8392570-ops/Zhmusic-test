@@ -58,7 +58,7 @@ export const SingerTracksList = ({ playlist, tracks }: { playlist: any; tracks: 
 	return (
 		<TracksList
 			id={generateTracksListId(playlist.title)}
-			scrollEnabled={false}
+			contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 32 }}
 			hideQueueControls={true}
 			ListHeaderComponentStyle={styles.playlistHeaderContainer}
 			ListHeaderComponent={
@@ -97,39 +97,38 @@ export const SingerTracksList = ({ playlist, tracks }: { playlist: any; tracks: 
 
 const createStyles = (defaultStyles: ReturnType<typeof useDefaultStyles>) =>
 	StyleSheet.create({
-	playlistHeaderContainer: {
-		flex: 1,
-		marginBottom: 32,
-	},
-	artworkImageContainer: {
-		flexDirection: 'row',
-		justifyContent: 'center',
-		height: 300,
-	},
-	artworkImage: {
-		width: '85%',
-		height: '100%',
-		borderRadius: 12,
-	},
-	textContainer: {
-		width: '85%', // 与图片宽度相同
-		alignSelf: 'center', // 居中对齐
-		marginTop: 22,
-		position: 'relative', // 添加这行
-	},
-	playlistNameText: {
-		...defaultStyles.text,
-		fontSize: fontSize.lg,
-		fontWeight: '800',
-		textAlign: 'center', // 确保文本居中
-	},
-	favoriteIcon: {
-		...defaultStyles.text,
-		fontSize: fontSize.lg,
-		fontWeight: '800',
-		position: 'absolute', // 绝对定位
-		right: 0, // 靠右对齐
-		top: '40%', // 垂直居中
-		transform: [{ translateY: -10 }], // 微调垂直位置（图标大小的一半）
-	},
+		playlistHeaderContainer: {
+			marginBottom: 32,
+		},
+		artworkImageContainer: {
+			flexDirection: 'row',
+			justifyContent: 'center',
+			height: 300,
+		},
+		artworkImage: {
+			width: '85%',
+			height: '100%',
+			borderRadius: 12,
+		},
+		textContainer: {
+			width: '85%', // 与图片宽度相同
+			alignSelf: 'center', // 居中对齐
+			marginTop: 22,
+			position: 'relative', // 添加这行
+		},
+		playlistNameText: {
+			...defaultStyles.text,
+			fontSize: fontSize.lg,
+			fontWeight: '800',
+			textAlign: 'center', // 确保文本居中
+		},
+		favoriteIcon: {
+			...defaultStyles.text,
+			fontSize: fontSize.lg,
+			fontWeight: '800',
+			position: 'absolute', // 绝对定位
+			right: 0, // 靠右对齐
+			top: '40%', // 垂直居中
+			transform: [{ translateY: -10 }], // 微调垂直位置（图标大小的一半）
+		},
 	})

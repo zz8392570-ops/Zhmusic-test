@@ -1,12 +1,11 @@
 import { SingerTracksList } from '@/components/SingerTracksList'
-import { screenPadding } from '@/constants/tokens'
 import { logInfo } from '@/helpers/logger'
 import { getAlbumSongList, getSingerDetail } from '@/helpers/userApi/getMusicSource'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useDefaultStyles } from '@/styles'
 import { useLocalSearchParams, usePathname } from 'expo-router'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, ScrollView, View } from 'react-native'
+import { ActivityIndicator, View } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Track } from '@/player/types'
 import ShareIntent from './shareintent'
@@ -97,12 +96,7 @@ const SingerListScreen = () => {
 	return (
 		<SafeAreaView style={defaultStyles.container}>
 			<DismissPlayerSymbol />
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
-				style={{ paddingHorizontal: screenPadding.horizontal }}
-			>
-				<SingerTracksList playlist={singerListDetail} tracks={singerListDetail.musicList} />
-			</ScrollView>
+			<SingerTracksList playlist={singerListDetail} tracks={singerListDetail.musicList} />
 		</SafeAreaView>
 	)
 }

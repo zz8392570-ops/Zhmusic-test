@@ -1,6 +1,10 @@
-import { assert, checks, loadModule } from './native-services-fixture.mjs'
+import fs from 'node:fs'
+import path from 'node:path'
+import ts from 'typescript'
+import { assert, checks, loadModule, root } from './native-services-fixture.mjs'
 
 const plays = []
+const events = []
 let activeQueueId
 const react = {
 	memo: (component) => component,
@@ -17,7 +21,10 @@ const { TracksList } = loadModule('src/components/TracksList.tsx', {
 	'@/constants/images': { unknownTrackImageUri: 'fallback' },
 	'@/helpers/trackPlayerIndex': {
 		useCurrentMusic: () => null,
-		playWithReplacePlayList: async (track, list) => plays.push({ track, list }),
+		playWithReplacePlayList: async (track, list) => {
+			events.push('play')
+			plays.push({ track, list })
+		},
 	},
 	'@/store/queue': {
 		useQueue: () => ({
@@ -32,6 +39,7 @@ const { TracksList } = loadModule('src/components/TracksList.tsx', {
 	'@shopify/flash-list': { FlashList: 'FlashList' },
 	'expo-router': { router: { navigate() {} } },
 	'react-native': { View: 'View', Text: 'Text' },
+	'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 34 }) },
 	'expo-image': { Image: 'Image' },
 	'@rntp/player': { useIsPlaying: () => false },
 	'./QueueControls': { QueueControls: 'QueueControls' },
@@ -51,22 +59,33 @@ const find = (node, type) => {
 }
 const suite = checks()
 await suite.check(
-	'nested tracks render every row in document flow with header and distinct identities',
+	'large track lists defer all row rendering to one bounded virtual scroller',
 	() => {
+		const many = Array.from({ length: 10_000 }, (_, index) => ({
+			id: String(index),
+			platform: 'tx',
+		}))
+		const data = new Proxy(many, {
+			get(target, property) {
+				if (property === 'map') throw new Error('Production eagerly mapped every row')
+				return Reflect.get(target, property)
+			},
+		})
 		const tree = TracksList({
 			id: 'local',
-			tracks,
-			scrollEnabled: false,
+			tracks: data,
 			ListHeaderComponent: 'header',
 		})
-		assert.equal(find(tree, 'FlashList').length, 0)
-		assert.equal(find(tree, 'TrackRow').length, tracks.length)
-		assert.equal(find(tree, 'QueueControls').length, 1)
-		const rows = tree.props.children.filter(
-			(child) => child?.type === 'View' && find(child, 'TrackRow').length,
-		)
-		assert.equal(new Set(rows.map((row) => row.props.key)).size, tracks.length)
-		assert.ok(rows.every((row) => !row.props.style?.height && !row.props.style?.position))
+		assert.equal(tree.type, 'FlashList')
+		assert.equal(tree.props.data, data)
+		assert.equal(tree.props.style.flex, 1)
+		assert.equal(tree.props.scrollEnabled, true)
+		assert.equal(find(tree, 'TrackRow').length, 0)
+		assert.equal(find(tree.props.ListHeaderComponent, 'QueueControls').length, 1)
+		assert.equal(tree.props.ListHeaderComponent.props.children[0], 'header')
+		const visibleRow = tree.props.renderItem({ item: data[9000], index: 9000 })
+		assert.equal(visibleRow.props.track, data[9000])
+		assert.equal(new Set(tracks.map(tree.props.keyExtractor)).size, tracks.length)
 	},
 )
 await suite.check(
@@ -77,11 +96,11 @@ await suite.check(
 		const tree = TracksList({
 			id: 'filtered',
 			tracks: visible,
-			scrollEnabled: false,
 			isMultiSelectMode: true,
 			selectedTracks: selection,
+			onTrackPress: () => events.push('cancel'),
 		})
-		const rows = find(tree, 'TrackRow')
+		const rows = visible.map((item, index) => tree.props.renderItem({ item, index }))
 		assert.equal(rows.map((row) => row.props.track.title).join(','), 'Three,One')
 		assert.ok(
 			rows.every((row) => row.props.isMultiSelectMode && row.props.selectedTracks === selection),
@@ -90,6 +109,7 @@ await suite.check(
 		assert.equal(plays[0].track, visible[0])
 		assert.equal(plays[0].list, visible)
 		assert.equal(activeQueueId, 'filtered')
+		assert.equal(events.join(','), 'cancel,play')
 	},
 )
 await suite.check('standalone scrolling lists still use virtualization', () => {
@@ -98,4 +118,148 @@ await suite.check('standalone scrolling lists still use virtualization', () => {
 	assert.equal(tree.props.data, tracks)
 	assert.notEqual(tree.props.keyExtractor(tracks[0]), tree.props.keyExtractor(tracks[1]))
 })
+
+await suite.check(
+	'refresh, load-more footer and explicit empty state belong to the primary scroller',
+	() => {
+		let refreshes = 0
+		let pages = 0
+		const refreshControl = react.createElement('RefreshControl', { onRefresh: () => refreshes++ })
+		const footer = react.createElement('LoadMore', { onPress: () => pages++ })
+		const tree = TracksList({
+			id: 'paged',
+			tracks,
+			ListFooterComponent: footer,
+			refreshControl,
+			onEndReached: () => pages++,
+			onEndReachedThreshold: 0.3,
+			ListEmptyComponent: null,
+		})
+		assert.equal(tree.props.refreshControl, refreshControl)
+		assert.equal(tree.props.onEndReachedThreshold, 0.3)
+		assert.equal(tree.props.ListEmptyComponent, null)
+		assert.equal(find(tree.props.ListFooterComponent, 'LoadMore').length, 1)
+		tree.props.refreshControl.props.onRefresh()
+		tree.props.onEndReached()
+		find(tree.props.ListFooterComponent, 'LoadMore')[0].props.onPress()
+		assert.equal(refreshes, 1)
+		assert.equal(pages, 2)
+	},
+)
+
+await suite.check('tab clearance includes the device safe area and modals can override it', () => {
+	const tabs = TracksList({ id: 'tabs', tracks })
+	const modal = TracksList({ id: 'modal', tracks, contentContainerStyle: { paddingBottom: 32 } })
+	const flatten = (styles) => Object.assign({}, ...styles.filter(Boolean))
+	assert.equal(flatten(tabs.props.contentContainerStyle).paddingBottom, 162)
+	assert.equal(flatten(modal.props.contentContainerStyle).paddingBottom, 32)
+})
+
+await suite.check(
+	'playlist filters and import, management, delete and selection callbacks stay connected',
+	() => {
+		const keyOf = (track) => JSON.stringify([track.platform, track.id])
+		const { PlaylistTracksList } = loadModule(
+			'src/components/PlaylistTracksList.tsx',
+			{
+				react: { ...react, useState: (value) => [value, () => {}] },
+				'@/constants/images': { unknownTrackImageUri: 'fallback' },
+				'@/constants/tokens': { fontSize: { lg: 24 } },
+				'@/helpers/miscellaneous': { generateTracksListId: (id) => id },
+				'@/hooks/useAppTheme': { useThemeColors: () => ({}) },
+				'@/styles': { useDefaultStyles: () => ({ text: {} }) },
+				'@/utils/i18n': { t: (key) => key },
+				'react-native': { View: 'View', Text: 'Text', StyleSheet: { create: (styles) => styles } },
+				'expo-image': { Image: 'Image' },
+				'./QueueControls': { QueueControls: 'QueueControls' },
+				'./TracksList': { TracksList },
+				'@/helpers/libraryEdits': { getLibraryTrackKey: keyOf },
+			},
+			{ React: react },
+		)
+		const importTrack = () => {}
+		const deleteTrack = () => {}
+		const selectedAction = () => {}
+		const managementAction = () => {}
+		const playlistTree = PlaylistTracksList({
+			playlist: { id: 'playlist', title: 'Library' },
+			tracks,
+			headerContent: react.createElement('Filters', {}),
+			footerContent: react.createElement('Footer', {}),
+			showImportMenu: true,
+			onImportTrack: importTrack,
+			onDeleteTrack: deleteTrack,
+			onSelectedAction: selectedAction,
+			managementActions: [{ id: 'repair', title: 'Repair' }],
+			onManagementAction: managementAction,
+			isMultiSelectMode: true,
+			selectedTracks: new Set(tracks.map(keyOf)),
+		})
+		assert.equal(playlistTree.type, TracksList)
+		const tree = TracksList(playlistTree.props)
+		assert.equal(tree.type, 'FlashList')
+		assert.equal(find(tree.props.ListHeaderComponent, 'Filters').length, 1)
+		assert.equal(find(tree.props.ListFooterComponent, 'Footer').length, 1)
+		const controls = find(tree.props.ListHeaderComponent, 'QueueControls')[0]
+		assert.equal(controls.props.onImportTrack, importTrack)
+		assert.equal(controls.props.onSelectedAction, selectedAction)
+		assert.equal(controls.props.onManagementAction, managementAction)
+		assert.equal(controls.props.isAllSelected, true)
+		assert.equal(controls.props.tracks, tracks)
+		assert.equal(
+			tree.props.renderItem({ item: tracks[0], index: 0 }).props.onDeleteTrack,
+			deleteTrack,
+		)
+	},
+)
+
+await suite.check(
+	'detail routes do not nest the primary virtual list in a parent ScrollView',
+	() => {
+		const files = [
+			'src/app/(tabs)/favorites/[name].tsx',
+			'src/app/(tabs)/favorites/favoriteMusic.tsx',
+			'src/app/(tabs)/favorites/localMusic.tsx',
+			'src/app/(tabs)/favorites/recentMusic.tsx',
+			'src/app/(tabs)/favorites/smartPlaylist.tsx',
+			'src/app/(tabs)/radio/[name].tsx',
+			'src/app/(tabs)/search/[name].tsx',
+			'src/app/(modals)/[name].tsx',
+			'src/components/PlaylistTracksList.tsx',
+			'src/components/ArtistTracksList.tsx',
+			'src/components/SingerTracksList.tsx',
+		]
+		for (const file of files) {
+			const text = fs.readFileSync(path.join(root, file), 'utf8')
+			const source = ts.createSourceFile(
+				file,
+				text,
+				ts.ScriptTarget.Latest,
+				true,
+				ts.ScriptKind.TSX,
+			)
+			const inspect = (node) => {
+				if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+					assert.notEqual(
+						node.tagName.getText(source),
+						'ScrollView',
+						`${file} contains a parent scroller`,
+					)
+					if (node.tagName.getText(source) === 'TracksList') {
+						assert(
+							!node.attributes.properties.some(
+								(attribute) =>
+									ts.isJsxAttribute(attribute) &&
+									attribute.name.getText(source) === 'scrollEnabled',
+							),
+							`${file} disables its primary scroller`,
+						)
+					}
+				}
+				ts.forEachChild(node, inspect)
+			}
+			inspect(source)
+		}
+	},
+)
 suite.finish()

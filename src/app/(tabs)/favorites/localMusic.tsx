@@ -13,16 +13,7 @@ import MusicInfo from '@/utils/musicInfo'
 import { shareLocalFiles } from '../../../../modules/cymusic-native/sharing'
 import * as DocumentPicker from 'expo-document-picker'
 import React, { useMemo, useState } from 'react'
-import {
-	ActivityIndicator,
-	Alert,
-	Image,
-	Pressable,
-	ScrollView,
-	StyleSheet,
-	Text,
-	View,
-} from 'react-native'
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { Track } from '@/player/types'
 import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 
@@ -324,62 +315,60 @@ const LocalMusicScreen = () => {
 					</View>
 				</View>
 			)}
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
+			<PlaylistTracksList
 				contentContainerStyle={{ paddingHorizontal: 18 }}
-			>
-				<View style={styles.libraryControls}>
-					<View style={styles.controlsRow}>
-						{(['all', 'imported', 'saved', 'automatic'] as const).map((item) => (
-							<Pressable
-								key={item}
-								accessibilityRole="button"
-								accessibilityState={{ selected: filter === item }}
-								onPress={() => {
-									setFilter(item)
-									setSelectedTracks(new Set())
-								}}
-								style={[styles.chip, filter === item && styles.activeChip]}
-							>
-								<Text style={[styles.chipText, filter === item && styles.activeChipText]}>
-									{i18n.t(`localMusic.filters.${item}`)}
-								</Text>
-							</Pressable>
-						))}
+				headerContent={
+					<View style={styles.libraryControls}>
+						<View style={styles.controlsRow}>
+							{(['all', 'imported', 'saved', 'automatic'] as const).map((item) => (
+								<Pressable
+									key={item}
+									accessibilityRole="button"
+									accessibilityState={{ selected: filter === item }}
+									onPress={() => {
+										setFilter(item)
+										setSelectedTracks(new Set())
+									}}
+									style={[styles.chip, filter === item && styles.activeChip]}
+								>
+									<Text style={[styles.chipText, filter === item && styles.activeChipText]}>
+										{i18n.t(`localMusic.filters.${item}`)}
+									</Text>
+								</Pressable>
+							))}
+						</View>
+						<View style={styles.controlsRow}>
+							{(['recent', 'title', 'artist'] as const).map((item) => (
+								<Pressable
+									key={item}
+									accessibilityRole="button"
+									accessibilityState={{ selected: sort === item }}
+									onPress={() => setSort(item)}
+									style={[styles.chip, sort === item && styles.activeChip]}
+								>
+									<Text style={[styles.chipText, sort === item && styles.activeChipText]}>
+										{i18n.t(`library.sort.${item}`)}
+									</Text>
+								</Pressable>
+							))}
+						</View>
 					</View>
-					<View style={styles.controlsRow}>
-						{(['recent', 'title', 'artist'] as const).map((item) => (
-							<Pressable
-								key={item}
-								accessibilityRole="button"
-								accessibilityState={{ selected: sort === item }}
-								onPress={() => setSort(item)}
-								style={[styles.chip, sort === item && styles.activeChip]}
-							>
-								<Text style={[styles.chipText, sort === item && styles.activeChipText]}>
-									{i18n.t(`library.sort.${item}`)}
-								</Text>
-							</Pressable>
-						))}
-					</View>
-				</View>
-				<PlaylistTracksList
-					playlist={playListItem as Playlist}
-					tracks={visibleTracks as Track[]}
-					compactHeader
-					showImportMenu={true}
-					onImportTrack={importLocalMusic}
-					allowDelete={true}
-					onDeleteTrack={deleteLocalMusic}
-					isMultiSelectMode={isMultiSelectMode}
-					selectedTracks={selectedTracks}
-					onToggleSelection={toggleTrackSelection}
-					toggleMultiSelectMode={toggleMultiSelectMode}
-					onSelectAll={toggleSelectAll}
-					deleteSelectedTracks={deleteSelectedTracks}
-					exportSelectedTracks={exportSelectedTracks}
-				/>
-			</ScrollView>
+				}
+				playlist={playListItem as Playlist}
+				tracks={visibleTracks as Track[]}
+				compactHeader
+				showImportMenu={true}
+				onImportTrack={importLocalMusic}
+				allowDelete={true}
+				onDeleteTrack={deleteLocalMusic}
+				isMultiSelectMode={isMultiSelectMode}
+				selectedTracks={selectedTracks}
+				onToggleSelection={toggleTrackSelection}
+				toggleMultiSelectMode={toggleMultiSelectMode}
+				onSelectAll={toggleSelectAll}
+				deleteSelectedTracks={deleteSelectedTracks}
+				exportSelectedTracks={exportSelectedTracks}
+			/>
 		</View>
 	)
 }

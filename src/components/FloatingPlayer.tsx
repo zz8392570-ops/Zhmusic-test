@@ -116,9 +116,22 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 
 				<View style={styles.trackControlsContainer}>
 					{isTrackSourceLoading ? (
-						<View style={styles.loadingIndicatorContainer}>
+						<TouchableOpacity
+							style={styles.loadingIndicatorContainer}
+							accessibilityRole="button"
+							accessibilityLabel={i18n.t('player.cancelLoading')}
+							accessibilityState={{ busy: true }}
+							hitSlop={6}
+							onPress={() => {
+								hapticLight()
+								myTrackPlayer.cancelSourceLoading()
+							}}
+						>
 							<ActivityIndicator size="small" color={colors.text} />
-						</View>
+							<View style={styles.cancelLoadingBadge} pointerEvents="none">
+								<MaterialCommunityIcons name="close" size={11} color={colors.text} />
+							</View>
+						</TouchableOpacity>
 					) : (
 						<View style={styles.playButton}>
 							<PlayPauseButton iconSize={20} />
@@ -208,6 +221,17 @@ const createStyles = (colors: ThemeColors, defaultStyles?: ReturnType<typeof use
 		queueButton: {
 			width: 44,
 			height: 44,
+			alignItems: 'center',
+			justifyContent: 'center',
+		},
+		cancelLoadingBadge: {
+			position: 'absolute',
+			right: -1,
+			top: -1,
+			width: 17,
+			height: 17,
+			borderRadius: 9,
+			backgroundColor: colors.surfaceElevated,
 			alignItems: 'center',
 			justifyContent: 'center',
 		},

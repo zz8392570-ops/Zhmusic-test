@@ -21,7 +21,7 @@ import { useDefaultStyles } from '@/styles'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { File, Paths } from 'expo-file-system'
 import React, { useCallback, useMemo, useState } from 'react'
-import { Alert, ScrollView, View } from 'react-native'
+import { Alert, View } from 'react-native'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import i18n from '@/utils/i18n'
@@ -481,27 +481,23 @@ const PlaylistScreen = () => {
 
 	return (
 		<View style={defaultStyles.container}>
-			<ScrollView
-				contentInsetAdjustmentBehavior="automatic"
+			<PlaylistTracksList
 				contentContainerStyle={{ paddingHorizontal: 18 }}
-			>
-				<PlaylistTracksList
-					playlist={playlist as Playlist}
-					tracks={songs as Track[]}
-					allowDelete={true}
-					onDeleteTrack={handleDeleteTrack}
-					isMultiSelectMode={isMultiSelectMode}
-					selectedTracks={selectedTracks}
-					toggleMultiSelectMode={toggleMultiSelectMode}
-					onToggleSelection={onToggleSelection}
-					onSelectAll={onSelectAll}
-					deleteSelectedTracks={deleteSelectedTracks}
-					managementActions={managementActions}
-					onManagementAction={onManagementAction}
-					onSelectedAction={organizeSelectedTracks}
-					onReplaceSource={replaceSource}
-				/>
-			</ScrollView>
+				playlist={playlist as Playlist}
+				tracks={songs as Track[]}
+				allowDelete={true}
+				onDeleteTrack={handleDeleteTrack}
+				isMultiSelectMode={isMultiSelectMode}
+				selectedTracks={selectedTracks}
+				toggleMultiSelectMode={toggleMultiSelectMode}
+				onToggleSelection={onToggleSelection}
+				onSelectAll={onSelectAll}
+				deleteSelectedTracks={deleteSelectedTracks}
+				managementActions={managementActions}
+				onManagementAction={onManagementAction}
+				onSelectedAction={organizeSelectedTracks}
+				onReplaceSource={replaceSource}
+			/>
 		</View>
 	)
 }
