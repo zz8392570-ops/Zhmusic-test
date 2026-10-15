@@ -55,7 +55,11 @@ const CacheManagerScreen = () => {
 	useEffect(refreshSize, [refreshSize, revision, cachedTracks.length])
 
 	const retryTask = (task: CacheDownloadTask) => {
-		void myTrackPlayer.cacheAndImportMusic(task.track, { quality: task.quality, kind: task.kind })
+		void myTrackPlayer.cacheAndImportMusic(task.track, {
+			quality: task.quality,
+			kind: task.kind,
+			strictQuality: task.strictQuality,
+		})
 	}
 
 	const deleteTrack = (track: IMusic.IMusicItem) => {

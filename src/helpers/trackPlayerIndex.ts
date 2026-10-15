@@ -1411,7 +1411,12 @@ const retryWithNextSource = async () => {
 }
 const cacheAndImportMusic = async (
 	track: IMusic.IMusicItem,
-	options: { quality?: AudioQuality; silent?: boolean; kind?: 'saved' | 'automatic' } = {},
+	options: {
+		quality?: AudioQuality
+		silent?: boolean
+		kind?: 'saved' | 'automatic'
+		strictQuality?: boolean
+	} = {},
 ) => {
 	await enqueueDownload(track, {
 		...options,
@@ -1580,7 +1585,9 @@ const addImportedLocalMusic = async (
 	if (showSuccessAlert && result.imported > 0) {
 		Alert.alert(
 			i18n.t(
-				result.status === 'partial' ? 'localMusic.importPartialTitle' : 'localMusic.importSuccessTitle',
+				result.status === 'partial'
+					? 'localMusic.importPartialTitle'
+					: 'localMusic.importSuccessTitle',
 			),
 			i18n.t(
 				result.status === 'partial'

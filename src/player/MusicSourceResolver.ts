@@ -53,6 +53,7 @@ type ResolveSourceOptions = {
 	requestType?: ResolveSourceRequestType
 	signal?: AbortSignal
 	quality?: IMusic.IQualityKey
+	strictQuality?: boolean
 	totalTimeoutMs?: number
 	onProgress?: (progress: SourceLoadingProgress) => void
 }
@@ -181,7 +182,11 @@ const resolveSourceInternal = async (
 		}
 	}
 
-	const cached = await getCachedAudioInfo(musicItem)
+	const cached = await getCachedAudioInfo(
+		musicItem,
+		false,
+		options.strictQuality ? preferredQuality : undefined,
+	)
 	throwIfRequestAborted(options.signal)
 	if (cached) {
 		preloadCache.delete(preloadKey)
@@ -214,7 +219,9 @@ const resolveSourceInternal = async (
 		const timeoutMs = getSourceRequestTimeoutMs(requestType)
 		const failureKey = getMusicFailureKey(musicItem)
 		const failedIds = getFailedApiIds(failureKey)
-		const qualityOrder: IMusic.IQualityKey[] = ['flac', '320k', '128k']
+		const qualityOrder: IMusic.IQualityKey[] = options.strictQuality
+			? [preferredQuality]
+			: ['flac', '320k', '128k']
 		const apisToTry: IMusic.MusicApi[] = []
 		const recoverySteps: string[] = []
 		let selectedSourceFailureReason: AutomaticSourceSwitchReason = 'noPlayableUrl'

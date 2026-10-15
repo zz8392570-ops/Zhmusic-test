@@ -2,6 +2,7 @@ import { searchSongByTitle } from '@/helpers/songSearchNavigation'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import Lyric from '@/components/lyric'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
+import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
 import SourceLoadingStatus from '@/components/SourceLoadingStatus'
 import { MovingText } from '@/components/MovingText'
 import { PlayerControls } from '@/components/PlayerControls'
@@ -27,6 +28,7 @@ import { showToast } from '@/utils/utils'
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/utils/haptics'
 import { Entypo, MaterialCommunityIcons } from '@expo/vector-icons'
 import { MenuView } from '@/components/ActionMenu'
+import type { MenuAction } from '@react-native-menu/menu'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
@@ -312,18 +314,19 @@ const PlayerScreenContent = () => {
 		)
 	}, [trackToDisplay])
 
-	const handleDownload = useCallback(async () => {
-		if (trackToDisplay) {
-			Alert.alert(i18n.t('player.download'), trackToDisplay.title, [
-				{ text: i18n.t('find.cancel'), style: 'cancel' },
-				{
-					text: i18n.t('player.download'),
-					onPress: () =>
-						void myTrackPlayer.cacheAndImportMusic(trackToDisplay as IMusic.IMusicItem),
-				},
-			])
-		}
-	}, [trackToDisplay])
+	const handleDownload = useCallback(
+		(quality: IMusic.IQualityKey) => {
+			if (trackToDisplay) {
+				void myTrackPlayer
+					.cacheAndImportMusic(trackToDisplay as IMusic.IMusicItem, {
+						quality,
+						strictQuality: true,
+					})
+					.catch(() => Alert.alert(i18n.t('cacheCenter.downloadFailed')))
+			}
+		},
+		[trackToDisplay],
+	)
 
 	const handleShare = useCallback(async () => {
 		try {
@@ -361,7 +364,7 @@ const PlayerScreenContent = () => {
 	}, [sleepTimerSeconds])
 
 	const menuActions = React.useMemo(() => {
-		const actions = [
+		const actions: MenuAction[] = [
 			{
 				id: 'favorite',
 				title: i18n.t('player.like'),
@@ -398,6 +401,7 @@ const PlayerScreenContent = () => {
 				id: 'download',
 				title: i18n.t('player.download'),
 				image: 'arrow.down.circle',
+				subactions: getDownloadQualityActions(),
 			})
 		}
 		return actions
@@ -726,6 +730,11 @@ const PlayerScreenContent = () => {
 										<MenuView
 											title={i18n.t('player.songOptions')}
 											onPressAction={({ nativeEvent }) => {
+												const downloadQuality = getDownloadQuality(nativeEvent.event)
+												if (downloadQuality) {
+													handleDownload(downloadQuality)
+													return
+												}
 												switch (nativeEvent.event) {
 													case 'sound-effects':
 														router.push('/(modals)/soundEffects')
@@ -741,9 +750,6 @@ const PlayerScreenContent = () => {
 														break
 													case 'playlist':
 														handleAddToPlaylist()
-														break
-													case 'download':
-														handleDownload()
 														break
 													case 'share':
 														handleShare()

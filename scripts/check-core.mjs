@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 const checks = [
 	'check-download-naming.mjs',
+	'check-download-quality.mjs',
 	'check-file-downloads.mjs',
 	'check-local-files.mjs',
 	'check-local-import.mjs',

@@ -38,9 +38,9 @@ const getCacheExtension = (quality: AudioQuality) =>
 	quality === 'flac' || quality === 'flac24bit' ? 'flac' : 'mp3'
 
 const getCacheFilename = (musicItem: IMusic.IMusicItem, quality: AudioQuality): string => {
-	const mapped = (PersistStatus.get('music.downloadFilenameMap') ?? {})[
-		downloadNameKey(musicItem, quality)
-	]
+	const names = PersistStatus.get('music.downloadFilenameMap') ?? {}
+	const mapped =
+		names[downloadQualityNameKey(musicItem, quality)] ?? names[downloadNameKey(musicItem, quality)]
 	if (
 		mapped &&
 		!/[/\\]/.test(mapped) &&
@@ -60,18 +60,26 @@ const getCacheFilename = (musicItem: IMusic.IMusicItem, quality: AudioQuality): 
 
 const downloadNameKey = (track: IMusic.IMusicItem, quality: AudioQuality) =>
 	JSON.stringify([track.platform, track.id, getCacheExtension(quality)])
+const downloadQualityNameKey = (track: IMusic.IMusicItem, quality: AudioQuality) =>
+	JSON.stringify([track.platform, track.id, quality])
 let namingLock: Promise<unknown> = Promise.resolve()
 const allocateDownloadPath = (
 	track: IMusic.IMusicItem,
 	quality: AudioQuality,
 	customNaming: boolean,
+	forceQualityPath = false,
 ): Promise<string> => {
 	const allocate = async () => {
-		const key = downloadNameKey(track, quality)
 		const names = { ...(PersistStatus.get('music.downloadFilenameMap') ?? {}) }
+		const qualityKey = downloadQualityNameKey(track, quality)
+		const key = forceQualityPath || names[qualityKey] ? qualityKey : downloadNameKey(track, quality)
 		if (names[key]) {
 			const existingPath = getLocalFilePath(track, quality)
-			if ((await FileSystem.getInfoAsync(getCacheFileUri(existingPath))).exists) return existingPath
+			if (
+				(await FileSystem.getInfoAsync(getCacheFileUri(existingPath))).exists &&
+				(!forceQualityPath || getCacheQualityMap()[existingPath.slice(cacheDir.length)] === quality)
+			)
+				return existingPath
 			delete names[key]
 		}
 		const filename = customNaming
@@ -152,11 +160,14 @@ export const getCacheLocalPath = async (value: unknown): Promise<string | null> 
 export const getCachedAudioInfo = async (
 	musicItem: IMusic.IMusicItem,
 	includeOtherFormats = false,
+	requiredQuality?: IMusic.IQualityKey,
 ): Promise<CachedAudioInfo | null> => {
-	const preferredQuality = normalizeAudioQuality(musicItem.cachedQuality) ?? qualityStore.getValue()
-	const qualityCandidates: AudioQuality[] = includeOtherFormats
-		? [preferredQuality, 'flac', '320k']
-		: [preferredQuality]
+	const preferredQuality =
+		requiredQuality ?? normalizeAudioQuality(musicItem.cachedQuality) ?? qualityStore.getValue()
+	const qualityCandidates: AudioQuality[] =
+		includeOtherFormats && !requiredQuality
+			? [preferredQuality, 'flac', '320k', '128k']
+			: [preferredQuality]
 	const paths = Array.from(
 		new Set(
 			qualityCandidates.flatMap((quality) => [
@@ -177,6 +188,7 @@ export const getCachedAudioInfo = async (
 			normalizeAudioQuality(qualityMap[cacheKey]) ??
 			inferAudioQualityFromPath(localPath) ??
 			'unknown'
+		if (requiredQuality && quality !== requiredQuality) continue
 		return { localPath, quality }
 	}
 	return null
@@ -203,7 +215,7 @@ export const getCacheDisplayProbeKey = (musicItem: IMusic.IMusicItem) => {
 		preferredQuality,
 		...Array.from(
 			new Set(
-				[preferredQuality, 'flac', '320k'].flatMap((quality) => [
+				[preferredQuality, 'flac', '320k', '128k'].flatMap((quality) => [
 					getLocalFilePath(musicItem, quality as AudioQuality),
 					`${cacheDir}${getLegacyCacheFilename(musicItem, quality as AudioQuality)}`,
 				]),
@@ -221,12 +233,19 @@ export const downloadToCache = async (
 	onProgress?: (progress: number) => void,
 	taskId?: string,
 	customNaming = true,
+	strictQuality = false,
 ): Promise<string> => {
 	try {
 		await ensureCacheDirExists()
 		let localPath = getLocalFilePath(musicItem, quality)
-		if (!(await FileSystem.getInfoAsync(getCacheFileUri(localPath))).exists)
-			localPath = await allocateDownloadPath(musicItem, quality, customNaming)
+		const initial = await FileSystem.getInfoAsync(getCacheFileUri(localPath))
+		const recordedQuality =
+			normalizeAudioQuality(getCacheQualityMap()[localPath.slice(cacheDir.length)]) ??
+			inferAudioQualityFromPath(localPath)
+		if (strictQuality && initial.exists && recordedQuality !== quality)
+			localPath = await allocateDownloadPath(musicItem, quality, customNaming, true)
+		else if (!initial.exists)
+			localPath = await allocateDownloadPath(musicItem, quality, customNaming, strictQuality)
 		const existing = await FileSystem.getInfoAsync(getCacheFileUri(localPath))
 		if (existing.exists) {
 			setCachedQuality(localPath, quality)

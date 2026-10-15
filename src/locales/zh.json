@@ -788,6 +788,16 @@
 		"webdavRequestFailed": "网络请求失败，请检查网络后重试",
 		"webdavRequestFailedStatus": "WebDAV 服务器拒绝了请求（HTTP %{status}）"
 	},
+	"downloadQuality": {
+		"batchTitle": "选择下载音质 · %{count} 首歌曲",
+		"unavailable": "所选音质暂不可用，请更换音源或选择其他音质。",
+		"noSource": "没有可下载的音源",
+		"options": {
+			"128k": "标准 · 128 kbps",
+			"320k": "高品质 · 320 kbps",
+			"flac": "无损 · FLAC"
+		}
+	},
 	"soundEffects": {
 		"title": "音效",
 		"description": "按自己的喜好调整声音。默认关闭，保留原声。",

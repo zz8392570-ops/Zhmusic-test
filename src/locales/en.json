@@ -787,6 +787,16 @@
 		"webdavRequestFailed": "The network request failed. Check your connection and try again.",
 		"webdavRequestFailedStatus": "The WebDAV server rejected the request (HTTP %{status})."
 	},
+	"downloadQuality": {
+		"batchTitle": "Download quality · %{count} songs",
+		"unavailable": "The selected quality is unavailable. Try another source or quality.",
+		"noSource": "No downloadable audio source is available",
+		"options": {
+			"128k": "Standard · 128 kbps",
+			"320k": "High quality · 320 kbps",
+			"flac": "Lossless · FLAC"
+		}
+	},
 	"soundEffects": {
 		"title": "Sound Effects",
 		"description": "Shape the sound to your taste. Off by default to preserve the original audio.",

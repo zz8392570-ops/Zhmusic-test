@@ -32,6 +32,8 @@ export type CacheDownloadTask = {
 	id: string
 	track: IMusic.IMusicItem
 	quality: AudioQuality
+	/** Explicit download choices must not silently reuse or fall back to another quality. */
+	strictQuality?: boolean
 	progress: number
 	status: 'queued' | 'downloading' | 'interrupted' | 'completed' | 'failed' | 'cancelled'
 	kind?: 'saved' | 'automatic'

@@ -28,7 +28,12 @@ import {
 } from './PlayerStore'
 import type { AudioQuality } from '@/helpers/audioQuality'
 
-type DownloadOptions = { quality?: AudioQuality; silent?: boolean; kind?: 'saved' | 'automatic' }
+type DownloadOptions = {
+	quality?: AudioQuality
+	silent?: boolean
+	kind?: 'saved' | 'automatic'
+	strictQuality?: boolean
+}
 const active = new Map<string, AbortController>()
 const activeMedia = new Map<string, string>()
 const mediaKey = (track: IMusic.IMusicItem) => JSON.stringify([track.platform, track.id])
@@ -38,6 +43,7 @@ export const getProtectedDownloadPaths = () =>
 		.flatMap((task) => [
 			getLocalFilePath(task.track, 'flac'),
 			getLocalFilePath(task.track, '320k'),
+			getLocalFilePath(task.track, '128k'),
 			...(task.track.url ? [task.track.url] : []),
 		])
 let protectedPaths = () => [] as string[]
@@ -105,6 +111,7 @@ export const restoreDownloadTasks = () => {
 			continue
 		unique.set(task.id, {
 			...task,
+			strictQuality: task.strictQuality === true,
 			kind: task.kind === 'automatic' ? 'automatic' : 'saved',
 			progress: Number.isFinite(task.progress) ? Math.max(0, Math.min(1, task.progress)) : 0,
 			status:
@@ -125,24 +132,34 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				throw new Error('等待 Wi-Fi 后重试')
 		}
 		await withCacheMaintenance(migrateCacheRetention)
-		const existing = await getCachedAudioInfo(task.track, true)
+		const existing = await getCachedAudioInfo(
+			task.track,
+			!task.strictQuality,
+			task.strictQuality ? (task.quality as IMusic.IQualityKey) : undefined,
+		)
 		let localPath = existing?.localPath
 		let quality = existing?.quality ?? task.quality
 		if (!localPath) {
 			const local = await resolveLocalFile(task.track.url)
-			if (local.status !== 'nonlocal') throw new Error('本地歌曲无需重复下载')
+			if (local.status !== 'nonlocal' && (!task.strictQuality || task.track.platform === 'local'))
+				throw new Error('本地歌曲无需重复下载')
 			const source = await resolveSource(
 				{ ...task.track, url: 'Unknown' },
 				{
 					requestType: 'download',
 					quality: task.quality as IMusic.IQualityKey,
+					strictQuality: task.strictQuality,
 					signal: controller.signal,
 				},
 			)
 			if (controller.signal.aborted || !isCurrent(task)) return
 			if (!source.url || source.url === fakeAudioMp3Uri || source.url.includes('fake'))
-				throw new Error('没有可下载的音源')
+				throw new Error(
+					i18n.t(task.strictQuality ? 'downloadQuality.unavailable' : 'downloadQuality.noSource'),
+				)
 			quality = source.quality ?? task.quality
+			if (task.strictQuality && quality !== task.quality)
+				throw new Error(i18n.t('downloadQuality.unavailable'))
 			await withCacheMaintenance(() =>
 				ensureCacheDiskSpace(() => [
 					...protectedPaths(),
@@ -160,6 +177,8 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 					if (isCurrent(task)) update({ ...task, quality, progress, status: 'downloading' })
 				},
 				task.id,
+				true,
+				task.strictQuality,
 			)
 		}
 		if (controller.signal.aborted || !isCurrent(task)) return
@@ -170,12 +189,13 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 			if (kind === 'saved') markSavedOffline(localPath)
 			const tracks = importedLocalMusicStore.getValue() ?? []
 			const index = tracks.findIndex((track) => track.url === localPath)
-			const id =
-				index >= 0
-					? tracks[index].id
-					: tracks.some((track) => track.id === task.track.id)
-						? `cache:${task.track.platform}:${task.track.id}`
-						: task.track.id
+			let id = index >= 0 ? tracks[index].id : task.track.id
+			if (index < 0 && tracks.some((track) => track.id === id)) {
+				const baseId = `cache:${task.track.platform}:${task.track.id}:${quality}`
+				id = baseId
+				for (let suffix = 2; tracks.some((track) => track.id === id); suffix++)
+					id = `${baseId}:${suffix}`
+			}
 			const record = {
 				...task.track,
 				id,
@@ -248,6 +268,8 @@ const pump = () => {
 }
 
 export const enqueueDownload = async (track: IMusic.IMusicItem, options: DownloadOptions = {}) => {
+	if (options.strictQuality && typeof track.originalId === 'string' && track.platform !== 'local')
+		track = { ...track, id: track.originalId }
 	const requestedQuality = options.quality ?? qualityStore.getValue()
 	const quality = ['128k', '320k', 'flac'].includes(requestedQuality)
 		? requestedQuality
@@ -256,10 +278,14 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 	const existing = cacheDownloadTasksStore.getValue().find((task) => task.id === id)
 	const kind = options.kind ?? 'saved'
 	if (existing && ['downloading', 'queued'].includes(existing.status)) {
-		if (kind === 'saved')
-			update({ ...existing, kind, silent: options.silent === true && existing.silent !== false })
-		if (!options.silent) showToast(i18n.t('cacheCenter.alreadyDownloading'), track.title, 'info')
-		return
+		if (options.strictQuality && !existing.strictQuality) {
+			await cancelCacheTask(existing.id)
+		} else {
+			if (kind === 'saved')
+				update({ ...existing, kind, silent: options.silent === true && existing.silent !== false })
+			if (!options.silent) showToast(i18n.t('cacheCenter.alreadyDownloading'), track.title, 'info')
+			return
+		}
 	}
 	update({
 		id,
@@ -267,6 +293,7 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 		kind,
 		silent: options.silent === true,
 		quality,
+		strictQuality: options.strictQuality === true,
 		progress: 0,
 		status: 'queued',
 		updatedAt: Date.now(),
@@ -313,7 +340,10 @@ export const clearAutomaticDownloads = async (clearFiles: () => Promise<void>) =
 	}
 }
 
-export const downloadPlaylist = async (tracks: IMusic.IMusicItem[]) => {
+export const downloadPlaylist = async (
+	tracks: IMusic.IMusicItem[],
+	options: Pick<DownloadOptions, 'quality' | 'strictQuality'> = {},
+) => {
 	const downloadable = [
 		...new Map(
 			tracks
@@ -321,7 +351,9 @@ export const downloadPlaylist = async (tracks: IMusic.IMusicItem[]) => {
 				.map((track) => [JSON.stringify([track.platform, track.id]), track]),
 		).values(),
 	]
-	for (const track of downloadable) await enqueueDownload(track, { kind: 'saved', silent: true })
+	const quality = options.quality ?? qualityStore.getValue()
+	for (const track of downloadable)
+		await enqueueDownload(track, { ...options, quality, kind: 'saved', silent: true })
 	showToast(i18n.t('cacheCenter.batchQueued', { count: downloadable.length }), '', 'info')
 }
 

@@ -11,6 +11,7 @@ import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import { MenuView } from '@/components/ActionMenu'
 import { hapticLight, hapticSelection } from '@/utils/haptics'
+import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
 
 type QueueControlsProps = {
 	tracks: Track[]
@@ -159,26 +160,28 @@ export const QueueControls = ({
 			)}
 			{/* import button */}
 			{!isMultiSelectMode && downloadable.length > 0 && !showImportMenu ? (
-				<TouchableOpacity
-					accessibilityRole="button"
-					accessibilityLabel={i18n.t('cacheCenter.downloadAll')}
-					style={[styles.button, { minHeight: 48, paddingHorizontal: 10 }]}
-					onPress={() =>
-						Alert.alert(
-							i18n.t('cacheCenter.downloadAll'),
-							i18n.t('cacheCenter.batchMessage', { count: downloadable.length }),
-							[
-								{ text: i18n.t('find.cancel'), style: 'cancel' },
-								{
-									text: i18n.t('player.download'),
-									onPress: () => void myTrackPlayer.downloadPlaylist(tracks as IMusic.IMusicItem[]),
-								},
-							],
-						)
-					}
+				<MenuView
+					title={i18n.t('downloadQuality.batchTitle', { count: downloadable.length })}
+					actions={getDownloadQualityActions()}
+					onPressAction={({ nativeEvent: { event } }) => {
+						const quality = getDownloadQuality(event)
+						if (quality)
+							void myTrackPlayer
+								.downloadPlaylist(downloadable as IMusic.IMusicItem[], {
+									quality,
+									strictQuality: true,
+								})
+								.catch(() => Alert.alert(i18n.t('cacheCenter.downloadFailed')))
+					}}
 				>
-					<Ionicons name="download-outline" size={23} color={colors.primary} />
-				</TouchableOpacity>
+					<TouchableOpacity
+						accessibilityRole="button"
+						accessibilityLabel={i18n.t('cacheCenter.downloadAll')}
+						style={[styles.button, { minHeight: 48, paddingHorizontal: 10 }]}
+					>
+						<Ionicons name="download-outline" size={23} color={colors.primary} />
+					</TouchableOpacity>
+				</MenuView>
 			) : null}
 			{showImportMenu && (
 				<View style={styles.control}>

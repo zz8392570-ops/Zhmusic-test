@@ -13,6 +13,7 @@ import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
 import { Alert } from 'react-native'
 import { isSameMediaItem } from '@/utils/mediaItem'
+import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
 
 type TrackShortcutsMenuProps = PropsWithChildren<{
 	track: Track
@@ -166,15 +167,17 @@ export const TrackShortcutsMenu = ({
 			.with('add-to-storedPlayList', async () => {
 				handleAddToStoredPlayList(track as IMusic.IMusicItem)
 			})
-			.with('download', async () => {
-				Alert.alert(i18n.t('player.download'), track.title, [
-					{ text: i18n.t('find.cancel'), style: 'cancel' },
-					{
-						text: i18n.t('player.download'),
-						onPress: () => void myTrackPlayer.cacheAndImportMusic(track as IMusic.IMusicItem),
-					},
-				])
-			})
+			.with(
+				P.when((actionId) => !!getDownloadQuality(actionId)),
+				async (actionId) => {
+					await myTrackPlayer
+						.cacheAndImportMusic(track as IMusic.IMusicItem, {
+							quality: getDownloadQuality(actionId),
+							strictQuality: true,
+						})
+						.catch(() => Alert.alert(i18n.t('cacheCenter.downloadFailed')))
+				},
+			)
 			.with('replace-source', async () => {
 				onReplaceSource?.(track)
 			})
@@ -217,7 +220,14 @@ export const TrackShortcutsMenu = ({
 					image: 'text.badge.plus',
 				},
 				...(track.platform !== 'local'
-					? [{ id: 'download', title: i18n.t('player.download'), image: 'arrow.down.circle' }]
+					? [
+							{
+								id: 'download',
+								title: i18n.t('player.download'),
+								image: 'arrow.down.circle',
+								subactions: getDownloadQualityActions(),
+							},
+						]
 					: []),
 				...(onReplaceSource && track.platform !== 'local'
 					? [
