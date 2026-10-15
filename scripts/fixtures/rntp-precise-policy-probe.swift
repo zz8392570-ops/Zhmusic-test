@@ -52,6 +52,7 @@ final class CacheProxyServer {
 
 final class AVPlayerEngine: NSObject {
   let avPlayer = AVPlayer()
+  private var soundEffectsRequestObserver: Any?
   private let cache: AudioCache?
   let proxyServer: CacheProxyServer?
   private let _downloadCoordinator: DownloadCoordinator?
