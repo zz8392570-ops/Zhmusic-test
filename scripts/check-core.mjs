@@ -21,6 +21,7 @@ const checks = [
 	'check-search-playback.mjs',
 	'check-search-cache-display.mjs',
 	'check-sleep-timer.mjs',
+	'check-sound-effects.mjs',
 	'check-source-host.mjs',
 	'check-system-commands.mjs',
 	'check-volume.mjs',

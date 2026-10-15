@@ -786,5 +786,45 @@
 		"webdavTimeout": "Connection timed out. Check the URL and network.",
 		"webdavRequestFailed": "The network request failed. Check your connection and try again.",
 		"webdavRequestFailedStatus": "The WebDAV server rejected the request (HTTP %{status})."
+	},
+	"soundEffects": {
+		"title": "Sound Effects",
+		"description": "Shape the sound to your taste. Off by default to preserve the original audio.",
+		"equalizer": "Equalizer",
+		"equalizerHint": "Adjust the balance of bass, vocals and treble",
+		"presetsTitle": "Sound Style",
+		"customTitle": "Five-band Equalizer",
+		"adjustBand": "Adjust %{frequency} gain",
+		"bandHint": "Move right to boost or left to reduce. Applied on release, from −6 to +6 dB.",
+		"enableHint": "Turn on the equalizer or choose a sound style to adjust the bands.",
+		"resetBands": "Zero bands",
+		"resetAll": "Reset Sound Effects",
+		"volumeBalance": "Volume Balance",
+		"volumeBalanceHint": "Reduce loud passages in real time while preserving quiet sounds. Works independently of the equalizer.",
+		"soundCheckNote": "Volume Balance does not analyze or match the overall loudness of each song, unlike Apple Music Sound Check.",
+		"updateFailed": "Couldn't apply this setting. Try again.",
+		"processingFailed": "Sound effects couldn't be applied. Choose a sound style to retry.",
+		"presets": {
+			"original": "Original",
+			"balanced": "Balanced",
+			"vocal": "Clear Vocals",
+			"bass": "Bass Boost",
+			"soft": "Soft",
+			"custom": "Custom"
+		},
+		"status": {
+			"off": "Original audio",
+			"waiting": "Waiting to apply effects",
+			"active": "Sound effects active",
+			"unsupported": "Sound effects are currently unsupported",
+			"error": "Sound effects not applied"
+		},
+		"reasons": {
+			"platform": "This device doesn't support sound effects. Your settings are saved.",
+			"stream": "This stream doesn't support sound effects. Playing original audio.",
+			"format": "This audio format doesn't support sound effects. Playing original audio.",
+			"unavailable": "Sound effects are unavailable. Playing original audio.",
+			"processing": "Preparing the song. Effects will be applied when ready."
+		}
 	}
 }

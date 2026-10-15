@@ -1,6 +1,7 @@
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useEffect } from 'react'
 import TrackPlayer, { PlayerCommand, RepeatMode } from '@rntp/player'
+import { initializeSoundEffects } from '@/helpers/soundEffects'
 
 let nativeConfigured = false
 
@@ -28,6 +29,8 @@ const setupPlayer = () => {
 	TrackPlayer.setVolume(1)
 	TrackPlayer.setRepeatMode(RepeatMode.Off)
 	TrackPlayer.setShuffleEnabled(false)
+	// Optional DSP must never hold up transport initialization or restored playback.
+	void initializeSoundEffects().catch((error) => console.error('Sound effects setup failed', error))
 	nativeConfigured = true
 }
 

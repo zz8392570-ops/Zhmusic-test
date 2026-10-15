@@ -461,6 +461,7 @@ const SettingModal = () => {
 			title: i18n.t('settings.sections.playback'),
 			data: [
 				{ id: '10', title: i18n.t('settings.items.currentQuality'), type: 'value' },
+				{ id: 'sound-effects', title: i18n.t('soundEffects.title'), type: 'link' },
 				{ id: '6', title: i18n.t('settings.items.clearPlaylist'), type: 'link' },
 				...(Platform.OS === 'ios'
 					? [
@@ -801,6 +802,7 @@ const SettingModal = () => {
 					key={item.id}
 					style={itemStyle}
 					onPress={() => {
+						if (item.id === 'sound-effects') router.push('/(modals)/soundEffects')
 						if (item.id === 'sync-manager') router.push('/(modals)/syncManager')
 						if (item.id === 'backup-manager') router.push('/(modals)/backupManager')
 						if (item.id === 'release-notes') router.push('/(modals)/releaseNotes')

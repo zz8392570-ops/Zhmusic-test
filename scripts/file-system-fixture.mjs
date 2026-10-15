@@ -423,6 +423,7 @@ export function createFixture() {
 		}
 		const overrides = {
 			expo: {
+				requireOptionalNativeModule: () => null,
 				requireNativeModule: (name) => {
 					assert.equal(name, 'CyMusicFileSystem')
 					return nativeFs
@@ -438,7 +439,9 @@ export function createFixture() {
 			'@/player/PlayerStore': stores,
 			'@/store/PersistStatus': persistence,
 			'@/helpers/logger': logger,
-			'@/helpers/artworkResolver': { resolveLeaderboardArtwork: async (_platform, _id, artwork) => artwork },
+			'@/helpers/artworkResolver': {
+				resolveLeaderboardArtwork: async (_platform, _id, artwork) => artwork,
+			},
 			'react-native-mmkv': {
 				createMMKV: (options) => {
 					calls.mmkv.push(options)

@@ -26,6 +26,7 @@ export interface IPersistConfig {
 	'music.rate': number
 	'music.quality': IMusic.IQualityKey
 	'music.preciseSeeking': boolean
+	'music.soundEffects': import('@/helpers/soundEffects').SoundEffectSettings
 	'app.skipVersion': string
 	'app.pluginUpdateTime': number
 	'lyric.showTranslation': boolean

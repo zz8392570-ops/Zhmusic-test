@@ -374,6 +374,7 @@ const PlayerScreenContent = () => {
 			{ id: 'lyrics', title: i18n.t('player.showLyrics'), image: 'text.quote' },
 			{ id: 'playlist', title: i18n.t('player.addToPlaylist'), image: 'plus.circle' },
 			{ id: 'share', title: i18n.t('player.share'), image: 'square.and.arrow.up' },
+			{ id: 'sound-effects', title: i18n.t('soundEffects.title'), image: 'slider.horizontal.3' },
 			{
 				id: 'timing',
 				title: sleepTimerLabel
@@ -726,6 +727,9 @@ const PlayerScreenContent = () => {
 											title={i18n.t('player.songOptions')}
 											onPressAction={({ nativeEvent }) => {
 												switch (nativeEvent.event) {
+													case 'sound-effects':
+														router.push('/(modals)/soundEffects')
+														break
 													case 'favorite':
 														handleFavorite()
 														break

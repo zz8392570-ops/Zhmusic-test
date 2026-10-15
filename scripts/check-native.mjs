@@ -12,6 +12,8 @@ const checks = [
 	'check-rntp-remote-native.mjs',
 	'check-source-runtime.mjs',
 	'check-volume-native.mjs',
+	'check-sound-dsp-native.mjs',
+	'check-sound-tap-native.mjs',
 ]
 
 for (const check of checks) {

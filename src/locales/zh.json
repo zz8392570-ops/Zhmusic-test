@@ -787,5 +787,45 @@
 		"webdavTimeout": "连接超时，请检查地址和网络",
 		"webdavRequestFailed": "网络请求失败，请检查网络后重试",
 		"webdavRequestFailedStatus": "WebDAV 服务器拒绝了请求（HTTP %{status}）"
+	},
+	"soundEffects": {
+		"title": "音效",
+		"description": "按自己的喜好调整声音。默认关闭，保留原声。",
+		"equalizer": "均衡器",
+		"equalizerHint": "调整低音、人声和高音的比例",
+		"presetsTitle": "声音风格",
+		"customTitle": "五段均衡",
+		"adjustBand": "调整 %{frequency} 增益",
+		"bandHint": "向右增强，向左减弱；松手后应用，范围 −6 至 +6 dB。",
+		"enableHint": "开启均衡器后可调整，选择声音风格也会开启。",
+		"resetBands": "频段归零",
+		"resetAll": "恢复默认音效",
+		"volumeBalance": "音量平衡",
+		"volumeBalanceHint": "实时降低过响的片段，保留弱音；可独立于均衡器开启。",
+		"soundCheckNote": "音量平衡不会分析并匹配每首歌的整体响度，与 Apple Music 的 Sound Check 不同。",
+		"updateFailed": "设置未能应用，请重试。",
+		"processingFailed": "暂时无法应用音效，请重新选择声音风格重试。",
+		"presets": {
+			"original": "原声",
+			"balanced": "均衡",
+			"vocal": "人声清晰",
+			"bass": "低音增强",
+			"soft": "柔和耐听",
+			"custom": "自定义"
+		},
+		"status": {
+			"off": "原声播放",
+			"waiting": "等待应用音效",
+			"active": "音效已应用",
+			"unsupported": "当前暂不支持音效",
+			"error": "音效暂未应用"
+		},
+		"reasons": {
+			"platform": "此设备暂不支持音效，设置已保存。",
+			"stream": "当前流媒体暂不支持音效，仍以原声播放。",
+			"format": "当前音频格式暂不支持音效，仍以原声播放。",
+			"unavailable": "音效组件暂不可用，仍以原声播放。",
+			"processing": "正在准备歌曲，稍后应用音效。"
+		}
 	}
 }
