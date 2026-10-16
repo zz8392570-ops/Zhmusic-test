@@ -12,6 +12,7 @@
 		"exampleAlbum": "示例专辑"
 	},
 	"common": {
+		"settingsSaveFailed": "设置保存失败，请重试。",
 		"error": "错误",
 		"success": "成功",
 		"confirm": "确定",

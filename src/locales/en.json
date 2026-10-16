@@ -12,6 +12,7 @@
 		"exampleAlbum": "Example album"
 	},
 	"common": {
+		"settingsSaveFailed": "Could not save settings. Please try again.",
 		"error": "Error",
 		"success": "Success",
 		"confirm": "OK",

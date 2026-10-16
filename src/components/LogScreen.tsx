@@ -1,6 +1,6 @@
 import { ThemeColors, fontSize, screenPadding } from '@/constants/tokens'
 import { useThemeColors } from '@/hooks/useAppTheme'
-import { logError, useLoggerHook } from '@/helpers/logger'
+import { logError, useLoggerHook, type LogEntry } from '@/helpers/logger'
 import { formatSourceDiagnostics } from '@/helpers/userApi/sourceDiagnostics'
 import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
@@ -25,7 +25,7 @@ const LogScreen = () => {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const { logs, clearLogs } = useLoggerHook()
-	const [selectedLog, setSelectedLog] = useState<null | any>(null)
+	const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
 	const fadeAnim = useRef(new Animated.Value(0)).current
 	const handleShare = async () => {
 		const logText = logs.map((log) => `[${log.timestamp}] [${log.level}] ${log.message}`).join('\n')
@@ -37,7 +37,7 @@ const LogScreen = () => {
 			logError(i18n.t('logScreen.shareError'), error)
 		}
 	}
-	const handleLongPress = (item: any) => {
+	const handleLongPress = (item: LogEntry) => {
 		handleCopy(item)
 	}
 	const handleCopyDiagnostics = () => {
@@ -45,7 +45,7 @@ const LogScreen = () => {
 		Alert.alert(i18n.t('logScreen.copy'), i18n.t('logScreen.diagnosticsCopied'))
 	}
 
-	const handleCopy = (item: any) => {
+	const handleCopy = (item: LogEntry) => {
 		const logText = `[${item.timestamp}] [${item.level}] ${item.message}`
 		Clipboard.setString(logText)
 		// 可以添加一个提示，告诉用户日志已复制
@@ -56,7 +56,7 @@ const LogScreen = () => {
 			useNativeDriver: true,
 		}).start()
 	}
-	const renderItem = ({ item }: { item: any }) => (
+	const renderItem = ({ item }: { item: LogEntry }) => (
 		<Pressable
 			onPress={() => setSelectedLog(item)}
 			onLongPress={() => handleLongPress(item)}
@@ -141,9 +141,7 @@ const LogScreen = () => {
 										<View style={styles.modalDetails}>
 											<Text style={styles.detailsTitle}>{i18n.t('logScreen.details.title')}</Text>
 											<Text style={styles.detailsContent}>
-												{typeof selectedLog.details === 'string'
-													? selectedLog.details
-													: JSON.stringify(selectedLog.details, null, 2)}
+												{selectedLog.details}
 											</Text>
 										</View>
 									)}

@@ -174,8 +174,10 @@ export const clearAll = async() => {
 export async function setStorage(key: string, value: any) {
     try {
         await AsyncStorage.setItem(key, JSON.stringify(value, null, ''));
+        return true;
     } catch (e: any) {
-        console.log(`存储失败${key}`, e?.message);
+        logError('storage error[setStorage]:', key, e);
+        return false;
     }
 }
 

@@ -9,7 +9,7 @@ const health = loadModule('src/helpers/userApi/musicSourceHealth.ts', {
 	'@/helpers/requestControl': request,
 })
 
-await check('logs retain only the newest 1000 entries without redacting content', () => {
+await check('logs retain only the newest 1000 entries with redacted bounded snapshots', () => {
 	const logger = loadModule(
 		'src/helpers/logger.ts',
 		{ zustand: { createStore } },
@@ -21,11 +21,55 @@ await check('logs retain only the newest 1000 entries without redacting content'
 	assert.equal(logs.length, logger.MAX_LOG_ENTRIES)
 	assert.match(logs[0].message, /^entry-100 /)
 	assert.match(logs.at(-1).message, /^entry-1099 /)
-	assert.match(logs.at(-1).message, /token=complete/)
-	assert.equal(logs.at(-1).details[1].url, 'https://example.test/?token=complete')
+	assert.doesNotMatch(logs.at(-1).message, /token=complete/)
+	assert.equal(typeof logs.at(-1).details, 'string')
+	assert.doesNotMatch(logs.at(-1).details, /complete/)
 	logger.useLogger.getState().clearLogs()
 	assert.equal(logger.useLogger.getState().logs.length, 0)
 })
+
+await check(
+	'log snapshots handle cycles, bigint, getters and errors without retaining secrets',
+	() => {
+		const logger = loadModule(
+			'src/helpers/logger.ts',
+			{ zustand: { createStore } },
+			{ console: { log() {} } },
+		)
+		let getterCalls = 0
+		const input = { token: 'hidden-token', nested: { password: 'hidden-password' }, large: 1n }
+		input.self = input
+		Object.defineProperty(input, 'trap', {
+			get() {
+				getterCalls++
+				throw new Error('getter')
+			},
+		})
+		logger.logError(
+			'https://user:password@example.test/song?key=hidden-query#hidden-fragment',
+			input,
+			new Error('request failed'),
+		)
+		const entry = logger.useLogger.getState().logs[0]
+		assert.equal(getterCalls, 0)
+		assert.match(entry.message, /Circular/)
+		assert.match(entry.message, /request failed/)
+		assert.doesNotMatch(entry.message, /hidden-|user:password/)
+		input.token = 'mutated'
+		assert.doesNotMatch(entry.details, /mutated/)
+		assert.doesNotThrow(() => JSON.stringify(entry))
+		logger.logInfo('x'.repeat(100000))
+		assert.equal(
+			logger.useLogger.getState().logs.at(-1).message.length,
+			logger.MAX_LOG_MESSAGE_LENGTH,
+		)
+		logger.logInfo('Authorization: Bearer hidden-auth', {
+			Authorization: 'hidden-header',
+			cookie: 'hidden-cookie',
+		})
+		assert.doesNotMatch(logger.useLogger.getState().logs.at(-1).message, /hidden-/)
+	},
+)
 
 await check(
 	'samples prioritize artist/platform diversity and preserve platform IDs and metadata',

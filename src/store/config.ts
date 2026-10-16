@@ -3,6 +3,8 @@
 import { produce } from 'immer';
 import {useEffect, useState} from 'react';
 import { getStorage, setStorage } from '@/helpers/storage'
+import { Alert } from 'react-native'
+import i18n from '@/utils/i18n'
 
 type ExceptionType = IMusic.IMusicItem | IMusic.IMusicItem[] | IMusic.IQuality;
 interface IConfig {
@@ -181,14 +183,22 @@ async function setup() {
     notify();
 }
 
+// Serialize saves so every change is based on the last successfully saved state.
+let pendingSave: Promise<unknown> = Promise.resolve();
+function setConfig<T extends IConfigPaths>(key: T, value: IConfigPathsObj[T], shouldNotify = true) {
+    const operation = pendingSave.then(() => saveConfig(key, value, shouldNotify));
+    pendingSave = operation.catch(() => undefined);
+    return operation;
+}
+
 /** 设置config */
-async function setConfig<T extends IConfigPaths>(
+async function saveConfig<T extends IConfigPaths>(
     key: T,
     value: IConfigPathsObj[T],
     shouldNotify = true,
 ) {
     if (config === null) {
-        return;
+        return false;
     }
     const keys = key.split('.');
 
@@ -205,11 +215,15 @@ async function setConfig<T extends IConfigPaths>(
         return draft;
     });
 
-    setStorage('local-config', result);
+    if (!await setStorage('local-config', result)) {
+        Alert.alert(i18n.t('common.error'), i18n.t('common.settingsSaveFailed'));
+        return false;
+    }
     config = result;
     if (shouldNotify) {
         notify();
     }
+    return true;
 }
 
 // todo: 获取兜底
