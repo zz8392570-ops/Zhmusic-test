@@ -121,15 +121,19 @@ static void testCallbacks(void) {
 
 static void testOwnerLifecycle(void) {
   __block unsigned events = 0;
+  __block NSDictionary *latestStatus;
   CyMusicSoundEffectsProcessor *processor = [[CyMusicSoundEffectsProcessor alloc]
-    initWithStatusHandler:^(NSDictionary *status) { events++; }];
+    initWithStatusHandler:^(NSDictionary *status) { events++; latestStatus = status; }];
   assert(processor);
   NSDictionary *off = [processor configureEnabled:NO bands:@[] volumeBalance:NO revision:1];
   assert([off[@"state"] isEqual:@"off"]);
   NSDictionary *waiting = [processor configureEnabled:NO bands:@[] volumeBalance:YES revision:2];
-  assert([waiting[@"state"] isEqual:@"waiting"] && [waiting[@"revision"] doubleValue] == 2);
+  assert([waiting[@"state"] isEqual:@"idle"] && [waiting[@"reason"] isEqual:@"playback"] && [waiting[@"revision"] doubleValue] == 2);
   AVPlayer *player = [AVPlayer new];
   [NSNotificationCenter.defaultCenter postNotificationName:@"CyMusicSoundEffectsPlayerAvailable" object:player];
+  [processor pollProcessing];
+  assert([latestStatus[@"state"] isEqual:@"idle"]);
+  assert([latestStatus[@"reason"] isEqual:@"playback"]);
   [NSNotificationCenter.defaultCenter postNotificationName:@"CyMusicSoundEffectsPlayerAvailable" object:player userInfo:@{@"released": @YES}];
   [processor invalidate];
   unsigned count = events;

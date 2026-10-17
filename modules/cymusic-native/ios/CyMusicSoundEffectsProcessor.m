@@ -255,7 +255,7 @@ static int CYExternalObservation;
   [self detachMix];
   if (!_requested) { [self publish:@"off" reason:nil]; return; }
   AVPlayerItem *item = _player.currentItem;
-  if (!item) { [self publish:@"waiting" reason:nil]; return; }
+  if (!item) { [self publish:@"idle" reason:@"playback"]; return; }
   if (_player.externalPlaybackActive) { [self publish:@"unsupported" reason:@"stream"]; return; }
   _item = item;
   unsigned generation = _generation;
@@ -321,6 +321,11 @@ static int CYExternalObservation;
   if ([_status[@"state"] isEqual:@"unsupported"] || [_status[@"state"] isEqual:@"error"]) return;
   // Some remote layouts accept an audioMix but never deliver PCM to the tap.
   // Count playback time only: pausing or buffering must not look like a failure.
+  if (!_player.currentItem || _player.timeControlStatus == AVPlayerTimeControlStatusPaused) {
+    [self publish:@"idle" reason:@"playback"];
+    return;
+  }
+  [self publish:@"waiting" reason:@"processing"];
   if (_player.timeControlStatus == AVPlayerTimeControlStatusPlaying) _playingWithoutPCM += 0.25;
   if (_playingWithoutPCM >= 4) [self publish:@"unsupported" reason:@"stream"];
 }

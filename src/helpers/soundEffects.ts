@@ -56,30 +56,69 @@ let applyTail: Promise<void> = Promise.resolve()
 let subscription: { remove(): void } | undefined
 let initialization: Promise<void> | undefined
 
+export const SOUND_EFFECT_APPLY_TIMEOUT_MS = 10000
+let waitingTimer: ReturnType<typeof setTimeout> | undefined
 const publish = (status: NativeSoundEffectsStatus) => {
-	if (status.revision === revision)
-		soundEffectsStatusStore.setValue({ state: status.state, reason: status.reason })
+	if (status.revision !== revision) return
+	if (status.state !== 'waiting' && waitingTimer !== undefined) {
+		clearTimeout(waitingTimer)
+		waitingTimer = undefined
+	}
+	soundEffectsStatusStore.setValue({ state: status.state, reason: status.reason })
+	if (status.state === 'waiting' && waitingTimer === undefined) {
+		const waitingRevision = revision
+		waitingTimer = setTimeout(() => {
+			waitingTimer = undefined
+			if (waitingRevision === revision)
+				soundEffectsStatusStore.setValue({ state: 'error', reason: 'timeout' })
+		}, SOUND_EFFECT_APPLY_TIMEOUT_MS)
+	}
+}
+class SoundEffectsTimeoutError extends Error {}
+// A bridge promise that never settles must not block all subsequent retries.
+const configureWithTimeout = async (settings: SoundEffectSettings, requestedRevision: number) => {
+	let timer: ReturnType<typeof setTimeout> | undefined
+	try {
+		return await Promise.race([
+			nativeSoundEffects!.configure({ ...settings, revision: requestedRevision }),
+			new Promise<NativeSoundEffectsStatus>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new SoundEffectsTimeoutError('Sound effects configuration timed out')),
+					SOUND_EFFECT_APPLY_TIMEOUT_MS,
+				)
+			}),
+		])
+	} finally {
+		if (timer !== undefined) clearTimeout(timer)
+	}
 }
 const applySettings = (): Promise<void> => {
 	const requestedRevision = ++revision
 	const settings = soundEffectsStore.getValue()
 	const requested = settings.enabled || settings.volumeBalance
-	soundEffectsStatusStore.setValue({ state: requested ? 'waiting' : 'off' })
+	if (waitingTimer !== undefined) clearTimeout(waitingTimer)
+	waitingTimer = undefined
+	publish({ revision: requestedRevision, state: requested ? 'waiting' : 'off' })
 	const operation = applyTail.then(async () => {
 		if (requestedRevision !== revision) return
 		if (!nativeSoundEffects) {
-			soundEffectsStatusStore.setValue(
-				requested ? { state: 'unsupported', reason: 'platform' } : { state: 'off' },
-			)
+			publish({
+				revision: requestedRevision,
+				...(requested ? { state: 'unsupported', reason: 'platform' } : { state: 'off' }),
+			})
 			return
 		}
 		try {
 			if (!subscription)
 				subscription = nativeSoundEffects.addListener('soundEffectsChanged', publish)
-			publish(await nativeSoundEffects.configure({ ...settings, revision: requestedRevision }))
+			publish(await configureWithTimeout(settings, requestedRevision))
 		} catch (error) {
 			if (requestedRevision === revision)
-				soundEffectsStatusStore.setValue({ state: 'error', reason: 'processing' })
+				publish({
+					revision: requestedRevision,
+					state: 'error',
+					reason: error instanceof SoundEffectsTimeoutError ? 'timeout' : 'processing',
+				})
 			throw error
 		}
 	})

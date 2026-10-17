@@ -823,7 +823,9 @@
 			"soft": "Soft",
 			"custom": "Custom"
 		},
+		"retry": "Retry effects",
 		"status": {
+			"idle": "Waiting for playback",
 			"off": "Original audio",
 			"waiting": "Waiting to apply effects",
 			"active": "Sound effects active",
@@ -831,6 +833,8 @@
 			"error": "Sound effects not applied"
 		},
 		"reasons": {
+			"playback": "Settings saved. Effects will apply when audio plays.",
+			"timeout": "Applying effects timed out. Effects are not confirmed active. Retry or restart playback.",
 			"platform": "This device doesn't support sound effects. Your settings are saved.",
 			"stream": "This stream doesn't support sound effects. Playing original audio.",
 			"format": "This audio format doesn't support sound effects. Playing original audio.",

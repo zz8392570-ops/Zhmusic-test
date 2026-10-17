@@ -17,6 +17,13 @@ const plain = (value) => JSON.parse(JSON.stringify(value))
 
 function soundFixture({ persisted, storage = new Map(), available = true } = {}) {
 	if (persisted !== undefined) storage.set('music.soundEffects', plain(persisted))
+	const timers = new Map()
+	let nextTimer = 0
+	const runTimers = () => {
+		const pending = [...timers.values()]
+		timers.clear()
+		pending.forEach((callback) => callback())
+	}
 	const calls = []
 	const writes = []
 	const listeners = new Set()
@@ -38,20 +45,33 @@ function soundFixture({ persisted, storage = new Map(), available = true } = {})
 			return configure(settings)
 		},
 	}
-	const helper = loadModule('src/helpers/soundEffects.ts', {
-		'@/store/PersistStatus': {
-			get: (key) => storage.get(key) ?? null,
-			set(key, value) {
-				if (failWrite) throw new Error('Storage full')
-				writes.push([key, plain(value)])
-				storage.set(key, plain(value))
+	const helper = loadModule(
+		'src/helpers/soundEffects.ts',
+		{
+			'@/store/PersistStatus': {
+				get: (key) => storage.get(key) ?? null,
+				set(key, value) {
+					if (failWrite) throw new Error('Storage full')
+					writes.push([key, plain(value)])
+					storage.set(key, plain(value))
+				},
 			},
+			'@/utils/stateMapper': stateMapper,
+			'../../modules/cymusic-native/soundEffects': available ? native : null,
 		},
-		'@/utils/stateMapper': stateMapper,
-		'../../modules/cymusic-native/soundEffects': available ? native : null,
-	})
+		{
+			setTimeout: (callback) => {
+				const id = ++nextTimer
+				timers.set(id, callback)
+				return id
+			},
+			clearTimeout: (id) => timers.delete(id),
+		},
+	)
 	return {
 		...helper,
+		runTimers,
+		timers,
 		calls,
 		writes,
 		listeners,
@@ -344,6 +364,55 @@ await check(
 )
 
 await check(
+	'idle playback never spins or times out; waiting expires and late PCM can recover',
+	async () => {
+		const h = soundFixture()
+		h.configure(async (settings) => ({
+			state: 'idle',
+			reason: 'playback',
+			revision: settings.revision,
+		}))
+		await h.selectSoundEffectPreset('bass')
+		assert.equal(h.soundEffectsStatusStore.getValue().state, 'idle')
+		assert.equal(h.timers.size, 0)
+		h.emit({ state: 'waiting', reason: 'processing' })
+		assert.equal(h.timers.size, 1)
+		h.runTimers()
+		assert.deepEqual(plain(h.soundEffectsStatusStore.getValue()), {
+			state: 'error',
+			reason: 'timeout',
+		})
+		h.emit({ state: 'active' })
+		assert.equal(h.soundEffectsStatusStore.getValue().state, 'active')
+		assert.equal(h.timers.size, 0)
+	},
+)
+
+await check(
+	'a hung configure expires, releases the apply queue and ignores stale callbacks',
+	async () => {
+		const h = soundFixture()
+		const slow = deferred()
+		h.configure(() => slow.promise)
+		const operation = h.selectSoundEffectPreset('bass')
+		const rejected = assert.rejects(operation, /timed out/)
+		await flush()
+		const oldRevision = h.calls[0].revision
+		h.runTimers()
+		await rejected
+		assert.equal(h.soundEffectsStatusStore.getValue().reason, 'timeout')
+		h.configure(async (settings) => ({ state: 'active', revision: settings.revision }))
+		await h.updateSoundEffects({})
+		assert.equal(h.soundEffectsStatusStore.getValue().state, 'active')
+		slow.resolve({ state: 'waiting', revision: oldRevision })
+		h.emit({ state: 'waiting' }, oldRevision)
+		await flush()
+		assert.equal(h.soundEffectsStatusStore.getValue().state, 'active')
+		assert.equal(h.timers.size, 0)
+	},
+)
+
+await check(
 	'the native bridge loads the iOS module optionally and never requires it on other platforms',
 	() => {
 		let required = 0
@@ -438,6 +507,28 @@ await check(
 		await flush()
 		assert.equal(h.soundEffectsStore.getValue().enabled, false)
 		assert.equal(h.soundEffectsStore.getValue().volumeBalance, false)
+		h.emit({ state: 'idle', reason: 'playback' })
+		assert.equal(findNodes(Screen(), (node) => node.type === 'Spinner').length, 0)
+		h.emit({ state: 'waiting', reason: 'processing' })
+		assert.equal(findNodes(Screen(), (node) => node.type === 'Spinner').length, 1)
+		h.runTimers()
+		tree = Screen()
+		assert.equal(findNodes(tree, (node) => node.type === 'Spinner').length, 0)
+		const retry = findNodes(
+			tree,
+			(node) =>
+				node.type === 'Button' &&
+				findNodes(
+					node,
+					(child) => child.type === 'Text' && child.props.children.includes('soundEffects.retry'),
+				).length,
+		)[0]
+		assert.ok(retry)
+		const before = h.calls.length
+		retry.props.onPress()
+		await flush()
+		assert.equal(h.calls.length, before + 1)
+		assert.equal(h.soundEffectsStatusStore.getValue().state, 'off')
 	},
 )
 await check('player menu and settings both connect to the sound effects route', () => {

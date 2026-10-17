@@ -121,7 +121,7 @@ export default function SoundEffectsScreen() {
 	const reasonKey =
 		status.state === 'error' && reason === 'processing'
 			? 'soundEffects.processingFailed'
-			: reason && ['platform', 'stream', 'format', 'unavailable', 'processing'].includes(reason)
+			: reason && ['platform', 'stream', 'format', 'unavailable', 'processing', 'playback', 'timeout'].includes(reason)
 				? `soundEffects.reasons.${reason}`
 				: null
 	return (
@@ -159,6 +159,11 @@ export default function SoundEffectsScreen() {
 					<Text style={styles.statusText}>{i18n.t(`soundEffects.status.${status.state}`)}</Text>
 					{reasonKey && status.state !== 'active' ? (
 						<Text style={styles.hint}>{i18n.t(reasonKey)}</Text>
+					) : null}
+					{status.state === 'error' ? (
+						<Pressable accessibilityRole="button" onPress={() => apply(() => updateSoundEffects({}))}>
+							<Text style={styles.actionText}>{i18n.t('soundEffects.retry')}</Text>
+						</Pressable>
 					) : null}
 					{actionFailed ? (
 						<Text style={[styles.hint, { color: colors.error }]}>

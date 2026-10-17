@@ -2,8 +2,8 @@ import { NativeModule, requireOptionalNativeModule } from 'expo'
 import { Platform } from 'react-native'
 
 export type SoundEffectsStatus = {
-	state: 'off' | 'waiting' | 'active' | 'unsupported' | 'error'
-	reason?: 'platform' | 'stream' | 'format' | 'unavailable' | 'processing'
+	state: 'off' | 'idle' | 'waiting' | 'active' | 'unsupported' | 'error'
+	reason?: 'platform' | 'stream' | 'format' | 'unavailable' | 'processing' | 'playback' | 'timeout'
 }
 export type NativeSoundEffectsStatus = SoundEffectsStatus & { revision: number }
 type SoundEffectsEvents = {
