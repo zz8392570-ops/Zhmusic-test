@@ -22,3 +22,10 @@ jobs:
 
       - name: Run lint, typecheck and core regression suites
         run: yarn validate
+
+      - name: Build iOS JavaScript and Hermes bundle
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_OFFLINE: '1'
+        run: node node_modules/expo/bin/cli export --platform ios --max-workers 2 --output-dir dist/ci-ios

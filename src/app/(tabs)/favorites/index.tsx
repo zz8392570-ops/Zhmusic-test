@@ -2,7 +2,7 @@ import localImage from '@/assets/local.png'
 import { PlaylistsList } from '@/components/PlaylistsList'
 import TracksListItem from '@/components/TracksListItem'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
-import { searchPersonalLibrary } from '@/helpers/personalLibrarySearch'
+import { createPersonalLibrarySearch } from '@/helpers/personalLibrarySearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { isSameMediaItem } from '@/utils/mediaItem'
 import {
@@ -88,7 +88,14 @@ const FavoritesScreen = () => {
 		[storedPlayLists, favorites, localTracks, recentlyPlayed, smartPlaylists],
 	)
 
-	const results = useMemo(() => searchPersonalLibrary(playLists, search), [playLists, search])
+	const searchLibrary = useMemo(
+		() => showSearch ? createPersonalLibrarySearch(playLists) : null,
+		[playLists, showSearch],
+	)
+	const results = useMemo(
+		() => searchLibrary ? searchLibrary(search) : { playlists: playLists, tracks: [] },
+		[searchLibrary, search, playLists],
+	)
 	const filteredPlayLists = results.playlists as Playlist[]
 	const corePlaylists = useMemo(
 		() => ({

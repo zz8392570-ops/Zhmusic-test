@@ -262,6 +262,33 @@ await check(
 		assert.equal(searchPersonalLibrary(collections, '不存在').tracks.length, 0)
 	},
 )
+await check('indexed search preserves normalization, duplicate metadata and snapshot updates', () => {
+	const { createPersonalLibrarySearch } = loadModule('src/helpers/personalLibrarySearch.ts', {})
+	const first = track('same', 'tx', { title: 'ＡＢＣ', artist: '歌手', album: '专辑' })
+	const other = track('same', 'wy', { title: 'abc' })
+	const copy = { ...first, title: 'Different title' }
+	const collections = [
+		{ id: 'a', title: 'ＡＢＣ 歌单', songs: [first, first, other] },
+		{ id: 'b', title: 'Other', tracks: [copy] },
+	]
+	const search = createPersonalLibrarySearch(collections)
+	assert.equal(search(' abc ').playlists[0], collections[0])
+	const result = search('aBc')
+	assert.equal(result.tracks.length, 2)
+	assert.equal(result.tracks[0].track, first)
+	assert.equal(result.tracks[0].collections.length, 1)
+	assert.equal(search('Different').tracks[0].track, copy)
+	assert.equal(search('歌手').tracks[0].collections.length, 2)
+	result.tracks[0].collections.length = 0
+	assert.equal(search('abc').tracks[0].collections.length, 1)
+	assert.equal(search('  ').tracks.length, 0)
+	assert.equal(search('  ').playlists.length, 2)
+	assert.equal(search('missing').tracks.length, 0)
+	const updated = createPersonalLibrarySearch([{ ...collections[0], title: 'Renamed', songs: [{ ...first, title: 'Edited' }] }])
+	assert.equal(updated('abc').tracks.length, 0)
+	assert.equal(updated('Edited').tracks.length, 1)
+	assert.equal(updated('Renamed').playlists.length, 1)
+})
 await check('library playlists sort by pin, folder and stable manual order', () => {
 	const { sortLibraryPlaylists } = loadModule('src/helpers/playlistOrganizer.ts', {
 		'@/helpers/libraryEdits': loadModule('src/helpers/libraryEdits.ts', {}),
