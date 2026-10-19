@@ -384,7 +384,8 @@
 		"sections": {
 			"new": "New",
 			"improved": "Improved",
-			"fixed": "Fixed"
+			"fixed": "Fixed",
+			"features": "Feature overview"
 		}
 	},
 	"library": {

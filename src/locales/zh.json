@@ -385,7 +385,8 @@
 		"sections": {
 			"new": "新增",
 			"improved": "优化",
-			"fixed": "修复"
+			"fixed": "修复",
+			"features": "功能总览"
 		}
 	},
 	"library": {
