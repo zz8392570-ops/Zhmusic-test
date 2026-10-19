@@ -87,15 +87,7 @@ function _LyricItemComponent(props: ILyricItemComponentProps) {
 	)
 }
 // 歌词
-const LyricItemComponent = memo(
-	_LyricItemComponent,
-	(prev, curr) =>
-		prev.light === curr.light &&
-		prev.highlight === curr.highlight &&
-		prev.text === curr.text &&
-		prev.index === curr.index &&
-		prev.fontSize === curr.fontSize,
-)
+const LyricItemComponent = memo(_LyricItemComponent)
 
 export default LyricItemComponent
 

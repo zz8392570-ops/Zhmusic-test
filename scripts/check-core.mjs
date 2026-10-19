@@ -6,6 +6,7 @@ const checks = [
 	'check-download-naming.mjs',
 	'check-download-quality.mjs',
 	'check-file-downloads.mjs',
+	'check-download-recovery.mjs',
 	'check-local-files.mjs',
 	'check-local-import.mjs',
 	'check-library-edits.mjs',

@@ -99,7 +99,7 @@ function useValue<K extends keyof IPersistConfig>(
 	key: K,
 	defaultValue?: IPersistConfig[K],
 ): IPersistConfig[K] | null {
-	const [state, setState] = useState<IPersistConfig[K] | null>(get(key) ?? defaultValue ?? null)
+	const [state, setState] = useState<IPersistConfig[K] | null>(() => get(key) ?? defaultValue ?? null)
 
 	useEffect(() => {
 		const store = getOrCreateMMKV(PersistConfig.PersistStatus)
