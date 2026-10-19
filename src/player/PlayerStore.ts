@@ -35,7 +35,7 @@ export type CacheDownloadTask = {
 	/** Explicit download choices must not silently reuse or fall back to another quality. */
 	strictQuality?: boolean
 	progress: number
-	status: 'queued' | 'downloading' | 'interrupted' | 'completed' | 'failed' | 'cancelled'
+	status: 'paused' | 'queued' | 'downloading' | 'interrupted' | 'completed' | 'failed' | 'cancelled'
 	kind?: 'saved' | 'automatic'
 	silent?: boolean
 	updatedAt?: number

@@ -3,7 +3,13 @@ import * as FileSystem from 'expo-file-system/legacy'
 import PersistStatus from '@/store/PersistStatus'
 import i18n from '@/utils/i18n'
 import { showToast } from '@/utils/utils'
-import { cancelDownload, clearDownloadCancellation } from '@/helpers/fileDownload'
+import {
+	cancelDownload,
+	clearDownloadCancellation,
+	pauseDownload,
+	configureDownloadResume,
+	discardDownloadResume,
+} from '@/helpers/fileDownload'
 import { requestAbortError } from '@/helpers/requestControl'
 import { fakeAudioMp3Uri } from '@/constants/images'
 import { resolveLocalFile } from '@/helpers/localFile'
@@ -51,6 +57,18 @@ let clearing = false
 let cacheMaintenance: Promise<void> = Promise.resolve()
 export const configureDownloads = (getProtectedPaths: () => string[]) => {
 	protectedPaths = getProtectedPaths
+	configureDownloadResume(
+		(id) => PersistStatus.get('music.downloadResume')?.[id],
+		(id, state) => {
+			const states = { ...(PersistStatus.get('music.downloadResume') ?? {}) }
+			if (state) states[id] = state
+			else {
+				if (!states[id]) return
+				delete states[id]
+			}
+			PersistStatus.set('music.downloadResume', states)
+		},
+	)
 }
 const withCacheMaintenance = (work: () => Promise<void>) => {
 	const next = cacheMaintenance.then(work, work)
@@ -58,7 +76,7 @@ const withCacheMaintenance = (work: () => Promise<void>) => {
 	return next
 }
 const persistTasks = (tasks: CacheDownloadTask[]) => {
-	const pendingStatuses = new Set(['queued', 'downloading', 'interrupted'])
+	const pendingStatuses = new Set(['paused', 'queued', 'downloading', 'interrupted'])
 	const pending = tasks.filter((task) => pendingStatuses.has(task.status))
 	const completed = tasks.filter((task) => !pendingStatuses.has(task.status)).slice(-50)
 	const retained = [...pending, ...completed].sort(
@@ -103,9 +121,15 @@ export const restoreDownloadTasks = () => {
 			typeof task.track.platform !== 'string' ||
 			typeof task.track.title !== 'string' ||
 			typeof task.track.artist !== 'string' ||
-			!['queued', 'downloading', 'interrupted', 'completed', 'failed', 'cancelled'].includes(
-				task.status,
-			) ||
+			![
+				'paused',
+				'queued',
+				'downloading',
+				'interrupted',
+				'completed',
+				'failed',
+				'cancelled',
+			].includes(task.status) ||
 			!['128k', '320k', 'flac'].includes(task.quality)
 		)
 			continue
@@ -292,6 +316,7 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 	const id = JSON.stringify([track.platform || 'unknown', track.id, quality])
 	const existing = cacheDownloadTasksStore.getValue().find((task) => task.id === id)
 	const kind = options.kind ?? 'saved'
+	if (existing?.status === 'paused' && kind === 'automatic') return
 	if (existing && ['downloading', 'queued'].includes(existing.status)) {
 		if (options.strictQuality && !existing.strictQuality) {
 			await cancelCacheTask(existing.id)
@@ -319,19 +344,39 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 
 export const cancelCacheTask = async (taskId: string) => {
 	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
-	if (!task || !['downloading', 'queued', 'interrupted'].includes(task.status)) return
+	if (!task || !['paused', 'downloading', 'queued', 'interrupted'].includes(task.status)) return
 	update({ ...task, status: 'cancelled' })
 	active.get(taskId)?.abort(requestAbortError())
 	if (active.has(taskId)) await cancelDownload(taskId)
+	else discardDownloadResume(taskId)
 	pump()
 }
 
+export const pauseCacheTask = async (taskId: string) => {
+	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
+	if (!task || !['queued', 'downloading'].includes(task.status)) return
+	update({ ...task, status: 'paused' })
+	active.get(taskId)?.abort(requestAbortError())
+	try {
+		await pauseDownload(taskId)
+	} catch {
+		await cancelDownload(taskId)
+	} finally {
+		pump()
+	}
+}
+export const resumeCacheTask = (taskId: string) => {
+	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
+	if (!task || !['paused', 'interrupted'].includes(task.status)) return
+	update({ ...task, status: 'queued', error: undefined })
+	pump()
+}
 export const resumeCacheTasks = () => {
 	persistTasks(
 		cacheDownloadTasksStore
 			.getValue()
 			.map((task) =>
-				task.status === 'interrupted' ? { ...task, status: 'queued', progress: 0 } : task,
+				['paused', 'interrupted'].includes(task.status) ? { ...task, status: 'queued' } : task,
 			),
 	)
 	pump()
@@ -345,7 +390,7 @@ export const clearAutomaticDownloads = async (clearFiles: () => Promise<void>) =
 			.filter(
 				(task) =>
 					task.kind === 'automatic' &&
-					['downloading', 'queued', 'interrupted'].includes(task.status),
+					['paused', 'downloading', 'queued', 'interrupted'].includes(task.status),
 			)
 		await Promise.all(tasks.map((task) => cancelCacheTask(task.id)))
 		await withCacheMaintenance(clearFiles)

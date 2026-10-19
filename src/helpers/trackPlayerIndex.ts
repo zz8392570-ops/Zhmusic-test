@@ -50,6 +50,8 @@ import { resolveLibraryTrack } from './libraryEdits'
 import {
 	enqueueDownload,
 	cancelCacheTask,
+	pauseCacheTask,
+	resumeCacheTask,
 	resumeCacheTasks,
 	restoreDownloadTasks,
 	clearAutomaticDownloads,
@@ -1711,6 +1713,8 @@ const myTrackPlayer = {
 	toggleAutoCacheWifiOnly,
 	cacheAndImportMusic,
 	cancelCacheDownload,
+	pauseCacheDownload: pauseCacheTask,
+	resumeCacheDownload: resumeCacheTask,
 	resumeCacheDownloads: resumeCacheTasks,
 	downloadPlaylist,
 	setCacheLimitMB,

@@ -213,7 +213,8 @@
 			"failed": "失败",
 			"cancelled": "已取消",
 			"queued": "排队中",
-			"interrupted": "待继续"
+			"interrupted": "待继续",
+			"paused": "已暂停"
 		},
 		"limit": "自动缓存上限",
 		"retentionHint": "自动缓存达到上限时优先清理较早文件；离线保存和旧版本已有下载会保留。当前播放与正在离线保存的文件暂不清理。",
@@ -224,7 +225,17 @@
 		"queued": "已加入下载队列",
 		"batchQueued": "已加入 %{count} 首歌曲的离线保存任务",
 		"downloadAll": "离线保存歌单",
-		"batchMessage": "保存歌单歌曲，需下载约 %{count} 首。手动下载可能使用移动数据，请确认网络和剩余空间。"
+		"batchMessage": "保存歌单歌曲，需下载约 %{count} 首。手动下载可能使用移动数据，请确认网络和剩余空间。",
+		"pause": "暂停",
+		"resume": "继续",
+		"all": "全部",
+		"search": "搜索歌曲或歌手",
+		"select": "批量管理",
+		"selectAll": "全选当前结果",
+		"deleteSelected": "删除所选 (%{count})",
+		"deleteSelectedConfirm": "确定删除所选的 %{count} 首离线歌曲？",
+		"deleteFailed": "%{count} 首歌曲删除失败，请重试",
+		"resumeHint": "支持续传的音源会接着下载；地址或续传数据失效时会重新下载。"
 	},
 	"queue": {
 		"title": "播放队列 · %{count}",
@@ -371,7 +382,11 @@
 		"title": "版本更新记录",
 		"subtitle": "看看每个版本新增和修复了什么",
 		"current": "当前版本",
-		"sections": { "new": "新增", "improved": "优化", "fixed": "修复" }
+		"sections": {
+			"new": "新增",
+			"improved": "优化",
+			"fixed": "修复"
+		}
 	},
 	"library": {
 		"pinned": "已置顶",
@@ -772,7 +787,7 @@
 		"mergeMessage": "将备份与现有收藏、歌单和最近播放记录合并，同平台同歌曲 ID 去重。是否恢复设置取决于上方开关。",
 		"restore": "恢复备份",
 		"webdavTitle": "WebDAV 备份",
-		"webdavDescription": "每次上传会更新最新备份，并在 daily 目录保留当天快照。配置完成后，App 每天首次打开或回到前台时自动备份一次。",
+		"webdavDescription": "配置 WebDAV 后，启动或返回应用时自动备份；歌单、收藏或最近播放变化后会合并备份。历史清理只移除超过所选期限的应用每日备份。",
 		"webdavUrl": "WebDAV 目录地址",
 		"webdavUsername": "用户名",
 		"webdavPassword": "密码或应用专用密码",
@@ -794,7 +809,10 @@
 		"webdavInvalidBackup": "远端文件不是有效的 Cymusic 备份",
 		"webdavTimeout": "连接超时，请检查地址和网络",
 		"webdavRequestFailed": "网络请求失败，请检查网络后重试",
-		"webdavRequestFailedStatus": "WebDAV 服务器拒绝了请求（HTTP %{status}）"
+		"webdavRequestFailedStatus": "WebDAV 服务器拒绝了请求（HTTP %{status}）",
+		"retention": "历史备份保留期限",
+		"keepForever": "永久保留",
+		"keepDays": "%{days} 天"
 	},
 	"downloadQuality": {
 		"batchTitle": "选择下载音质 · %{count} 首歌曲",

@@ -11,6 +11,7 @@ let foreground
 let outcome = 'uploaded'
 let calls = 0
 const auto = loadModule('src/helpers/webDavAutoBackup.ts', {
+	'@/store/PersistStatus': { subscribe: () => () => {} },
 	'@/helpers/logger': { logError() {}, logInfo() {} },
 	'@/helpers/musicBackup': { createMusicBackup: () => ({}) },
 	'@/helpers/webDavBackup': {
@@ -67,4 +68,133 @@ await check('failures survive restart and success clears error and failure count
 	assert.equal(values.get('backup.webdavStatus').errorCode, undefined)
 	stop()
 })
+function autoFixture() {
+	let listener,
+		foreground,
+		changed = 0,
+		calls = 0
+	const timers = new Map()
+	let nextTimer = 0
+	let pending
+	const api = loadModule(
+		'src/helpers/webDavAutoBackup.ts',
+		{
+			'@/store/PersistStatus': {
+				subscribe(callback) {
+					listener = callback
+					return () => {
+						listener = undefined
+					}
+				},
+			},
+			'@/helpers/logger': { logError() {}, logInfo() {} },
+			'@/helpers/musicBackup': { createMusicBackup: () => ({ changed }) },
+			'@/helpers/webDavBackup': {
+				runDailyWebDavBackup: async () => {
+					calls++
+					if (pending) await pending.promise
+					return 'uploaded'
+				},
+			},
+			'@/helpers/webDavBackupStatus': {
+				recordWebDavBackupSuccess() {},
+				recordWebDavBackupFailure() {},
+			},
+			'expo-constants': { expoConfig: {} },
+			'react-native': {
+				AppState: {
+					currentState: 'active',
+					addEventListener(_event, callback) {
+						foreground = callback
+						return { remove() {} }
+					},
+				},
+			},
+		},
+		{
+			setTimeout(callback, delay) {
+				assert.equal(delay, 15000)
+				const id = ++nextTimer
+				timers.set(id, callback)
+				return id
+			},
+			clearTimeout: (id) => timers.delete(id),
+		},
+	)
+	return {
+		...api,
+		timers,
+		get calls() {
+			return calls
+		},
+		change(key = 'music.playLists') {
+			changed++
+			listener?.(key)
+		},
+		foreground: (state) => foreground(state),
+		hold: (value) => {
+			pending = value
+		},
+		fire() {
+			const [id, callback] = [...timers][0]
+			timers.delete(id)
+			callback()
+		},
+	}
+}
+await check(
+	'library changes debounce into one backup and unrelated writes do not trigger it',
+	async () => {
+		const h = autoFixture(),
+			stop = h.startWebDavAutoBackup()
+		await flush()
+		h.change('music.progress')
+		assert.equal(h.timers.size, 0)
+		h.change()
+		h.change('music.favorites')
+		h.change()
+		assert.equal(h.timers.size, 1)
+		h.fire()
+		await flush()
+		assert.equal(h.calls, 2)
+		stop()
+	},
+)
+await check(
+	'changes during upload schedule a following backup; background changes wait for foreground',
+	async () => {
+		const h = autoFixture(),
+			stop = h.startWebDavAutoBackup()
+		await flush()
+		let resolve
+		const pending = {
+			promise: new Promise((done) => {
+				resolve = done
+			}),
+		}
+		h.hold(pending)
+		h.change()
+		h.fire()
+		await flush()
+		h.change()
+		resolve()
+		await flush()
+		h.hold(undefined)
+		assert.equal(h.timers.size, 1)
+		h.fire()
+		await flush()
+		assert.equal(h.calls, 3)
+		h.foreground('background')
+		h.change()
+		assert.equal(h.timers.size, 0)
+		h.foreground('active')
+		await flush()
+		assert.equal(h.calls, 4)
+		h.change()
+		stop()
+		assert.equal(h.timers.size, 0)
+		h.change()
+		assert.equal(h.timers.size, 0)
+	},
+)
 finish()

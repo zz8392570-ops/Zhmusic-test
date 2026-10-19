@@ -1,3 +1,4 @@
+import PersistStatus from '@/store/PersistStatus'
 import { logError, logInfo } from '@/helpers/logger'
 import { createMusicBackup } from '@/helpers/musicBackup'
 import { runDailyWebDavBackup } from '@/helpers/webDavBackup'
@@ -7,10 +8,13 @@ import { AppState, type AppStateStatus } from 'react-native'
 
 let started = false
 let appState: AppStateStatus = AppState.currentState
+let changeTimer: ReturnType<typeof setTimeout> | undefined
+let dirty = false
 let backupPromise: Promise<void> | null = null
 
 const requestDailyBackup = () => {
 	if (backupPromise || appState !== 'active') return backupPromise
+	dirty = false
 	backupPromise = Promise.resolve()
 		.then(() => runDailyWebDavBackup(createMusicBackup(Constants.expoConfig?.version ?? '')))
 		.then((result) => {
@@ -25,15 +29,29 @@ const requestDailyBackup = () => {
 		})
 		.finally(() => {
 			backupPromise = null
+			if (started && dirty) scheduleBackup()
 		})
 	return backupPromise
 }
 
+const scheduleBackup = () => {
+	dirty = true
+	if (changeTimer !== undefined) clearTimeout(changeTimer)
+	if (appState !== 'active') return
+	changeTimer = setTimeout(() => {
+		changeTimer = undefined
+		void requestDailyBackup()
+	}, 15_000)
+}
 export const startWebDavAutoBackup = () => {
 	if (started) return () => undefined
 	started = true
 	appState = AppState.currentState
 	void requestDailyBackup()
+	const unsubscribe = PersistStatus.subscribe((key) => {
+		if (['music.favorites', 'music.playLists', 'music.recentlyPlayed'].includes(key))
+			scheduleBackup()
+	})
 	const subscription = AppState.addEventListener('change', (nextState) => {
 		const returnedToForeground = appState !== 'active' && nextState === 'active'
 		appState = nextState
@@ -42,5 +60,8 @@ export const startWebDavAutoBackup = () => {
 	return () => {
 		started = false
 		subscription.remove()
+		unsubscribe()
+		if (changeTimer !== undefined) clearTimeout(changeTimer)
+		changeTimer = undefined
 	}
 }

@@ -64,6 +64,7 @@ export default function BackupManagerScreen() {
 	const [webDavUsername, setWebDavUsername] = useState('')
 	const [webDavPassword, setWebDavPassword] = useState('')
 	const [webDavRemotePath, setWebDavRemotePath] = useState(DEFAULT_REMOTE_PATH)
+	const [retentionDays, setRetentionDays] = useState<0 | 30 | 90>(30)
 	const [webDavStatus, setWebDavStatus] = useState('')
 	const [snapshots, setSnapshots] = useState<WebDavSnapshot[] | null>(null)
 	const [previewSource, setPreviewSource] = useState('')
@@ -78,6 +79,7 @@ export default function BackupManagerScreen() {
 				setWebDavUsername(config.username)
 				setWebDavPassword(config.password)
 				setWebDavRemotePath(config.remotePath)
+				setRetentionDays(config.retentionDays ?? 0)
 			})
 			.catch(() => {
 				if (mounted) setWebDavStatus(i18n.t('backup.webdavInvalidConfig'))
@@ -92,6 +94,7 @@ export default function BackupManagerScreen() {
 		username: webDavUsername,
 		password: webDavPassword,
 		remotePath: webDavRemotePath,
+		retentionDays,
 	})
 	const webDavErrorMessage = (error: unknown) => {
 		const code = (error as { code?: WebDavErrorCode })?.code
@@ -378,6 +381,18 @@ export default function BackupManagerScreen() {
 				<Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18 }}>
 					{i18n.t('backup.webdavSecurityNote')}
 				</Text>
+				<Text style={{ color: colors.text, fontWeight: '600' }}>{i18n.t('backup.retention')}</Text>
+				<View style={{ flexDirection: 'row', gap: 8 }}>
+					{([30, 90, 0] as const).map((days) => (
+						<View key={days} style={{ flex: 1 }}>
+							{button(
+								i18n.t(days === 0 ? 'backup.keepForever' : 'backup.keepDays', { days }),
+								() => setRetentionDays(days),
+								retentionDays === days,
+							)}
+						</View>
+					))}
+				</View>
 				<View style={{ flexDirection: 'row', gap: 10 }}>
 					<View style={{ flex: 1 }}>{button(i18n.t('backup.webdavSave'), saveWebDav)}</View>
 					<View style={{ flex: 1 }}>{button(i18n.t('backup.webdavTest'), testWebDav)}</View>

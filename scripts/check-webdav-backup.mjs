@@ -1,3 +1,4 @@
+import SHA256 from 'crypto-js/sha256.js'
 import { Buffer } from 'node:buffer'
 import { DOMParser } from '@xmldom/xmldom'
 import { assert, checks, loadModule, deferred, flush } from './native-services-fixture.mjs'
@@ -35,6 +36,8 @@ const parseMusicBackup = (text) => {
 const webdav = loadModule(
 	'src/helpers/webDavBackup.ts',
 	{
+		'crypto-js/sha256': SHA256,
+		'@/helpers/logger': { logError() {} },
 		'@/helpers/musicBackup': { MAX_BACKUP_BYTES: 100, parseMusicBackup },
 		buffer: { Buffer },
 		'expo/fetch': { fetch },
@@ -318,4 +321,70 @@ await check('pre-cancelled download sends no request', async () => {
 	assert.equal(timers.size, 0)
 })
 
+await check(
+	'same-day library changes upload again while timestamp-only changes are skipped',
+	async () => {
+		await webdav.saveWebDavBackupConfig(config)
+		const now = new Date(2026, 9, 19, 12)
+		const first = { ...backup, settings: { n: 1 } }
+		nextResponse = [response(201), response(201)]
+		assert.equal(await webdav.runDailyWebDavBackup(first, now), 'uploaded')
+		const count = requests.length
+		assert.equal(
+			await webdav.runDailyWebDavBackup({ ...first, createdAt: 'later' }, now),
+			'skipped',
+		)
+		assert.equal(requests.length, count)
+		nextResponse = [response(201), response(201)]
+		assert.equal(
+			await webdav.runDailyWebDavBackup({ ...backup, settings: { n: 2 } }, now),
+			'uploaded',
+		)
+		assert.equal(requests.length, count + 2)
+	},
+)
+await check(
+	'retention deletes only owned daily snapshots older than the inclusive cutoff',
+	async () => {
+		const base = requests.length
+		nextResponse = [
+			response(
+				207,
+				listing(
+					entry(`${directory}ZhMusic-2026-09-19.json`) +
+						entry(`${directory}ZhMusic-2026-09-20.json`) +
+						entry(`${directory}ZhMusic-2026-10-19.json`) +
+						entry(`${directory}other.json`) +
+						entry(`${directory}nested/ZhMusic-2020-01-01.json`) +
+						entry('https://other.test/ZhMusic-2020-01-01.json'),
+				),
+			),
+			response(204),
+		]
+		await webdav.pruneWebDavSnapshots({ ...config, retentionDays: 30 }, new Date(2026, 9, 19, 12))
+		const sent = requests.slice(base)
+		assert.equal(sent.length, 2)
+		assert.equal(sent[1].options.method, 'DELETE')
+		assert.equal(sent[1].url, `${directory}ZhMusic-2026-09-19.json`)
+		const count = requests.length
+		await webdav.pruneWebDavSnapshots({ ...config, retentionDays: 0 })
+		assert.equal(requests.length, count)
+	},
+)
+await check(
+	'concurrent manual and automatic snapshot uploads retain invocation order',
+	async () => {
+		const wait = deferred()
+		const count = requests.length
+		nextResponse = [wait.promise, response(201), response(201), response(201)]
+		const first = webdav.uploadWebDavBackupSnapshots(config, backup)
+		const second = webdav.uploadWebDavBackupSnapshots(config, { ...backup, settings: { n: 2 } })
+		await flush()
+		assert.equal(requests.length, count + 1)
+		wait.resolve(response(201))
+		await Promise.all([first, second])
+		assert.equal(requests.length, count + 4)
+		assert.equal(JSON.parse(requests[count + 2].options.body).settings.n, 2)
+	},
+)
 finish()

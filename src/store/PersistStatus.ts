@@ -7,6 +7,10 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
+	'music.downloadResume': Record<
+		string,
+		{ url: string; fileUri: string; resumeData: string; savedAt: number }
+	>
 	'app.onboardingCompleted': boolean
 	'backup.webdavStatus': {
 		lastSuccessAt?: number
@@ -95,11 +99,18 @@ function get<K extends keyof IPersistConfig>(key: K): IPersistConfig[K] | null {
 	return null
 }
 
+function subscribe(listener: (key: string) => void) {
+	const sub = getOrCreateMMKV(PersistConfig.PersistStatus).addOnValueChangedListener(listener)
+	return () => sub.remove()
+}
+
 function useValue<K extends keyof IPersistConfig>(
 	key: K,
 	defaultValue?: IPersistConfig[K],
 ): IPersistConfig[K] | null {
-	const [state, setState] = useState<IPersistConfig[K] | null>(() => get(key) ?? defaultValue ?? null)
+	const [state, setState] = useState<IPersistConfig[K] | null>(
+		() => get(key) ?? defaultValue ?? null,
+	)
 
 	useEffect(() => {
 		const store = getOrCreateMMKV(PersistConfig.PersistStatus)
@@ -121,6 +132,7 @@ const PersistStatus = {
 	get,
 	set,
 	useValue,
+	subscribe,
 }
 
 export default PersistStatus

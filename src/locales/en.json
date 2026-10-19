@@ -212,7 +212,8 @@
 			"failed": "Failed",
 			"cancelled": "Cancelled",
 			"queued": "Queued",
-			"interrupted": "Ready to continue"
+			"interrupted": "Ready to continue",
+			"paused": "Paused"
 		},
 		"limit": "Automatic cache limit",
 		"retentionHint": "Older automatic files are removed at the limit. Offline saves and existing downloads from older versions are retained. Playing files and active offline saves are temporarily protected.",
@@ -223,7 +224,17 @@
 		"queued": "Added to download queue",
 		"batchQueued": "Queued %{count} songs for offline saving",
 		"downloadAll": "Save playlist offline",
-		"batchMessage": "Save playlist songs; about %{count} songs need downloading. Manual downloads may use cellular data. Check your network and free space."
+		"batchMessage": "Save playlist songs; about %{count} songs need downloading. Manual downloads may use cellular data. Check your network and free space.",
+		"pause": "Pause",
+		"resume": "Resume",
+		"all": "All",
+		"search": "Search songs or artists",
+		"select": "Select",
+		"selectAll": "Select visible results",
+		"deleteSelected": "Delete selected (%{count})",
+		"deleteSelectedConfirm": "Delete %{count} selected offline songs?",
+		"deleteFailed": "Failed to delete %{count} songs. Please retry.",
+		"resumeHint": "Supported sources resume partial downloads. Changed URLs or expired resume data restart the download."
 	},
 	"queue": {
 		"title": "Queue · %{count}",
@@ -370,7 +381,11 @@
 		"title": "Release Notes",
 		"subtitle": "See what changed in every version",
 		"current": "Current",
-		"sections": { "new": "New", "improved": "Improved", "fixed": "Fixed" }
+		"sections": {
+			"new": "New",
+			"improved": "Improved",
+			"fixed": "Fixed"
+		}
 	},
 	"library": {
 		"pinned": "Pinned",
@@ -771,7 +786,7 @@
 		"mergeMessage": "Merge favorites, playlists and recent plays. Matching platform and song IDs are deduplicated. The switch above controls whether settings are restored.",
 		"restore": "Restore backup",
 		"webdavTitle": "WebDAV Backup",
-		"webdavDescription": "Each upload updates the latest backup and keeps a dated snapshot in the daily folder. Once configured, the app automatically backs up on the first launch or foreground visit each day.",
+		"webdavDescription": "Backs up on launch, foreground and after library changes. Retention removes only dated app snapshots older than your chosen period.",
 		"webdavUrl": "WebDAV directory URL",
 		"webdavUsername": "Username",
 		"webdavPassword": "Password or app password",
@@ -793,7 +808,10 @@
 		"webdavInvalidBackup": "The remote file is not a valid Cymusic backup",
 		"webdavTimeout": "Connection timed out. Check the URL and network.",
 		"webdavRequestFailed": "The network request failed. Check your connection and try again.",
-		"webdavRequestFailedStatus": "The WebDAV server rejected the request (HTTP %{status})."
+		"webdavRequestFailedStatus": "The WebDAV server rejected the request (HTTP %{status}).",
+		"retention": "Keep backup history",
+		"keepForever": "Forever",
+		"keepDays": "%{days} days"
 	},
 	"downloadQuality": {
 		"batchTitle": "Download quality · %{count} songs",

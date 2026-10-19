@@ -1,3 +1,5 @@
+import SHA256 from 'crypto-js/sha256'
+import { logError } from '@/helpers/logger'
 import { MAX_BACKUP_BYTES, parseMusicBackup, type MusicBackup } from '@/helpers/musicBackup'
 import { Buffer } from 'buffer'
 import * as SecureStore from 'expo-secure-store'
@@ -14,6 +16,7 @@ export interface WebDavBackupConfig {
 	url: string
 	username: string
 	password: string
+	retentionDays?: 0 | 30 | 90
 	remotePath: string
 }
 
@@ -61,6 +64,8 @@ const normalizeConfig = (config: WebDavBackupConfig, requireHttps = true): WebDa
 		username: config.username.trim(),
 		password: config.password,
 		remotePath: segments.join('/'),
+		retentionDays:
+			config.retentionDays === 30 || config.retentionDays === 90 ? config.retentionDays : 0,
 	}
 }
 
@@ -252,7 +257,21 @@ const dailyBackupConfig = (config: WebDavBackupConfig, dateKey: string): WebDavB
 const dailyBackupTarget = (config: WebDavBackupConfig) =>
 	`${config.url}|${config.username}|${config.remotePath}`
 
-export const uploadWebDavBackupSnapshots = async (
+export const backupContentHash = (backup: MusicBackup) =>
+	SHA256(JSON.stringify({ library: backup.library, settings: backup.settings })).toString()
+
+// All uploads share an owner so a slower automatic upload cannot overwrite a manual one.
+let uploadQueue: Promise<unknown> = Promise.resolve()
+export const uploadWebDavBackupSnapshots = (
+	input: WebDavBackupConfig,
+	backup: MusicBackup,
+	now = new Date(),
+) => {
+	const operation = uploadQueue.then(() => uploadSnapshots(input, backup, now))
+	uploadQueue = operation.catch(() => {})
+	return operation
+}
+const uploadSnapshots = async (
 	input: WebDavBackupConfig,
 	backup: MusicBackup,
 	now = new Date(),
@@ -263,8 +282,15 @@ export const uploadWebDavBackupSnapshots = async (
 	await uploadWebDavBackup(dailyBackupConfig(config, date), backup)
 	await SecureStore.setItemAsync(
 		LAST_DAILY_BACKUP_KEY,
-		JSON.stringify({ date, target: dailyBackupTarget(config) }),
+		JSON.stringify({ date, target: dailyBackupTarget(config), hash: backupContentHash(backup) }),
 	)
+	if (config.retentionDays) {
+		try {
+			await pruneWebDavSnapshots(config, now)
+		} catch (error) {
+			logError('清理历史备份失败，最新备份已保存:', error)
+		}
+	}
 	return date
 }
 
@@ -276,8 +302,17 @@ export const runDailyWebDavBackup = async (backup: MusicBackup, now = new Date()
 	const rawLastBackup = await SecureStore.getItemAsync(LAST_DAILY_BACKUP_KEY)
 	if (rawLastBackup) {
 		try {
-			const lastBackup = JSON.parse(rawLastBackup) as { date?: unknown; target?: unknown }
-			if (lastBackup.date === date && lastBackup.target === target) return 'skipped' as const
+			const lastBackup = JSON.parse(rawLastBackup) as {
+				date?: unknown
+				target?: unknown
+				hash?: unknown
+			}
+			if (
+				lastBackup.date === date &&
+				lastBackup.target === target &&
+				lastBackup.hash === backupContentHash(backup)
+			)
+				return 'skipped' as const
 		} catch {
 			// Invalid metadata must not prevent a fresh backup.
 		}
@@ -356,4 +391,23 @@ export const downloadWebDavBackup = async (
 		},
 		signal,
 	)
+}
+
+/** Only dated application snapshots from the trusted collection can be removed. */
+export const pruneWebDavSnapshots = async (input: WebDavBackupConfig, now = new Date()) => {
+	const config = normalizeConfig(input)
+	if (!config.retentionDays) return
+	const cutoff = new Date(now)
+	cutoff.setDate(cutoff.getDate() - config.retentionDays + 1)
+	const date = localDateKey(cutoff)
+	const snapshots = await listWebDavSnapshots(config)
+	for (const snapshot of snapshots) {
+		if (snapshot.date >= date) continue
+		const target = dailyBackupConfig(config, snapshot.date)
+		const response = await request(remoteUrl(target), {
+			method: 'DELETE',
+			headers: authHeaders(config),
+		})
+		if (response.status !== 404) requireSuccess(response)
+	}
 }

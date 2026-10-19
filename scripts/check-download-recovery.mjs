@@ -26,11 +26,19 @@ function fixture() {
 			},
 			'expo-file-system/legacy': {
 				FileSystemSessionType: { FOREGROUND: 1 },
-				createDownloadResumable: (_url, uri, _options, progress) => {
-					const job = { ...deferred(), uri, progress, cancellations: 0 }
+				createDownloadResumable: (_url, uri, _options, progress, resumeData) => {
+					const job = { ...deferred(), uri, progress, resumeData, cancellations: 0 }
 					attempts.push(job)
 					return {
 						downloadAsync: () => job.promise,
+						resumeAsync: () => {
+							job.resumed = true
+							return job.promise
+						},
+						pauseAsync: async () => {
+							job.resolve(undefined)
+							return { url: _url, fileUri: uri, resumeData: 'native-resume' }
+						},
 						cancelAsync: async () => {
 							job.cancellations++
 						},
@@ -55,7 +63,12 @@ function fixture() {
 		timers.delete(id)
 		timer.callback()
 	}
-	return { ...api, timers, attempts, moves, deleted, expire }
+	const states = new Map()
+	api.configureDownloadResume(
+		(id) => states.get(id),
+		(id, state) => (state ? states.set(id, state) : states.delete(id)),
+	)
+	return { ...api, timers, attempts, moves, deleted, expire, states }
 }
 
 await check(
@@ -135,4 +148,92 @@ await check('HTTP failures do not retry or overwrite an existing destination', a
 	assert.deepEqual(h.moves, [])
 	assert.equal(h.timers.size, 0)
 })
+await check(
+	'pause preserves native resume state and continues into the same isolated file',
+	async () => {
+		const h = fixture()
+		const initial = h.downloadFile('https://audio.test', 'target', undefined, 'task')
+		const rejected = assert.rejects(initial)
+		await h.pauseDownload('task')
+		await rejected
+		assert.equal(h.states.get('task').resumeData, 'native-resume')
+		assert.equal(h.deleted.length, 0)
+		assert.equal(h.timers.size, 0)
+		const resumed = h.downloadFile('https://audio.test', 'target', undefined, 'task')
+		assert.equal(h.attempts[1].uri, h.attempts[0].uri)
+		assert.equal(h.attempts[1].resumeData, 'native-resume')
+		assert.equal(h.attempts[1].resumed, true)
+		h.attempts[1].resolve({ status: 206 })
+		await resumed
+		assert.deepEqual(h.moves, ['target'])
+		assert.equal(h.states.size, 0)
+	},
+)
+await check('changed source URL discards partial bytes and performs a fresh download', async () => {
+	const h = fixture()
+	const pending = h.downloadFile('https://old.test', 'target', undefined, 'task')
+	const rejected = assert.rejects(pending)
+	await h.pauseDownload('task')
+	await rejected
+	const next = h.downloadFile('https://new.test', 'target', undefined, 'task')
+	assert.equal(h.attempts[1].resumeData, undefined)
+	assert.notEqual(h.attempts[1].uri, h.attempts[0].uri)
+	h.attempts[1].resolve({ status: 200 })
+	await next
+	assert.equal(h.states.size, 0)
+})
+await check(
+	'invalid native resume falls back once without committing the failed partial',
+	async () => {
+		const h = fixture()
+		const initial = h.downloadFile('https://audio.test', 'target', undefined, 'task')
+		const rejected = assert.rejects(initial)
+		await h.pauseDownload('task')
+		await rejected
+		const next = h.downloadFile('https://audio.test', 'target', undefined, 'task')
+		h.attempts[1].reject(new Error('expired resume'))
+		await flush()
+		assert.equal(h.attempts.length, 3)
+		assert.equal(h.attempts[2].resumeData, undefined)
+		h.attempts[2].resolve({ status: 200 })
+		await next
+		assert.deepEqual(h.moves, ['target'])
+	},
+)
+await check('cancelling a paused download retires its partial and resume metadata', async () => {
+	const h = fixture()
+	const initial = h.downloadFile('https://audio.test', 'target', undefined, 'task')
+	const rejected = assert.rejects(initial)
+	await h.pauseDownload('task')
+	await rejected
+	await h.cancelDownload('task')
+	assert.equal(h.states.size, 0)
+	assert.equal(h.deleted.length, 1)
+})
+await check(
+	'saved resume metadata survives a fresh module instance without trusting arbitrary paths',
+	async () => {
+		const h = fixture()
+		const initial = h.downloadFile('https://audio.test', 'target', undefined, 'task')
+		const rejected = assert.rejects(initial)
+		await h.pauseDownload('task')
+		await rejected
+		const restored = fixture()
+		restored.states.set('task', h.states.get('task'))
+		const next = restored.downloadFile('https://audio.test', 'target', undefined, 'task')
+		assert.equal(restored.attempts[0].resumed, true)
+		restored.attempts[0].resolve({ status: 206 })
+		await next
+		restored.states.set('unsafe', {
+			url: 'https://audio.test',
+			fileUri: 'file:///Documents/important.mp3',
+			resumeData: 'blob',
+			savedAt: Date.now(),
+		})
+		const deleted = restored.deleted.length
+		restored.discardDownloadResume('unsafe')
+		assert.equal(restored.states.has('unsafe'), false)
+		assert.equal(restored.deleted.length, deleted)
+	},
+)
 finish()
