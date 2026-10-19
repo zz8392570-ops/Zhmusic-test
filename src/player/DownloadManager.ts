@@ -45,7 +45,10 @@ const activeMedia = new Map<string, string>()
 const mediaKey = (track: IMusic.IMusicItem) => JSON.stringify([track.platform, track.id])
 export const getProtectedDownloadPaths = () =>
 	(cacheDownloadTasksStore.getValue() ?? [])
-		.filter((task) => task.kind === 'saved' && ['queued', 'downloading'].includes(task.status))
+		.filter(
+			(task) =>
+				task.kind === 'saved' && ['waiting-network', 'queued', 'downloading'].includes(task.status),
+		)
 		.flatMap((task) => [
 			getLocalFilePath(task.track, 'flac'),
 			getLocalFilePath(task.track, '320k'),
@@ -76,7 +79,13 @@ const withCacheMaintenance = (work: () => Promise<void>) => {
 	return next
 }
 const persistTasks = (tasks: CacheDownloadTask[]) => {
-	const pendingStatuses = new Set(['paused', 'queued', 'downloading', 'interrupted'])
+	const pendingStatuses = new Set([
+		'waiting-network',
+		'paused',
+		'queued',
+		'downloading',
+		'interrupted',
+	])
 	const pending = tasks.filter((task) => pendingStatuses.has(task.status))
 	const completed = tasks.filter((task) => !pendingStatuses.has(task.status)).slice(-50)
 	const retained = [...pending, ...completed].sort(
@@ -122,6 +131,7 @@ export const restoreDownloadTasks = () => {
 			typeof task.track.title !== 'string' ||
 			typeof task.track.artist !== 'string' ||
 			![
+				'waiting-network',
 				'paused',
 				'queued',
 				'downloading',
@@ -147,14 +157,25 @@ export const restoreDownloadTasks = () => {
 
 const run = async (task: CacheDownloadTask, controller: AbortController) => {
 	let lastProgressAt = -Infinity
+	let lastSampleAt = 0,
+		lastBytes = 0
+	let metrics: Pick<
+		CacheDownloadTask,
+		'bytesWritten' | 'contentLength' | 'bytesPerSecond' | 'remainingSeconds'
+	> = {}
 	try {
+		if (task.kind !== 'automatic') {
+			const allowed = await allowedForDownload(task)
+			if (controller.signal.aborted || !isCurrent(task)) return
+			if (!allowed) {
+				update({ ...task, status: 'waiting-network' })
+				return
+			}
+		}
 		if (task.kind === 'automatic') {
 			if (!autoCacheLocalStore.getValue())
 				throw new Error(i18n.t('cacheCenter.errors.automaticDisabled'))
-			if (
-				autoCacheWifiOnlyStore.getValue() &&
-				(await Network.getNetworkStateAsync()).type !== Network.NetworkStateType.WIFI
-			)
+			if (autoCacheWifiOnlyStore.getValue() && !wifiNetwork(await Network.getNetworkStateAsync()))
 				throw new Error(i18n.t('cacheCenter.errors.wifiRequired'))
 		}
 		await withCacheMaintenance(migrateCacheRetention)
@@ -196,6 +217,11 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				]),
 			)
 			if (controller.signal.aborted || !isCurrent(task)) return
+			if (task.kind !== 'automatic' && !(await allowedForDownload(task))) {
+				if (isCurrent(task)) update({ ...task, status: 'waiting-network' })
+				return
+			}
+			if (controller.signal.aborted || !isCurrent(task)) return
 			localPath = await downloadToCache(
 				{ ...task.track, url: source.url },
 				quality,
@@ -208,6 +234,7 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 					update(
 						{
 							...task,
+							...metrics,
 							quality,
 							progress: Math.max(0, Math.min(1, progress)),
 							status: 'downloading',
@@ -218,6 +245,31 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				task.id,
 				true,
 				task.strictQuality,
+				(sample) => {
+					const now = Date.now(),
+						elapsed = (now - lastSampleAt) / 1000
+					if (!Number.isFinite(sample.bytesWritten) || sample.bytesWritten < 0) return
+					const rate =
+						lastSampleAt && elapsed > 0 && sample.bytesWritten >= lastBytes
+							? (sample.bytesWritten - lastBytes) / elapsed
+							: 0
+					metrics = {
+						bytesWritten: sample.bytesWritten,
+						contentLength: Number.isFinite(sample.contentLength)
+							? Math.max(0, sample.contentLength)
+							: 0,
+						bytesPerSecond: rate,
+						remainingSeconds:
+							rate > 0 && sample.contentLength > sample.bytesWritten
+								? (sample.contentLength - sample.bytesWritten) / rate
+								: undefined,
+					}
+					if (!lastSampleAt || elapsed >= 0.5 || sample.bytesWritten < lastBytes) {
+						lastSampleAt = now
+						lastBytes = sample.bytesWritten
+					}
+				},
+				controller.signal,
 			)
 		}
 		if (controller.signal.aborted || !isCurrent(task)) return
@@ -321,8 +373,11 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 		if (options.strictQuality && !existing.strictQuality) {
 			await cancelCacheTask(existing.id)
 		} else {
-			if (kind === 'saved')
+			if (kind === 'saved') {
 				update({ ...existing, kind, silent: options.silent === true && existing.silent !== false })
+				if (!(await allowedForDownload({ ...existing, kind })))
+					await pauseCacheTask(existing.id, true)
+			}
 			if (!options.silent) showToast(i18n.t('cacheCenter.alreadyDownloading'), track.title, 'info')
 			return
 		}
@@ -344,7 +399,11 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 
 export const cancelCacheTask = async (taskId: string) => {
 	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
-	if (!task || !['paused', 'downloading', 'queued', 'interrupted'].includes(task.status)) return
+	if (
+		!task ||
+		!['waiting-network', 'paused', 'downloading', 'queued', 'interrupted'].includes(task.status)
+	)
+		return
 	update({ ...task, status: 'cancelled' })
 	active.get(taskId)?.abort(requestAbortError())
 	if (active.has(taskId)) await cancelDownload(taskId)
@@ -352,10 +411,15 @@ export const cancelCacheTask = async (taskId: string) => {
 	pump()
 }
 
-export const pauseCacheTask = async (taskId: string) => {
+export const pauseCacheTask = async (taskId: string, waitForNetwork = false) => {
 	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
-	if (!task || !['queued', 'downloading'].includes(task.status)) return
-	update({ ...task, status: 'paused' })
+	if (!task || !['queued', 'downloading', 'waiting-network'].includes(task.status)) return
+	update({
+		...task,
+		status: waitForNetwork ? 'waiting-network' : 'paused',
+		bytesPerSecond: 0,
+		remainingSeconds: undefined,
+	})
 	active.get(taskId)?.abort(requestAbortError())
 	try {
 		await pauseDownload(taskId)
@@ -367,7 +431,7 @@ export const pauseCacheTask = async (taskId: string) => {
 }
 export const resumeCacheTask = (taskId: string) => {
 	const task = cacheDownloadTasksStore.getValue().find((item) => item.id === taskId)
-	if (!task || !['paused', 'interrupted'].includes(task.status)) return
+	if (!task || !['waiting-network', 'paused', 'interrupted'].includes(task.status)) return
 	update({ ...task, status: 'queued', error: undefined })
 	pump()
 }
@@ -376,7 +440,9 @@ export const resumeCacheTasks = () => {
 		cacheDownloadTasksStore
 			.getValue()
 			.map((task) =>
-				['paused', 'interrupted'].includes(task.status) ? { ...task, status: 'queued' } : task,
+				['waiting-network', 'paused', 'interrupted'].includes(task.status)
+					? { ...task, status: 'queued' }
+					: task,
 			),
 	)
 	pump()
@@ -390,7 +456,9 @@ export const clearAutomaticDownloads = async (clearFiles: () => Promise<void>) =
 			.filter(
 				(task) =>
 					task.kind === 'automatic' &&
-					['paused', 'downloading', 'queued', 'interrupted'].includes(task.status),
+					['waiting-network', 'paused', 'downloading', 'queued', 'interrupted'].includes(
+						task.status,
+					),
 			)
 		await Promise.all(tasks.map((task) => cancelCacheTask(task.id)))
 		await withCacheMaintenance(clearFiles)
@@ -421,4 +489,65 @@ export const setCacheLimitMB = async (limit: number) => {
 	if (![256, 512, 1024, 2048, 4096, 8192].includes(limit)) return
 	PersistStatus.set('music.cacheLimitMB', limit)
 	await withCacheMaintenance(() => enforceAutomaticCacheLimit(protectedPaths))
+}
+
+const wifiNetwork = (state: Network.NetworkState) =>
+	state.isConnected !== false &&
+	[Network.NetworkStateType.WIFI, Network.NetworkStateType.ETHERNET].includes(state.type)
+const allowedForDownload = async (task: CacheDownloadTask, state?: Network.NetworkState) => {
+	if (task.kind !== 'automatic' && !PersistStatus.get('music.downloadWifiOnly')) return true
+	if (task.kind === 'automatic' && !autoCacheWifiOnlyStore.getValue()) return true
+	return wifiNetwork(state ?? (await Network.getNetworkStateAsync()))
+}
+export const pauseAllCacheTasks = async () => {
+	const tasks = cacheDownloadTasksStore
+		.getValue()
+		.filter((task) => ['queued', 'downloading', 'waiting-network'].includes(task.status))
+	await Promise.all(tasks.map((task) => pauseCacheTask(task.id)))
+}
+export const retryFailedCacheTasks = async () => {
+	const tasks = cacheDownloadTasksStore.getValue().filter((task) => task.status === 'failed')
+	for (const task of tasks)
+		await enqueueDownload(task.track, {
+			quality: task.quality,
+			strictQuality: task.strictQuality,
+			kind: task.kind,
+			silent: true,
+		})
+}
+export const startDownloadNetworkPolicy = () => {
+	let revision = 0
+	let closed = false
+	const reconcile = async (state?: Network.NetworkState) => {
+		const owner = ++revision
+		const network = state ?? (await Network.getNetworkStateAsync())
+		if (closed || owner !== revision) return
+		const tasks = [...cacheDownloadTasksStore.getValue()]
+		for (const snapshot of tasks) {
+			if (closed || owner !== revision) return
+			const task = cacheDownloadTasksStore.getValue().find((item) => item.id === snapshot.id)
+			if (!task) continue
+			const allowed =
+				task.kind === 'automatic'
+					? !autoCacheWifiOnlyStore.getValue() || wifiNetwork(network)
+					: !PersistStatus.get('music.downloadWifiOnly') || wifiNetwork(network)
+			if (!allowed && ['queued', 'downloading'].includes(task.status))
+				await pauseCacheTask(task.id, true)
+			else if (allowed && task.status === 'waiting-network') resumeCacheTask(task.id)
+		}
+	}
+	const invoke = (state?: Network.NetworkState) => {
+		void reconcile(state).catch(() => {})
+	}
+	const network = Network.addNetworkStateListener(invoke)
+	const unsubscribe = PersistStatus.subscribe((key) => {
+		if (['music.downloadWifiOnly', 'music.autoCacheWifiOnly'].includes(key)) invoke()
+	})
+	invoke()
+	return () => {
+		closed = true
+		revision++
+		network.remove()
+		unsubscribe()
+	}
 }

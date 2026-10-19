@@ -1,3 +1,4 @@
+import type { DownloadProgress } from '@/helpers/fileDownload'
 import { logError, logInfo } from '@/helpers/logger'
 import { cacheRevisionStore, importedLocalMusicStore, qualityStore } from './PlayerStore'
 import PersistStatus from '@/store/PersistStatus'
@@ -235,6 +236,8 @@ export const downloadToCache = async (
 	taskId?: string,
 	customNaming = true,
 	strictQuality = false,
+	onTransfer?: (progress: DownloadProgress) => void,
+	signal?: AbortSignal,
 ): Promise<string> => {
 	try {
 		await ensureCacheDirExists()
@@ -253,12 +256,14 @@ export const downloadToCache = async (
 			onProgress?.(1)
 			return localPath
 		}
+		if (signal?.aborted) throw new Error('下载已暂停或取消')
 		let loggedProgressStep = -1
 		await downloadFile(
 			musicItem.url,
 			getCacheFileUri(localPath),
 			(res) => {
-				const progress = res.bytesWritten / res.contentLength
+				onTransfer?.(res)
+				const progress = res.contentLength > 0 ? res.bytesWritten / res.contentLength : 0
 				onProgress?.(progress)
 				const step = Math.floor(progress * 10)
 				if (step > loggedProgressStep) {

@@ -213,7 +213,8 @@
 			"cancelled": "Cancelled",
 			"queued": "Queued",
 			"interrupted": "Ready to continue",
-			"paused": "Paused"
+			"paused": "Paused",
+			"waiting-network": "Waiting for Wi-Fi"
 		},
 		"limit": "Automatic cache limit",
 		"retentionHint": "Older automatic files are removed at the limit. Offline saves and existing downloads from older versions are retained. Playing files and active offline saves are temporarily protected.",
@@ -234,7 +235,12 @@
 		"deleteSelected": "Delete selected (%{count})",
 		"deleteSelectedConfirm": "Delete %{count} selected offline songs?",
 		"deleteFailed": "Failed to delete %{count} songs. Please retry.",
-		"resumeHint": "Supported sources resume partial downloads. Changed URLs or expired resume data restart the download."
+		"resumeHint": "Supported sources resume partial downloads. Changed URLs or expired resume data restart the download.",
+		"wifiOnly": "Wi-Fi only for manual downloads",
+		"pauseAll": "Pause all",
+		"retryFailed": "Retry failed downloads",
+		"unknownSize": "Unknown size",
+		"remaining": "~%{seconds}s remaining"
 	},
 	"queue": {
 		"title": "Queue · %{count}",
@@ -867,5 +873,42 @@
 			"unavailable": "Sound effects are unavailable. Playing original audio.",
 			"processing": "Preparing the song. Effects will be applied when ready."
 		}
+	},
+	"recycleBin": {
+		"title": "Playlist recovery",
+		"description": "Restore playlists or removed song entries from the last 30 days, up to 100 operations. Deleted audio files are not restored.",
+		"undo": "Undo latest removal",
+		"restore": "Restore",
+		"emptyTitle": "Empty recovery bin",
+		"emptyConfirm": "These entries can no longer be restored. Continue?",
+		"empty": "No removed entries",
+		"failed": "Operation failed. Please retry.",
+		"playlist": "Playlist · %{count} songs",
+		"songs": "Removed · %{count} songs"
+	},
+	"playlistAutoRefresh": {
+		"title": "Automatic playlist refresh",
+		"description": "Off by default. Refresh imported playlists daily or weekly while the app is active on Wi-Fi. Local additions, order and removals are preserved. Failed refreshes retry later.",
+		"interval0": "Off",
+		"interval1": "Daily",
+		"interval7": "Weekly",
+		"failed": "Last refresh failed; will retry later",
+		"notChecked": "No automatic refresh yet",
+		"empty": "Import an online playlist to enable refresh",
+		"summary": "%{added} added · %{removed} removed"
+	},
+	"listeningReport": {
+		"title": "Listening report",
+		"description": "Effective plays and listening time for the last 7 days and the previous 7 days, using local dates. Keeps 90 recorded dates. Legacy lifetime totals are excluded.",
+		"disabled": "Listening statistics are disabled. Enable them in settings.",
+		"since": "Recording since %{date}",
+		"current": "Last 7 days",
+		"previous": "Previous 7 days",
+		"summary": "%{minutes} min · %{plays} plays",
+		"diversity": "%{songs} songs · %{artists} artists",
+		"empty": "No listening records for this period",
+		"topSongs": "Top songs",
+		"topArtists": "Top artists",
+		"trackSummary": "%{plays} plays · %{minutes} min"
 	}
 }

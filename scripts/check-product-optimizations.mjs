@@ -38,6 +38,7 @@ const until = async (condition) => {
 function persistence() {
 	const disk = new Map(),
 		writes = []
+	const listeners = new Set()
 	let failKey
 	return {
 		disk,
@@ -51,6 +52,11 @@ function persistence() {
 			}
 			if (value === undefined) disk.delete(key)
 			else disk.set(key, JSON.stringify(value))
+			for (const listener of listeners) listener(key)
+		},
+		subscribe(callback) {
+			listeners.add(callback)
+			return () => listeners.delete(callback)
 		},
 		failOnce: (key) => {
 			failKey = key
@@ -69,6 +75,10 @@ function backupFixture() {
 function listeningStatsFixture() {
 	const store = persistence()
 	const stats = loadModule('src/helpers/listeningStats.ts', {
+		'./listeningReport': loadModule('src/helpers/listeningReport.ts', {
+			'@/store/PersistStatus': store,
+		}),
+		'./logger': { logError() {} },
 		'@/store/PersistStatus': store,
 		'@/utils/mediaItem': {
 			isSameMediaItem: (left, right) =>
@@ -530,6 +540,8 @@ await check(
 )
 
 function downloadFixture(now) {
+	let networkState = { type: 'wifi', isConnected: true },
+		networkListener
 	const store = persistence(),
 		jobs = [],
 		sources = [],
@@ -556,9 +568,9 @@ function downloadFixture(now) {
 		markSavedOffline: (value) => pins.push(value),
 		enforceAutomaticCacheLimit: async () => {},
 		ensureCacheDiskSpace: async () => {},
-		downloadToCache: (song, quality, progress, id) => {
+		downloadToCache: (song, quality, progress, id, _naming, _strict, transfer) => {
 			const job = deferred()
-			jobs.push({ song, quality, progress, id, ...job })
+			jobs.push({ song, quality, progress, transfer, id, ...job })
 			return job.promise
 		},
 	}
@@ -566,8 +578,16 @@ function downloadFixture(now) {
 		'src/player/DownloadManager.ts',
 		{
 			'expo-network': {
-				NetworkStateType: { WIFI: 'wifi' },
-				getNetworkStateAsync: async () => ({ type: 'wifi' }),
+				NetworkStateType: { WIFI: 'wifi', ETHERNET: 'ethernet', CELLULAR: 'cellular' },
+				getNetworkStateAsync: async () => networkState,
+				addNetworkStateListener(callback) {
+					networkListener = callback
+					return {
+						remove() {
+							networkListener = undefined
+						},
+					}
+				},
 			},
 			'expo-file-system/legacy': { getInfoAsync: async (path) => ({ exists: files.has(path) }) },
 			'@/store/PersistStatus': store,
@@ -576,7 +596,9 @@ function downloadFixture(now) {
 			'@/helpers/fileDownload': {
 				configureDownloadResume() {},
 				discardDownloadResume() {},
-				pauseDownload: async () => {},
+				pauseDownload: async (id) => {
+					jobs.find((job) => job.id === id)?.reject(new Error('Paused'))
+				},
 				cancelDownload: async (id) => {
 					cancelled.push(id)
 					jobs.find((job) => job.id === id)?.reject(new Error('Cancelled'))
@@ -590,7 +612,7 @@ function downloadFixture(now) {
 			'./MusicSourceResolver': {
 				resolveSource: async (song, options) => {
 					sources.push({ song, options })
-					return { url: `https://fresh.test/${song.id}`, quality: '320k' }
+					return { url: `https://fresh.test/${song.id}`, quality: options.quality ?? '320k' }
 				},
 			},
 			'./PlayerStore': stores,
@@ -602,7 +624,23 @@ function downloadFixture(now) {
 		files.add(path)
 		job.resolve(path)
 	}
-	return { ...api, store, stores, jobs, sources, pins, cancelled, files, cache, complete, toasts }
+	return {
+		...api,
+		store,
+		stores,
+		jobs,
+		sources,
+		pins,
+		cancelled,
+		files,
+		cache,
+		complete,
+		toasts,
+		setNetwork(state) {
+			networkState = state
+			networkListener?.(state)
+		},
+	}
 }
 await check(
 	'download progress bursts avoid durable writes while terminal states persist immediately',
@@ -727,6 +765,77 @@ await check(
 		h.complete(h.jobs[1])
 		await until(() => h.stores.cacheDownloadTasksStore.getValue()[0].status === 'completed')
 		assert.equal(h.stores.importedLocalMusicStore.getValue().length, 1)
+	},
+)
+await check(
+	'Wi-Fi-only manual downloads wait, pause on cellular and resume without reviving manual pauses',
+	async () => {
+		const h = downloadFixture()
+		h.store.set('music.downloadWifiOnly', true)
+		h.setNetwork({ type: 'cellular', isConnected: true })
+		await h.enqueueDownload(track('network'), { silent: true })
+		await until(() => h.stores.cacheDownloadTasksStore.getValue()[0].status === 'waiting-network')
+		assert.equal(h.sources.length, 0)
+		const stop = h.startDownloadNetworkPolicy()
+		await flush()
+		h.setNetwork({ type: 'wifi', isConnected: true })
+		await until(() => h.jobs.length === 1)
+		h.setNetwork({ type: 'cellular', isConnected: true })
+		await until(() => h.stores.cacheDownloadTasksStore.getValue()[0].status === 'waiting-network')
+		await flush()
+		h.setNetwork({ type: 'wifi', isConnected: true })
+		await until(() => h.jobs.length === 2)
+		await h.pauseCacheTask(h.jobs[1].id)
+		h.setNetwork({ type: 'cellular', isConnected: true })
+		h.setNetwork({ type: 'wifi', isConnected: true })
+		await flush()
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].status, 'paused')
+		assert.equal(h.jobs.length, 2)
+		stop()
+	},
+)
+await check(
+	'transfer metrics show bytes, speed and remaining time without durable progress writes',
+	async () => {
+		let now = 1000
+		const h = downloadFixture(() => now)
+		await h.enqueueDownload(track('metrics'), { silent: true })
+		await until(() => h.jobs.length === 1)
+		const job = h.jobs[0],
+			writes = h.store.writes.length
+		job.transfer({ bytesWritten: 100, contentLength: 1000 })
+		job.progress(0.1)
+		now += 1000
+		job.transfer({ bytesWritten: 300, contentLength: 1000 })
+		job.progress(0.3)
+		const task = h.stores.cacheDownloadTasksStore.getValue()[0]
+		assert.equal(task.bytesWritten, 300)
+		assert.equal(task.bytesPerSecond, 200)
+		assert.equal(task.remainingSeconds, 3.5)
+		assert.equal(h.store.writes.length, writes)
+		h.complete(job)
+		await flush()
+	},
+)
+await check(
+	'pause all leaves no queued worker; retry failed preserves quality choice',
+	async () => {
+		const h = downloadFixture()
+		for (const id of ['p1', 'p2', 'p3'])
+			await h.enqueueDownload(track(id), { silent: true, quality: 'flac', strictQuality: true })
+		await until(() => h.jobs.length === 2)
+		await h.pauseAllCacheTasks()
+		await flush()
+		assert(h.stores.cacheDownloadTasksStore.getValue().every((task) => task.status === 'paused'))
+		assert.equal(h.jobs.length, 2)
+		const failed = { ...h.stores.cacheDownloadTasksStore.getValue()[0], status: 'failed' }
+		h.stores.cacheDownloadTasksStore.setValue([failed])
+		await h.retryFailedCacheTasks()
+		await until(() => h.jobs.length === 3)
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].strictQuality, true)
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].quality, 'flac')
+		h.jobs[2].reject(new Error('test finished'))
+		await flush()
 	},
 )
 await check('cancelled running download cannot import a late completion', async () => {

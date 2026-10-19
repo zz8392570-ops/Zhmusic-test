@@ -13,7 +13,7 @@ import { MenuView } from '@/components/ActionMenu'
 import { FlashList } from '@shopify/flash-list'
 import { Image } from 'expo-image'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Alert, Pressable, StyleSheet, Text, TextInput, Switch, View } from 'react-native'
 
 const formatBytes = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`
@@ -42,6 +42,7 @@ const CacheManagerScreen = () => {
 	const importedTracks = useMemo(() => importedTracksValue || [], [importedTracksValue])
 	const revision = cacheRevisionStore.useValue()
 	const [cacheUsage, setCacheUsage] = useState({ automatic: 0, saved: 0, total: 0 })
+	const wifiOnly = PersistStatus.useValue('music.downloadWifiOnly', false) ?? false
 	const cacheLimitMB = PersistStatus.useValue('music.cacheLimitMB', 1024) ?? 1024
 	const cachedTracks = useMemo(
 		() => importedTracks.filter((track) => String(track.url || '').includes('/musicCache/')),
@@ -196,6 +197,18 @@ const CacheManagerScreen = () => {
 				<Text style={styles.meta}>
 					{task.quality.toUpperCase()} · {taskStatusText(task)}
 				</Text>
+				{task.status === 'downloading' && task.bytesWritten !== undefined ? (
+					<Text style={styles.meta}>
+						{formatBytes(task.bytesWritten)} /{' '}
+						{task.contentLength
+							? formatBytes(task.contentLength)
+							: i18n.t('cacheCenter.unknownSize')}
+						{task.bytesPerSecond ? ` · ${formatBytes(task.bytesPerSecond)}/s` : ''}
+						{task.remainingSeconds
+							? ` · ${i18n.t('cacheCenter.remaining', { seconds: Math.ceil(task.remainingSeconds) })}`
+							: ''}
+					</Text>
+				) : null}
 				{task.error ? (
 					<Text style={styles.meta} numberOfLines={2}>
 						{task.error}
@@ -209,7 +222,7 @@ const CacheManagerScreen = () => {
 					</View>
 				) : null}
 			</View>
-			{['downloading', 'queued'].includes(task.status) ? (
+			{['waiting-network', 'downloading', 'queued'].includes(task.status) ? (
 				<Pressable
 					style={styles.action}
 					onPress={() => void myTrackPlayer.pauseCacheDownload(task.id)}
@@ -221,7 +234,9 @@ const CacheManagerScreen = () => {
 					<Text style={styles.actionText}>{i18n.t('cacheCenter.resume')}</Text>
 				</Pressable>
 			) : null}
-			{['downloading', 'queued', 'paused', 'interrupted'].includes(task.status) ? (
+			{['waiting-network', 'downloading', 'queued', 'paused', 'interrupted'].includes(
+				task.status,
+			) ? (
 				<Pressable
 					accessibilityRole="button"
 					onPress={() => void myTrackPlayer.cancelCacheDownload(task.id)}
@@ -314,6 +329,58 @@ const CacheManagerScreen = () => {
 						<Text style={styles.summaryLabel}>
 							{i18n.t('cacheCenter.summary', { count: cachedTracks.length })}
 						</Text>
+					</View>
+					<View
+						style={{
+							flexDirection: 'row',
+							alignItems: 'center',
+							justifyContent: 'space-between',
+							paddingVertical: 16,
+							gap: 12,
+						}}
+					>
+						<Text style={[styles.title, { flex: 1 }]}>{i18n.t('cacheCenter.wifiOnly')}</Text>
+						<Switch
+							accessibilityLabel={i18n.t('cacheCenter.wifiOnly')}
+							value={wifiOnly}
+							onValueChange={(value) => {
+								try {
+									PersistStatus.set('music.downloadWifiOnly', value)
+								} catch {
+									Alert.alert(i18n.t('settings.actions.cache.error'))
+								}
+							}}
+						/>
+					</View>
+					<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
+						{tasks.some((task) =>
+							['queued', 'downloading', 'waiting-network'].includes(task.status),
+						) ? (
+							<Pressable
+								style={styles.action}
+								accessibilityRole="button"
+								onPress={() =>
+									void myTrackPlayer
+										.pauseAllCacheDownloads()
+										.catch(() => Alert.alert(i18n.t('settings.actions.cache.error')))
+								}
+							>
+								<Text style={styles.actionText}>{i18n.t('cacheCenter.pauseAll')}</Text>
+							</Pressable>
+						) : null}
+						{tasks.some((task) => task.status === 'failed') ? (
+							<Pressable
+								style={styles.action}
+								accessibilityRole="button"
+								onPress={() =>
+									void myTrackPlayer
+										.retryFailedCacheDownloads()
+										.catch(() => Alert.alert(i18n.t('settings.actions.cache.error')))
+								}
+							>
+								<Text style={styles.actionText}>{i18n.t('cacheCenter.retryFailed')}</Text>
+							</Pressable>
+						) : null}
 					</View>
 					<View style={styles.section}>
 						<MenuView

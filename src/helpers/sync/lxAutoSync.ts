@@ -8,6 +8,12 @@ const MIN_SYNC_INTERVAL_MS = 60_000
 const STARTUP_DELAY_MS = 2_000
 const RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000] as const
 
+let changeTimer: ReturnType<typeof setTimeout> | null = null
+let dirty = false
+// Compare saved content so a sync writing identical data cannot trigger itself forever.
+const librarySnapshot = () =>
+	JSON.stringify([PersistStatus.get('music.favorites'), PersistStatus.get('music.playLists')])
+let observedLibrary = ''
 let started = false
 let appState: AppStateStatus = AppState.currentState
 let retryIndex = 0
@@ -22,7 +28,10 @@ const clearRetry = () => {
 const canUseNetwork = (state: Network.NetworkState) => {
 	if (state.isConnected === false || state.type === Network.NetworkStateType.NONE) return false
 	if (PersistStatus.get('sync.autoWifiOnly') === true) {
-		return state.type === Network.NetworkStateType.WIFI || state.type === Network.NetworkStateType.ETHERNET
+		return (
+			state.type === Network.NetworkStateType.WIFI ||
+			state.type === Network.NetworkStateType.ETHERNET
+		)
 	}
 	return true
 }
@@ -44,6 +53,7 @@ const scheduleRetry = () => {
 
 const runAutoSync = async (isRetry = false) => {
 	if (autoSyncPromise) return autoSyncPromise
+	let attempted = false
 	autoSyncPromise = (async () => {
 		try {
 			if (appState !== 'active' || PersistStatus.get('sync.autoEnabled') !== true) return
@@ -52,8 +62,10 @@ const runAutoSync = async (isRetry = false) => {
 			const networkState = await Network.getNetworkStateAsync()
 			if (!canUseNetwork(networkState)) return
 			const lastSuccessAt = PersistStatus.get('sync.lastSuccessAt') ?? 0
-			if (!isRetry && Date.now() - lastSuccessAt < MIN_SYNC_INTERVAL_MS) return
+			if (!isRetry && !dirty && Date.now() - lastSuccessAt < MIN_SYNC_INTERVAL_MS) return
 
+			attempted = true
+			dirty = false
 			await syncWithLxServer({ host, mode: 'merge_local_remote' })
 			retryIndex = 0
 			clearRetry()
@@ -67,6 +79,7 @@ const runAutoSync = async (isRetry = false) => {
 		}
 	})().finally(() => {
 		autoSyncPromise = null
+		if (started && attempted && dirty && !retryTimer) scheduleLibrarySync()
 	})
 	return autoSyncPromise
 }
@@ -82,16 +95,37 @@ export const stopLxAutoSyncRetries = () => {
 	clearRetry()
 }
 
+const scheduleLibrarySync = () => {
+	if (changeTimer) clearTimeout(changeTimer)
+	if (!started || appState !== 'active' || PersistStatus.get('sync.autoEnabled') !== true) return
+	changeTimer = setTimeout(() => {
+		changeTimer = null
+		void runAutoSync()
+	}, 3000)
+}
 export const startLxAutoSync = () => {
 	if (started) return () => undefined
 	started = true
 	appState = AppState.currentState
+	observedLibrary = librarySnapshot()
+	const unsubscribe = PersistStatus.subscribe((key) => {
+		if (!['music.favorites', 'music.playLists'].includes(key)) return
+		const next = librarySnapshot()
+		if (next === observedLibrary) return
+		observedLibrary = next
+		dirty = true
+		scheduleLibrarySync()
+	})
 	const startupTimer = setTimeout(requestLxAutoSync, STARTUP_DELAY_MS)
 	const appStateSubscription = AppState.addEventListener('change', (nextState) => {
 		const returnedToForeground = appState !== 'active' && nextState === 'active'
 		appState = nextState
 		if (returnedToForeground) requestLxAutoSync()
-		else if (nextState !== 'active') clearRetry()
+		else if (nextState !== 'active') {
+			clearRetry()
+			if (changeTimer) clearTimeout(changeTimer)
+			changeTimer = null
+		}
 	})
 	const networkSubscription = Network.addNetworkStateListener((state) => {
 		if (canUseNetwork(state)) requestLxAutoSync()
@@ -101,6 +135,9 @@ export const startLxAutoSync = () => {
 		started = false
 		clearTimeout(startupTimer)
 		clearRetry()
+		unsubscribe()
+		if (changeTimer) clearTimeout(changeTimer)
+		changeTimer = null
 		appStateSubscription.remove()
 		networkSubscription.remove()
 	}

@@ -11,6 +11,15 @@ export interface IPersistConfig {
 		string,
 		{ url: string; fileUri: string; resumeData: string; savedAt: number }
 	>
+	'library.recycleBin': import('@/helpers/libraryRecycle').RecycleEntry[]
+	'library.autoRefresh': 0 | 1 | 7
+	'library.refreshStatus': Record<
+		string,
+		{ checkedAt: number; added?: number; removed?: number; error?: boolean }
+	>
+	'music.downloadWifiOnly': boolean
+	'music.listeningDaily': import('@/helpers/listeningReport').ListeningDay[]
+	'music.listeningDailySince': number
 	'app.onboardingCompleted': boolean
 	'backup.webdavStatus': {
 		lastSuccessAt?: number

@@ -1,3 +1,5 @@
+import { startDownloadNetworkPolicy } from '@/player/DownloadManager'
+import { startPlaylistAutoRefresh } from '@/helpers/playlistAutoRefresh'
 import { playbackService } from '@/constants/playbackService'
 import { AppThemeProvider, useAppTheme } from '@/hooks/useAppTheme'
 import LyricManager from '@/helpers/lyricManager'
@@ -6,7 +8,7 @@ import { startSystemPlaybackCommands } from '@/helpers/systemPlaybackCommands'
 import { startWebDavAutoBackup } from '@/helpers/webDavAutoBackup'
 import { useLogTrackPlayerState } from '@/hooks/useLogTrackPlayerState'
 import { useSetupTrackPlayer } from '@/hooks/useSetupTrackPlayer'
-import i18n, { setI18nConfig } from '@/utils/i18n'
+import i18n, { nowLanguage, setI18nConfig } from '@/utils/i18n'
 import {
 	DarkTheme,
 	DefaultTheme,
@@ -58,7 +60,14 @@ const App = () => {
 	useEffect(() => startLxAutoSync(), [])
 	useEffect(() => {
 		if (playerStatus !== 'ready') return
-		return startWebDavAutoBackup()
+		const stopBackup = startWebDavAutoBackup()
+		const stopRefresh = startPlaylistAutoRefresh()
+		const stopDownloads = startDownloadNetworkPolicy()
+		return () => {
+			stopBackup()
+			stopRefresh()
+			stopDownloads()
+		}
 	}, [playerStatus])
 	return (
 		<ShareIntentProvider
@@ -220,12 +229,38 @@ const styles = StyleSheet.create({
 })
 
 const RootNavigation = () => {
+	nowLanguage.useValue()
 	const { colors } = useAppTheme()
 
 	return (
 		//每个 Stack.Screen 组件定义了一个可导航的屏幕
-		<Stack>
+		<Stack
+			screenOptions={{
+				title: '',
+				headerBackButtonDisplayMode: 'minimal',
+				headerStyle: { backgroundColor: colors.background },
+				headerTintColor: colors.text,
+			}}
+		>
 			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+			{(
+				[
+					['(modals)/releaseNotes', 'releaseNotes.title'],
+					['(modals)/recycleBin', 'recycleBin.title'],
+					['(modals)/listeningReport', 'listeningReport.title'],
+					['(modals)/playlistRefresh', 'playlistAutoRefresh.title'],
+				] as const
+			).map(([name, title]) => (
+				<Stack.Screen
+					key={name}
+					name={name}
+					options={{ presentation: 'modal', headerTitle: i18n.t(title) }}
+				/>
+			))}
+			<Stack.Screen
+				name="(modals)/shareintent"
+				options={{ presentation: 'modal', headerShown: false }}
+			/>
 			<Stack.Screen
 				name="player"
 				options={{

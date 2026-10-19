@@ -214,7 +214,8 @@
 			"cancelled": "已取消",
 			"queued": "排队中",
 			"interrupted": "待继续",
-			"paused": "已暂停"
+			"paused": "已暂停",
+			"waiting-network": "等待 Wi-Fi"
 		},
 		"limit": "自动缓存上限",
 		"retentionHint": "自动缓存达到上限时优先清理较早文件；离线保存和旧版本已有下载会保留。当前播放与正在离线保存的文件暂不清理。",
@@ -235,7 +236,12 @@
 		"deleteSelected": "删除所选 (%{count})",
 		"deleteSelectedConfirm": "确定删除所选的 %{count} 首离线歌曲？",
 		"deleteFailed": "%{count} 首歌曲删除失败，请重试",
-		"resumeHint": "支持续传的音源会接着下载；地址或续传数据失效时会重新下载。"
+		"resumeHint": "支持续传的音源会接着下载；地址或续传数据失效时会重新下载。",
+		"wifiOnly": "手动下载仅使用 Wi-Fi",
+		"pauseAll": "全部暂停",
+		"retryFailed": "重试全部失败任务",
+		"unknownSize": "大小未知",
+		"remaining": "剩余约 %{seconds} 秒"
 	},
 	"queue": {
 		"title": "播放队列 · %{count}",
@@ -868,5 +874,42 @@
 			"unavailable": "音效组件暂不可用，仍以原声播放。",
 			"processing": "正在准备歌曲，稍后应用音效。"
 		}
+	},
+	"recycleBin": {
+		"title": "歌单回收站",
+		"description": "恢复最近 30 天删除的歌单或移除的歌曲记录，最多保留 100 次操作。仅恢复歌单记录，不恢复已删除的音频文件。",
+		"undo": "撤销最近一次移除",
+		"restore": "恢复",
+		"emptyTitle": "清空回收站",
+		"emptyConfirm": "清空后无法从回收站恢复，确定继续？",
+		"empty": "回收站为空",
+		"failed": "操作失败，请重试",
+		"playlist": "整张歌单 · %{count} 首",
+		"songs": "移除歌曲 · %{count} 首"
+	},
+	"playlistAutoRefresh": {
+		"title": "在线歌单自动刷新",
+		"description": "默认关闭。开启后，在应用前台且连接 Wi-Fi 时按周期刷新已导入的在线歌单，保留本地添加的歌曲、排序和已移除记录。失败后稍后重试。",
+		"interval0": "关闭",
+		"interval1": "每天",
+		"interval7": "每周",
+		"failed": "上次刷新失败，稍后自动重试",
+		"notChecked": "尚无自动刷新记录",
+		"empty": "导入在线歌单后即可自动刷新",
+		"summary": "新增 %{added} 首 · 移除 %{removed} 首"
+	},
+	"listeningReport": {
+		"title": "听歌报告",
+		"description": "按本地日期统计最近 7 天和前 7 天的有效播放与听歌时长，保留最近 90 个有记录的日期。旧版累计统计不会计入周报。",
+		"disabled": "听歌统计已关闭；可在设置中重新开启。",
+		"since": "开始记录：%{date}",
+		"current": "最近 7 天",
+		"previous": "前 7 天",
+		"summary": "%{minutes} 分钟 · %{plays} 次播放",
+		"diversity": "%{songs} 首歌曲 · %{artists} 位歌手",
+		"empty": "这段时间还没有听歌记录",
+		"topSongs": "常听歌曲",
+		"topArtists": "常听歌手",
+		"trackSummary": "%{plays} 次 · %{minutes} 分钟"
 	}
 }

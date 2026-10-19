@@ -10,7 +10,7 @@ const PlaylistsScreenLayout = () => {
 	const defaultStyles = useDefaultStyles()
 	return (
 		<View style={defaultStyles.container} key={language}>
-			<Stack>
+			<Stack screenOptions={{ title: '', headerBackButtonDisplayMode: 'minimal' }}>
 				<Stack.Screen
 					name="index"
 					options={{

@@ -1,3 +1,4 @@
+import { persistPlaylistsWithRecovery } from './libraryRecycle'
 import { sortIndexSymbol, timeStampSymbol } from '@/constants/commonConst'
 import { SoundAsset } from '@/constants/constant'
 import Config from '@/store/config'
@@ -51,6 +52,8 @@ import {
 	enqueueDownload,
 	cancelCacheTask,
 	pauseCacheTask,
+	pauseAllCacheTasks,
+	retryFailedCacheTasks,
 	resumeCacheTask,
 	resumeCacheTasks,
 	restoreDownloadTasks,
@@ -943,7 +946,7 @@ const deleteSongFromStoredPlayList = (
 				? { ...item, songs: item.songs.filter((song) => !isSameMediaItem(song, selected)) }
 				: item,
 		)
-		PersistStatus.set('music.playLists', updatedPlayLists)
+		persistPlaylistsWithRecovery(nowPlayLists, updatedPlayLists)
 		playListsStore.setValue(updatedPlayLists)
 		logInfo('歌曲成功删除')
 		return 'success' as const
@@ -959,8 +962,8 @@ const replaceStoredPlaylistSongs = (playlistId: string, songs: IMusic.IMusicItem
 		const updated = nowPlayLists.map((playlist) =>
 			playlist.id === playlistId ? { ...playlist, songs: [...songs] } : playlist,
 		)
+		persistPlaylistsWithRecovery(nowPlayLists, updated)
 		playListsStore.setValue(updated)
-		PersistStatus.set('music.playLists', updated)
 		return 'success' as const
 	} catch (error) {
 		logError('Error replacing playlist songs:', error)
@@ -1050,7 +1053,7 @@ const updateStoredPlaylist = (
 		const updated = nowPlayLists.map((playlist) =>
 			playlist.id === playlistId ? { ...playlist, ...latestPatch } : playlist,
 		)
-		PersistStatus.set('music.playLists', updated)
+		persistPlaylistsWithRecovery(nowPlayLists, updated)
 		playListsStore.setValue(updated)
 		return 'success' as const
 	} catch (error) {
@@ -1148,8 +1151,8 @@ const deletePlayLists = (playlistId: string) => {
 
 		// 如果播放列表不存在，则添加它
 		const updatedPlayLists = [...playlistFiltered]
+		persistPlaylistsWithRecovery(nowPlayLists, updatedPlayLists)
 		playListsStore.setValue(updatedPlayLists)
-		PersistStatus.set('music.playLists', updatedPlayLists)
 		logInfo('Playlist deleted successfully')
 		return 'success'
 	} catch (error) {
@@ -1714,6 +1717,8 @@ const myTrackPlayer = {
 	cacheAndImportMusic,
 	cancelCacheDownload,
 	pauseCacheDownload: pauseCacheTask,
+	pauseAllCacheDownloads: pauseAllCacheTasks,
+	retryFailedCacheDownloads: retryFailedCacheTasks,
 	resumeCacheDownload: resumeCacheTask,
 	resumeCacheDownloads: resumeCacheTasks,
 	downloadPlaylist,

@@ -2,7 +2,7 @@ import { File, Paths } from 'expo-file-system'
 import { createDownloadResumable, FileSystemSessionType } from 'expo-file-system/legacy'
 import { logError } from './logger'
 
-type DownloadProgress = { bytesWritten: number; contentLength: number }
+export type DownloadProgress = { bytesWritten: number; contentLength: number }
 const DOWNLOAD_IDLE_TIMEOUT_MS = 30_000
 class DownloadIdleTimeoutError extends Error {}
 let nextDownloadId = 0
@@ -128,9 +128,7 @@ async function downloadAttempt(
 				lastBytesWritten = totalBytesWritten
 				resetIdleTimeout()
 			}
-			if (totalBytesExpectedToWrite > 0) {
-				onProgress?.({ bytesWritten: totalBytesWritten, contentLength: totalBytesExpectedToWrite })
-			}
+			onProgress?.({ bytesWritten: totalBytesWritten, contentLength: totalBytesExpectedToWrite })
 		},
 		resume?.resumeData,
 	)

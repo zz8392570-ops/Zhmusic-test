@@ -302,7 +302,7 @@ async function main() {
 			'audio-fixture-200',
 		)
 	})
-	await test('unknown response length does not emit an invented percentage', async () => {
+	await test('unknown response length exposes received bytes without inventing a total', async () => {
 		const h = httpRuntime(),
 			samples = []
 		h.hooks.download = async ({ fileUri, progress }) => {
@@ -315,7 +315,7 @@ async function main() {
 			.downloadFile(`${baseUrl}/200`, uri(`${fixture.documents}/unknown-length.mp3`), (progress) =>
 				samples.push(progress),
 			)
-		assert.deepEqual(samples, [])
+		assert.deepEqual(samples, [{ bytesWritten: 5, contentLength: -1 }])
 		await assertClean(h)
 	})
 	await test('interleaved requests to one target have independent temporary files and cleanup', async () => {

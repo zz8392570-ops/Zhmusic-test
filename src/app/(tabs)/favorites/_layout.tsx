@@ -10,7 +10,13 @@ const FavoritesScreenLayout = () => {
 	const defaultStyles = useDefaultStyles()
 	return (
 		<View style={defaultStyles.container} key={language}>
-			<Stack screenOptions={{ headerShadowVisible: false }}>
+			<Stack
+				screenOptions={{
+					title: '',
+					headerBackButtonDisplayMode: 'minimal',
+					headerShadowVisible: false,
+				}}
+			>
 				<Stack.Screen
 					name="index"
 					options={{

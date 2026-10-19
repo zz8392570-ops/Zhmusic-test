@@ -4,20 +4,29 @@ const { check, finish } = checks()
 
 function fixture({ syncResult } = {}) {
 	const disk = new Map()
+	const listeners = new Set()
 	const timers = new Map()
 	let nextTimerId = 1
 	let appState = 'active'
 	let networkState = { type: 'WIFI', isConnected: true, isInternetReachable: true }
 	let appListener
 	let networkListener
-	let credentials = { serverId: 'server', keyInfo: { clientId: 'client', key: 'key', serverName: 'LX' } }
+	let credentials = {
+		serverId: 'server',
+		keyInfo: { clientId: 'client', key: 'key', serverName: 'LX' },
+	}
 	let credentialsError
 	const syncCalls = []
 	const persist = {
 		get: (key) => disk.get(key) ?? null,
+		subscribe: (callback) => {
+			listeners.add(callback)
+			return () => listeners.delete(callback)
+		},
 		set: (key, value) => {
 			if (value === undefined) disk.delete(key)
 			else disk.set(key, value)
+			for (const callback of listeners) callback(key)
 		},
 	}
 	const AppState = {
@@ -26,16 +35,29 @@ function fixture({ syncResult } = {}) {
 		},
 		addEventListener(_event, listener) {
 			appListener = listener
-			return { remove: () => { appListener = undefined } }
+			return {
+				remove: () => {
+					appListener = undefined
+				},
+			}
 		},
 	}
-	const NetworkStateType = { NONE: 'NONE', WIFI: 'WIFI', ETHERNET: 'ETHERNET', CELLULAR: 'CELLULAR' }
+	const NetworkStateType = {
+		NONE: 'NONE',
+		WIFI: 'WIFI',
+		ETHERNET: 'ETHERNET',
+		CELLULAR: 'CELLULAR',
+	}
 	const network = {
 		NetworkStateType,
 		getNetworkStateAsync: async () => networkState,
 		addNetworkStateListener(listener) {
 			networkListener = listener
-			return { remove: () => { networkListener = undefined } }
+			return {
+				remove: () => {
+					networkListener = undefined
+				},
+			}
 		},
 	}
 	const setTimeoutFake = (callback, delay) => {
@@ -72,9 +94,15 @@ function fixture({ syncResult } = {}) {
 		persist,
 		syncCalls,
 		timers,
-		setCredentials: (value) => { credentials = value },
-		setCredentialsError: (value) => { credentialsError = value },
-		setNetwork: (value) => { networkState = value },
+		setCredentials: (value) => {
+			credentials = value
+		},
+		setCredentialsError: (value) => {
+			credentialsError = value
+		},
+		setNetwork: (value) => {
+			networkState = value
+		},
 		emitNetwork: (value) => networkListener?.(value),
 		emitAppState: (value) => {
 			appState = value
@@ -95,22 +123,28 @@ const configure = (h) => {
 	h.persist.set('sync.host', 'http://192.168.1.2:9527')
 }
 
-await check('automatic sync requires opt-in, a host, credentials and a usable network', async () => {
-	const h = fixture()
-	h.requestLxAutoSync()
-	await flush()
-	assert.equal(h.syncCalls.length, 0)
-	configure(h)
-	h.setCredentials(null)
-	h.requestLxAutoSync()
-	await flush()
-	assert.equal(h.syncCalls.length, 0)
-	h.setCredentials({ serverId: 'server', keyInfo: { clientId: 'client', key: 'key', serverName: 'LX' } })
-	h.setNetwork({ type: 'NONE', isConnected: false, isInternetReachable: false })
-	h.requestLxAutoSync()
-	await flush()
-	assert.equal(h.syncCalls.length, 0)
-})
+await check(
+	'automatic sync requires opt-in, a host, credentials and a usable network',
+	async () => {
+		const h = fixture()
+		h.requestLxAutoSync()
+		await flush()
+		assert.equal(h.syncCalls.length, 0)
+		configure(h)
+		h.setCredentials(null)
+		h.requestLxAutoSync()
+		await flush()
+		assert.equal(h.syncCalls.length, 0)
+		h.setCredentials({
+			serverId: 'server',
+			keyInfo: { clientId: 'client', key: 'key', serverName: 'LX' },
+		})
+		h.setNetwork({ type: 'NONE', isConnected: false, isInternetReachable: false })
+		h.requestLxAutoSync()
+		await flush()
+		assert.equal(h.syncCalls.length, 0)
+	},
+)
 
 await check('automatic sync uses merge mode and coalesces simultaneous triggers', async () => {
 	const pending = deferred()
@@ -141,7 +175,11 @@ await check('Wi-Fi-only mode accepts Wi-Fi and Ethernet but skips cellular', asy
 })
 
 await check('failures record an error and retry with exponential delays', async () => {
-	const h = fixture({ syncResult: async () => { throw new Error('offline') } })
+	const h = fixture({
+		syncResult: async () => {
+			throw new Error('offline')
+		},
+	})
 	configure(h)
 	h.requestLxAutoSync()
 	await flush()
@@ -169,18 +207,62 @@ await check('credential and network preflight failures are contained and retried
 	assert.equal([...h.timers.values()][0].delay, 15_000)
 })
 
-await check('foreground and network recovery trigger sync while recent success suppresses duplicates', async () => {
-	const h = fixture()
-	configure(h)
-	h.startLxAutoSync()
-	h.emitAppState('background')
-	h.emitAppState('active')
-	await flush()
-	assert.equal(h.syncCalls.length, 1)
-	h.persist.set('sync.lastSuccessAt', Date.now())
-	h.emitNetwork({ type: 'WIFI', isConnected: true, isInternetReachable: true })
-	await flush()
-	assert.equal(h.syncCalls.length, 1)
-})
+await check(
+	'foreground and network recovery trigger sync while recent success suppresses duplicates',
+	async () => {
+		const h = fixture()
+		configure(h)
+		h.startLxAutoSync()
+		h.emitAppState('background')
+		h.emitAppState('active')
+		await flush()
+		assert.equal(h.syncCalls.length, 1)
+		h.persist.set('sync.lastSuccessAt', Date.now())
+		h.emitNetwork({ type: 'WIFI', isConnected: true, isInternetReachable: true })
+		await flush()
+		assert.equal(h.syncCalls.length, 1)
+	},
+)
 
+await check(
+	'local edits debounce and bypass recent-success throttle without syncing identical writes',
+	async () => {
+		const h = fixture()
+		configure(h)
+		const stop = h.startLxAutoSync()
+		h.runNextTimer()
+		await flush()
+		h.persist.set('sync.lastSuccessAt', Date.now())
+		h.persist.set('music.playLists', [{ id: 'a' }])
+		h.persist.set('music.playLists', [{ id: 'a' }, { id: 'b' }])
+		assert.equal(h.timers.size, 1)
+		h.runNextTimer()
+		await flush()
+		assert.equal(h.syncCalls.length, 2)
+		h.persist.set('music.playLists', [{ id: 'a' }, { id: 'b' }])
+		assert.equal(h.timers.size, 0)
+		stop()
+	},
+)
+await check(
+	'offline edits wait for network recovery instead of repeatedly waking every three seconds',
+	async () => {
+		const h = fixture()
+		configure(h)
+		const stop = h.startLxAutoSync()
+		h.runNextTimer()
+		await flush()
+		h.setNetwork({ type: 'NONE', isConnected: false })
+		h.persist.set('music.favorites', [{ id: 'new' }])
+		h.runNextTimer()
+		await flush()
+		assert.equal(h.syncCalls.length, 1)
+		assert.equal(h.timers.size, 0)
+		h.setNetwork({ type: 'WIFI', isConnected: true })
+		h.emitNetwork({ type: 'WIFI' })
+		await flush()
+		assert.equal(h.syncCalls.length, 2)
+		stop()
+	},
+)
 finish()

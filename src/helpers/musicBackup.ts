@@ -3,6 +3,8 @@ import { Buffer } from 'buffer'
 import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 
 const settingValidators = {
+	'music.downloadWifiOnly': (value: unknown) => typeof value === 'boolean',
+	'library.autoRefresh': (value: unknown) => typeof value === 'number' && [0, 1, 7].includes(value),
 	'music.downloadFilenameTemplate': isValidDownloadTemplate,
 	'music.quality': (value: unknown) =>
 		typeof value === 'string' && ['128k', '320k', 'flac'].includes(value),

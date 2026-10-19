@@ -1,3 +1,5 @@
+import { recordListeningDay } from './listeningReport'
+import { logError } from './logger'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
 import { isSameMediaItem } from '@/utils/mediaItem'
@@ -68,6 +70,15 @@ const updateRecord = (
 		.sort((left, right) => right.lastPlayedAt - left.lastPlayedAt)
 		.slice(0, MAX_STATS_RECORDS)
 	PersistStatus.set('music.listeningStats', result)
+	try {
+		recordListeningDay(
+			track,
+			next.totalSeconds - current.totalSeconds,
+			next.playCount - current.playCount,
+		)
+	} catch (error) {
+		logError('保存听歌报告失败:', error)
+	}
 }
 
 const flushSessionSeconds = () => {
@@ -146,6 +157,8 @@ export const finishListeningSession = (reason: 'changed' | 'stopped' | 'disabled
 export const clearListeningStats = () => {
 	session = null
 	PersistStatus.set('music.listeningStats', [])
+	PersistStatus.set('music.listeningDaily', [])
+	PersistStatus.set('music.listeningDailySince', undefined)
 }
 
 export const getSmartPlaylistTracks = (

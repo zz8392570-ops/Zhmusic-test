@@ -34,8 +34,20 @@ export type CacheDownloadTask = {
 	quality: AudioQuality
 	/** Explicit download choices must not silently reuse or fall back to another quality. */
 	strictQuality?: boolean
+	bytesWritten?: number
+	contentLength?: number
+	bytesPerSecond?: number
+	remainingSeconds?: number
 	progress: number
-	status: 'paused' | 'queued' | 'downloading' | 'interrupted' | 'completed' | 'failed' | 'cancelled'
+	status:
+		| 'waiting-network'
+		| 'paused'
+		| 'queued'
+		| 'downloading'
+		| 'interrupted'
+		| 'completed'
+		| 'failed'
+		| 'cancelled'
 	kind?: 'saved' | 'automatic'
 	silent?: boolean
 	updatedAt?: number
