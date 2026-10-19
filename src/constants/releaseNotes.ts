@@ -7,7 +7,7 @@ export type ReleaseNote = {
 /** Keep the current version's cumulative notes up to date; newest releases stay first. */
 export const releaseNotes: ReleaseNote[] = [
 	{
-		version: '1.2.0',
+		version: '2.0.0',
 		date: '2026-10-19',
 		sections: [
 			{
