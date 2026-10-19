@@ -9,6 +9,7 @@ const checks = [
 	'check-local-files.mjs',
 	'check-local-import.mjs',
 	'check-library-edits.mjs',
+	'check-lyric-layout.mjs',
 	'check-lx-sync.mjs',
 	'check-lx-auto-sync.mjs',
 	'check-player-background.mjs',

@@ -524,7 +524,7 @@ await check(
 	},
 )
 
-function downloadFixture() {
+function downloadFixture(now) {
 	const store = persistence(),
 		jobs = [],
 		sources = [],
@@ -587,7 +587,7 @@ function downloadFixture() {
 			},
 			'./PlayerStore': stores,
 		},
-		globals,
+		{ ...globals, ...(now ? { Date: { now } } : {}) },
 	)
 	const complete = (job) => {
 		const path = cache.getLocalFilePath(job.song, job.quality)
@@ -596,6 +596,63 @@ function downloadFixture() {
 	}
 	return { ...api, store, stores, jobs, sources, pins, cancelled, files, cache, complete, toasts }
 }
+await check(
+	'download progress bursts avoid durable writes while terminal states persist immediately',
+	async () => {
+		let now = 1000
+		const h = downloadFixture(() => now)
+		await h.enqueueDownload(track('progress'), { silent: true })
+		await until(() => h.jobs.length === 1)
+		const writes = h.store.writes.length
+		const job = h.jobs[0]
+		job.progress(0.1)
+		for (let index = 0; index < 100; index++) job.progress(0.2)
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].progress, 0.1)
+		now += 250
+		job.progress(0.6)
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].progress, 0.6)
+		job.progress(NaN)
+		assert.equal(h.store.writes.length, writes)
+		h.complete(job)
+		await until(() => h.stores.cacheDownloadTasksStore.getValue()[0].status === 'completed')
+		assert.equal(h.store.get('music.cacheDownloads')[0].status, 'completed')
+		assert.equal(h.store.get('music.cacheDownloads')[0].progress, 1)
+		now += 250
+		job.progress(0.8)
+		assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].progress, 1)
+	},
+)
+await check(
+	'cancel and failure remain durable after transient progress; restart can resume',
+	async () => {
+		const h = downloadFixture()
+		await h.enqueueDownload(track('transient-cancel'), { silent: true })
+		await until(() => h.jobs.length === 1)
+		h.jobs[0].progress(0.4)
+		assert.equal(h.store.get('music.cacheDownloads')[0].status, 'downloading')
+		await h.cancelCacheTask(h.jobs[0].id)
+		h.jobs[0].progress(0.8)
+		assert.equal(h.store.get('music.cacheDownloads')[0].status, 'cancelled')
+		await h.enqueueDownload(track('transient-failure'), { silent: true })
+		await until(() => h.jobs.length === 2)
+		h.jobs[1].progress(0.3)
+		h.jobs[1].reject(new Error('network lost'))
+		await until(() =>
+			h.stores.cacheDownloadTasksStore.getValue().some((task) => task.status === 'failed'),
+		)
+		assert.equal(
+			h.store.get('music.cacheDownloads').find((task) => task.track.id === 'transient-failure')
+				.error,
+			'network lost',
+		)
+		const restored = downloadFixture()
+		restored.store.set('music.cacheDownloads', [
+			{ ...h.store.get('music.cacheDownloads')[0], status: 'downloading', progress: 0.4 },
+		])
+		restored.restoreDownloadTasks()
+		assert.equal(restored.stores.cacheDownloadTasksStore.getValue()[0].status, 'interrupted')
+	},
+)
 await check(
 	'download queue has at most two workers; cancelling a queued item does not start it',
 	async () => {

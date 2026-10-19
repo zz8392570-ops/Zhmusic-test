@@ -58,17 +58,16 @@ const withCacheMaintenance = (work: () => Promise<void>) => {
 	return next
 }
 const persistTasks = (tasks: CacheDownloadTask[]) => {
-	const pending = tasks.filter((task) =>
-		['queued', 'downloading', 'interrupted'].includes(task.status),
-	)
-	const completed = tasks.filter((task) => !pending.includes(task)).slice(-50)
+	const pendingStatuses = new Set(['queued', 'downloading', 'interrupted'])
+	const pending = tasks.filter((task) => pendingStatuses.has(task.status))
+	const completed = tasks.filter((task) => !pendingStatuses.has(task.status)).slice(-50)
 	const retained = [...pending, ...completed].sort(
 		(a, b) => (a.updatedAt ?? 0) - (b.updatedAt ?? 0),
 	)
 	cacheDownloadTasksStore.setValue(retained)
 	PersistStatus.set('music.cacheDownloads', retained)
 }
-const update = (task: CacheDownloadTask) => {
+const update = (task: CacheDownloadTask, persist = true) => {
 	const tasks = cacheDownloadTasksStore.getValue() ?? []
 	const index = tasks.findIndex((item) => item.id === task.id)
 	const next = [...tasks]
@@ -81,7 +80,8 @@ const update = (task: CacheDownloadTask) => {
 			silent:
 				tasks[index].runId === task.runId && tasks[index].silent === false ? false : task.silent,
 		}
-	persistTasks(next)
+	if (persist) persistTasks(next)
+	else cacheDownloadTasksStore.setValue(next)
 }
 const isCurrent = (task: CacheDownloadTask) =>
 	cacheDownloadTasksStore
@@ -122,6 +122,7 @@ export const restoreDownloadTasks = () => {
 }
 
 const run = async (task: CacheDownloadTask, controller: AbortController) => {
+	let lastProgressAt = -Infinity
 	try {
 		if (task.kind === 'automatic') {
 			if (!autoCacheLocalStore.getValue()) throw new Error('自动缓存已关闭')
@@ -174,7 +175,20 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				{ ...task.track, url: source.url },
 				quality,
 				(progress) => {
-					if (isCurrent(task)) update({ ...task, quality, progress, status: 'downloading' })
+					if (!isCurrent(task) || !Number.isFinite(progress)) return
+					const now = Date.now()
+					if (now - lastProgressAt < 250) return
+					lastProgressAt = now
+					// Byte progress is transient. State transitions remain durable immediately.
+					update(
+						{
+							...task,
+							quality,
+							progress: Math.max(0, Math.min(1, progress)),
+							status: 'downloading',
+						},
+						false,
+					)
 				},
 				task.id,
 				true,
