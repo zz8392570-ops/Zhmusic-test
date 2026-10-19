@@ -226,7 +226,6 @@ await suite.check(
 			'src/app/(tabs)/search/[name].tsx',
 			'src/app/(modals)/[name].tsx',
 			'src/components/PlaylistTracksList.tsx',
-			'src/components/ArtistTracksList.tsx',
 			'src/components/SingerTracksList.tsx',
 		]
 		for (const file of files) {

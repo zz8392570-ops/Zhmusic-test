@@ -120,7 +120,7 @@ function fixture() {
 		},
 		render() {
 			cursor = 0
-			const list = find(component.default({}), 'List')
+			const list = find(component.default(), 'List')
 			for (const commit of pending) commit()
 			pending = []
 			return list.props

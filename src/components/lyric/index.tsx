@@ -24,10 +24,6 @@ const AUTO_SCROLL_MIN_INDEX_DELTA = 2
 
 let nextLayoutKey = 0
 
-interface IProps {
-	onTurnPageClick?: () => void
-}
-
 const fontSizeMap = {
 	0: rpx(24),
 	1: rpx(30),
@@ -35,8 +31,7 @@ const fontSizeMap = {
 	3: rpx(42),
 } as Record<number, number>
 
-export default function Lyric(_props: IProps) {
-	void _props
+export default function Lyric() {
 	const colors = useThemeColors()
 	const styles = useMemo(() => createStyles(colors), [colors])
 	const { loading, meta, lyrics } = LyricManager.useLyricState()
@@ -196,11 +191,10 @@ export default function Lyric(_props: IProps) {
 			<>
 				<View onLayout={(event) => layout.setHeaderHeight(event.nativeEvent.layout.height)}>
 					{blankComponent}
-					<View style={styles.lyricMeta} />
 				</View>
 			</>
 		),
-		[blankComponent, layout, styles.lyricMeta],
+		[blankComponent, layout],
 	)
 
 	const renderLyricItem = useCallback(
@@ -211,19 +205,12 @@ export default function Lyric(_props: IProps) {
 					text={item.lrc}
 					fontSize={fontSizeStyle.fontSize}
 					onLayout={handleLyricItemLayout}
-					light={draggingIndex === index}
 					highlight={currentLrcItem?.index === index}
 					onPress={() => handleLyricItemPress(index)}
 				/>
 			)
 		},
-		[
-			fontSizeStyle.fontSize,
-			handleLyricItemLayout,
-			draggingIndex,
-			currentLrcItem?.index,
-			handleLyricItemPress,
-		],
+		[fontSizeStyle.fontSize, handleLyricItemLayout, currentLrcItem?.index, handleLyricItemPress],
 	)
 
 	return (
@@ -291,50 +278,10 @@ const createStyles = (colors: ThemeColors) =>
 		white: {
 			color: colors.text,
 		},
-		lyricMeta: {
-			position: 'absolute',
-			width: '100%',
-			flexDirection: 'row',
-			justifyContent: 'center',
-			alignItems: 'center',
-			left: 0,
-			paddingHorizontal: rpx(48),
-			bottom: rpx(48),
-		},
-		lyricMetaText: {
-			color: colors.text,
-			opacity: 0.8,
-			maxWidth: '80%',
-		},
-		linkText: {
-			color: colors.primary,
-			textDecorationLine: 'underline',
-		},
 		fullCenter: {
 			width: '100%',
 			flex: 1,
 			justifyContent: 'center',
 			alignItems: 'center',
-		},
-
-		singleLine: {
-			width: '67%',
-			height: 1,
-			backgroundColor: colors.separator,
-			opacity: 0.4,
-		},
-		playIcon: {
-			width: rpx(90),
-			textAlign: 'right',
-			color: colors.text,
-		},
-		searchLyric: {
-			width: rpx(180),
-			marginTop: rpx(14),
-			paddingVertical: rpx(10),
-			textAlign: 'center',
-			alignSelf: 'center',
-			color: colors.primary,
-			textDecorationLine: 'underline',
 		},
 	})

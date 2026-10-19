@@ -7,8 +7,6 @@ import { Animated, StyleSheet, Text, TouchableWithoutFeedback, View } from 'reac
 interface ILyricItemComponentProps {
 	// 行号
 	index?: number
-	// 显示
-	light?: boolean
 	// 高亮
 	highlight?: boolean
 	// 文本
@@ -77,7 +75,6 @@ function _LyricItemComponent(props: ILyricItemComponentProps) {
 									},
 								]
 							: null,
-						// light ? lyricStyles.draggingItem : null,
 					]}
 				>
 					{text}
@@ -93,29 +90,25 @@ export default LyricItemComponent
 
 const createStyles = (colors: ThemeColors) =>
 	StyleSheet.create({
-	highlightItem: {
-		opacity: 1,
-	},
-	item: {
-		color: colors.text,
-		opacity: 0.6,
-		paddingHorizontal: rpx(64),
-		paddingVertical: rpx(24),
-		width: '100%',
-		textAlign: 'center',
-		textAlignVertical: 'center',
-	},
-	draggingItem: {
-		opacity: 1,
-		color: colors.text,
-	},
-	background: {
-		position: 'absolute',
-		top: 0,
-		left: 0,
-		right: 0,
-		bottom: 0,
-		backgroundColor: colors.overlaySoft,
-		borderRadius: rpx(10),
-	},
+		highlightItem: {
+			opacity: 1,
+		},
+		item: {
+			color: colors.text,
+			opacity: 0.6,
+			paddingHorizontal: rpx(64),
+			paddingVertical: rpx(24),
+			width: '100%',
+			textAlign: 'center',
+			textAlignVertical: 'center',
+		},
+		background: {
+			position: 'absolute',
+			top: 0,
+			left: 0,
+			right: 0,
+			bottom: 0,
+			backgroundColor: colors.overlaySoft,
+			borderRadius: rpx(10),
+		},
 	})

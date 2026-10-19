@@ -541,9 +541,7 @@ const PlayerScreenContent = () => {
 							/>
 						</TouchableOpacity>
 						<Animated.View style={[styles.lyricContainer, lyricsAnimatedStyle]}>
-							{/* <Pressable style={styles.artworkTouchable} onPress={handleLyricsToggle}> */}
-							<Lyric onTurnPageClick={handleLyricsToggle} />
-							{/* </Pressable> */}
+							<Lyric />
 						</Animated.View>
 						<View style={styles.container}>
 							<View style={styles.leftItem}>
