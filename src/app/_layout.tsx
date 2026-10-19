@@ -63,7 +63,7 @@ const App = () => {
 	return (
 		<ShareIntentProvider
 			options={{
-				debug: true,
+				debug: __DEV__,
 				resetOnBackground: false,
 				onResetShareIntent: () =>
 					// used when app going in background and when the reset button is pressed

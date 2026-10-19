@@ -524,7 +524,7 @@ await check(
 	},
 )
 
-function downloadFixture() {
+function downloadFixture(now) {
 	const store = persistence(),
 		jobs = [],
 		sources = [],
@@ -587,7 +587,7 @@ function downloadFixture() {
 			},
 			'./PlayerStore': stores,
 		},
-		globals,
+		{ ...globals, ...(now ? { Date: { now } } : {}) },
 	)
 	const complete = (job) => {
 		const path = cache.getLocalFilePath(job.song, job.quality)
@@ -596,6 +596,24 @@ function downloadFixture() {
 	}
 	return { ...api, store, stores, jobs, sources, pins, cancelled, files, cache, complete, toasts }
 }
+await check('download progress stays live while disk writes are throttled; cancellation saves immediately', async () => {
+	let now = 10_000
+	const h = downloadFixture(() => now)
+	await h.enqueueDownload(track('progress'), { silent: true })
+	await until(() => h.jobs.length === 1)
+	const writes = () => h.store.writes.filter((key) => key === 'music.cacheDownloads').length
+	const before = writes()
+	for (let index = 1; index <= 100; index++) h.jobs[0].progress(index / 101)
+	assert.equal(writes(), before)
+	assert.equal(h.stores.cacheDownloadTasksStore.getValue()[0].progress, 100 / 101)
+	now += 2000
+	h.jobs[0].progress(0.995)
+	assert.equal(writes(), before + 1)
+	assert.equal(h.store.get('music.cacheDownloads')[0].progress, 0.995)
+	await h.cancelCacheTask(h.jobs[0].id)
+	assert.equal(writes(), before + 2)
+	assert.equal(h.store.get('music.cacheDownloads')[0].status, 'cancelled')
+})
 await check(
 	'download queue has at most two workers; cancelling a queued item does not start it',
 	async () => {

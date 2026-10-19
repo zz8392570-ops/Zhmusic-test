@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useLayoutEffect, useReducer } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import type { FlatList as NativeFlatList, FlatListProps } from 'react-native'
 
@@ -49,8 +49,7 @@ export default function Lyric(_props: IProps) {
 	// const parser = new LyricParser(lrcSource, musicItem, {})
 	// const lyrics = parser.getLyric()
 	// console.log('lyrics', lyrics)
-	const [loading] = useState(false)
-	const { meta, lyrics } = LyricManager.useLyricState()
+	const { loading, meta, lyrics } = LyricManager.useLyricState()
 	// console.log('lyrics', lyrics)
 	const currentLrcItem = LyricManager.useCurrentLyric()
 	// const showTranslation = PersistStatus.useValue('lyric.showTranslation', false)
@@ -72,8 +71,17 @@ export default function Lyric(_props: IProps) {
 
 	// 用来缓存高度
 	const itemHeightsRef = useRef<IItemHeights>({})
+	const [layoutRevision, resetLayout] = useReducer((value: number) => value + 1, 0)
 	const lastAutoScrollAtRef = useRef(0)
 	const lastAutoScrollIndexRef = useRef(-1)
+
+	useLayoutEffect(() => {
+		itemHeightsRef.current = {}
+		// Remount the virtualized list so visible rows and the header are measured again.
+		resetLayout()
+		lastAutoScrollAtRef.current = 0
+		lastAutoScrollIndexRef.current = -1
+	}, [lyrics, fontSizeKey])
 
 	// 设置空白组件，获取组件高度
 	const blankComponent = useMemo(() => {
@@ -167,11 +175,11 @@ export default function Lyric(_props: IProps) {
 		const targetIndex =
 			currentLyricIndex === -1 || currentLyricIndex == null ? 0 : currentLyricIndex
 		scrollToLyricIndex(targetIndex, lyrics.length)
-	}, [currentLyricIndex, draggingIndex, lastLyricTime, lyrics.length, playing, scrollToLyricIndex])
+	}, [currentLyricIndex, draggingIndex, lastLyricTime, lyrics.length, playing, scrollToLyricIndex, layoutRevision])
 
 	useEffect(() => {
 		scrollToCurrentLrcItem()
-	}, [scrollToCurrentLrcItem])
+	}, [scrollToCurrentLrcItem, layoutRevision])
 
 	const getItemLayout = useCallback((_: unknown, index: number) => {
 		const itemHeights = itemHeightsRef.current
@@ -205,13 +213,13 @@ export default function Lyric(_props: IProps) {
 				const offset = e.nativeEvent.contentOffset.y + e.nativeEvent.layoutMeasurement.height / 2
 
 				const itemHeights = itemHeightsRef.current
-				let height = itemHeights.blankHeight!
+				let height = itemHeights.blankHeight ?? 0
 				if (offset <= height) {
 					setDraggingIndex(0)
 					return
 				}
 				for (let i = 0; i < lyrics.length; ++i) {
-					height += itemHeights[i] ?? 0
+					height += itemHeights[i] ?? ITEM_HEIGHT
 					if (height > offset) {
 						setDraggingIndex(i)
 						return
@@ -277,6 +285,7 @@ export default function Lyric(_props: IProps) {
 					</View>
 				) : lyrics?.length ? (
 					<LyricFlatList
+						key={layoutRevision}
 						ref={(_) => {
 							listRef.current = _
 						}}

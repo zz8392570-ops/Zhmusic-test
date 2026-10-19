@@ -57,18 +57,25 @@ const withCacheMaintenance = (work: () => Promise<void>) => {
 	cacheMaintenance = next.catch(() => {})
 	return next
 }
-const persistTasks = (tasks: CacheDownloadTask[]) => {
+let lastProgressSaveAt = 0
+const persistTasks = (tasks: CacheDownloadTask[], progressOnly = false) => {
 	const pending = tasks.filter((task) =>
 		['queued', 'downloading', 'interrupted'].includes(task.status),
 	)
-	const completed = tasks.filter((task) => !pending.includes(task)).slice(-50)
+	const completed = tasks
+		.filter((task) => !['queued', 'downloading', 'interrupted'].includes(task.status))
+		.slice(-50)
 	const retained = [...pending, ...completed].sort(
 		(a, b) => (a.updatedAt ?? 0) - (b.updatedAt ?? 0),
 	)
 	cacheDownloadTasksStore.setValue(retained)
-	PersistStatus.set('music.cacheDownloads', retained)
+	const now = Date.now()
+	if (!progressOnly || now - lastProgressSaveAt >= 2000) {
+		PersistStatus.set('music.cacheDownloads', retained)
+		lastProgressSaveAt = now
+	}
 }
-const update = (task: CacheDownloadTask) => {
+const update = (task: CacheDownloadTask, progressOnly = false) => {
 	const tasks = cacheDownloadTasksStore.getValue() ?? []
 	const index = tasks.findIndex((item) => item.id === task.id)
 	const next = [...tasks]
@@ -81,7 +88,7 @@ const update = (task: CacheDownloadTask) => {
 			silent:
 				tasks[index].runId === task.runId && tasks[index].silent === false ? false : task.silent,
 		}
-	persistTasks(next)
+	persistTasks(next, progressOnly)
 }
 const isCurrent = (task: CacheDownloadTask) =>
 	cacheDownloadTasksStore
@@ -174,7 +181,7 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				{ ...task.track, url: source.url },
 				quality,
 				(progress) => {
-					if (isCurrent(task)) update({ ...task, quality, progress, status: 'downloading' })
+					if (isCurrent(task)) update({ ...task, quality, progress, status: 'downloading' }, true)
 				},
 				task.id,
 				true,

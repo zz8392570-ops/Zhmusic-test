@@ -252,13 +252,18 @@ export const downloadToCache = async (
 			onProgress?.(1)
 			return localPath
 		}
+		let loggedProgressStep = -1
 		await downloadFile(
 			musicItem.url,
 			getCacheFileUri(localPath),
 			(res) => {
 				const progress = res.bytesWritten / res.contentLength
 				onProgress?.(progress)
-				logInfo(`下载进度: ${(progress * 100).toFixed(2)}%`)
+				const step = Math.floor(progress * 10)
+				if (step > loggedProgressStep) {
+					loggedProgressStep = step
+					logInfo(`下载进度: ${Math.min(step * 10, 100)}%`)
+				}
 			},
 			taskId,
 		)
