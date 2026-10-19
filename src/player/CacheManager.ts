@@ -1,6 +1,7 @@
 import { logError, logInfo } from '@/helpers/logger'
 import { cacheRevisionStore, importedLocalMusicStore, qualityStore } from './PlayerStore'
 import PersistStatus from '@/store/PersistStatus'
+import i18n from '@/utils/i18n'
 import { formatDownloadFilename, DEFAULT_DOWNLOAD_TEMPLATE } from '@/helpers/downloadFilename'
 import * as FileSystem from 'expo-file-system/legacy'
 import { downloadFile } from '@/helpers/fileDownload'
@@ -276,29 +277,74 @@ export const downloadToCache = async (
 	}
 }
 
-export const getCacheSize = async () => {
-	const dirInfo = await FileSystem.getInfoAsync(cacheDir)
-	if (!dirInfo.exists) return 0
-	const entries = await FileSystem.readDirectoryAsync(cacheDir)
-	const files = await Promise.all(
-		entries.map((entry) => FileSystem.getInfoAsync(`${cacheDir}${encodeURIComponent(entry)}`)),
-	)
-	return files.reduce(
-		(total, info) => total + (info.exists && !info.isDirectory ? info.size ?? 0 : 0),
-		0,
-	)
+type CacheFile = { entry: string; info: FileSystem.FileInfo }
+let pendingScan:
+	| { revision: number; includeSaved: boolean; promise: Promise<CacheFile[]> }
+	| undefined
+
+/** Share concurrent scans, but never reuse a completed snapshot for playback or deletion. */
+const scanCacheFiles = (includeSaved = true): Promise<CacheFile[]> => {
+	const revision = cacheRevisionStore.getValue()
+	if (pendingScan) {
+		if (pendingScan.revision === revision && (pendingScan.includeSaved || !includeSaved))
+			return pendingScan.promise
+		// A mutation retires the old scan. Serialize its replacement to bound native I/O.
+		return pendingScan.promise.then(
+			() => scanCacheFiles(includeSaved),
+			() => scanCacheFiles(includeSaved),
+		)
+	}
+	const scan = async () => {
+		if (!(await FileSystem.getInfoAsync(cacheDir)).exists) return []
+		const saved = PersistStatus.get('music.savedOffline') ?? {}
+		const entries = (await FileSystem.readDirectoryAsync(cacheDir)).filter(
+			(entry) => includeSaved || !saved[entry],
+		)
+		const files: CacheFile[] = new Array(entries.length)
+		let next = 0
+		let failure: unknown
+		let failed = false
+		const worker = async () => {
+			while (!failed && next < entries.length) {
+				const index = next++
+				const entry = entries[index]
+				try {
+					files[index] = {
+						entry,
+						info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
+					}
+				} catch (error) {
+					failure = error
+					failed = true
+				}
+			}
+		}
+		await Promise.all(Array.from({ length: Math.min(4, entries.length) }, worker))
+		if (failed) throw failure
+		return files
+	}
+	const promise = scan().finally(() => {
+		if (pendingScan?.promise === promise) pendingScan = undefined
+	})
+	pendingScan = { revision, includeSaved, promise }
+	return promise
 }
+const fileSize = ({ info }: CacheFile) => (info.exists && !info.isDirectory ? info.size ?? 0 : 0)
+const oldestFirst = (a: CacheFile, b: CacheFile) =>
+	(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
+	(b.info.exists ? b.info.modificationTime ?? 0 : 0)
+
+export const getCacheSize = async () =>
+	(await scanCacheFiles()).reduce((sum, file) => sum + fileSize(file), 0)
 
 export const getCacheUsage = async () => {
 	await migrateCacheRetention()
+	const files = await scanCacheFiles()
 	const saved = PersistStatus.get('music.savedOffline') ?? {}
 	const usage = { automatic: 0, saved: 0, total: 0 }
-	if (!(await FileSystem.getInfoAsync(cacheDir)).exists) return usage
-	for (const entry of await FileSystem.readDirectoryAsync(cacheDir)) {
-		const info = await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`))
-		if (!info.exists || info.isDirectory) continue
-		const size = info.size ?? 0
-		usage[saved[entry] ? 'saved' : 'automatic'] += size
+	for (const file of files) {
+		const size = fileSize(file)
+		usage[saved[file.entry] ? 'saved' : 'automatic'] += size
 		usage.total += size
 	}
 	return usage
@@ -349,7 +395,11 @@ export const migrateCacheRetention = async () => {
 			}
 		}
 	}
-	if (changed) PersistStatus.set('music.savedOffline', saved)
+	if (changed)
+		PersistStatus.set('music.savedOffline', {
+			...saved,
+			...(PersistStatus.get('music.savedOffline') ?? {}),
+		})
 }
 
 const removeAutomaticCacheFile = async (
@@ -362,7 +412,7 @@ const removeAutomaticCacheFile = async (
 	const local = await resolveLocalFile(getCacheFileUri(localPath), { requireOwnedMedia: true })
 	if (local.status !== 'resolved') return false
 	// Recheck retention after asynchronous resolution. A concurrent manual save wins.
-	if ((PersistStatus.get('music.savedOffline') ?? {})[entry]) return false
+	if (isProtected() || (PersistStatus.get('music.savedOffline') ?? {})[entry]) return false
 	await FileSystem.deleteAsync(local.fileUri, { idempotent: true })
 	const updated = (importedLocalMusicStore.getValue() ?? []).filter(
 		(track) =>
@@ -391,42 +441,20 @@ export const ensureCacheDiskSpace = async (
 	const required = 512 * 1024 * 1024 + Math.max(0, expectedBytes)
 	if ((await FileSystem.getFreeDiskStorageAsync()) >= required) return
 	await migrateCacheRetention()
-	if ((await FileSystem.getInfoAsync(cacheDir)).exists) {
-		const files = await Promise.all(
-			(await FileSystem.readDirectoryAsync(cacheDir)).map(async (entry) => ({
-				entry,
-				info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
-			})),
-		)
-		files.sort(
-			(a, b) =>
-				(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
-				(b.info.exists ? b.info.modificationTime ?? 0 : 0),
-		)
-		for (const file of files) {
-			if ((await FileSystem.getFreeDiskStorageAsync()) >= required) return
-			await removeAutomaticCacheFile(file.entry, () => isPreserved(file.entry, preservePaths))
-		}
+	const files = (await scanCacheFiles(false)).slice().sort(oldestFirst)
+	for (const file of files) {
+		if ((await FileSystem.getFreeDiskStorageAsync()) >= required) return
+		await removeAutomaticCacheFile(file.entry, () => isPreserved(file.entry, preservePaths))
 	}
 	if ((await FileSystem.getFreeDiskStorageAsync()) < required)
-		throw new Error('设备剩余空间不足，请释放空间后重试')
+		throw new Error(i18n.t('cacheCenter.errors.diskSpace'))
 }
 
 export const enforceAutomaticCacheLimit = async (preservePaths: ProtectedCachePaths = []) => {
-	const dirInfo = await FileSystem.getInfoAsync(cacheDir)
-	if (!dirInfo.exists) return
+	const snapshot = await scanCacheFiles(false)
 	const saved = PersistStatus.get('music.savedOffline') ?? {}
-	const entries = (await FileSystem.readDirectoryAsync(cacheDir)).filter((entry) => !saved[entry])
-	const files = await Promise.all(
-		entries.map(async (entry) => ({
-			entry,
-			info: await FileSystem.getInfoAsync(getCacheFileUri(`${cacheDir}${entry}`)),
-		})),
-	)
-	let total = files.reduce(
-		(bytes, file) => bytes + (file.info.exists && !file.info.isDirectory ? file.info.size ?? 0 : 0),
-		0,
-	)
+	const files = snapshot.filter((file) => !saved[file.entry]).sort(oldestFirst)
+	let total = files.reduce((bytes, file) => bytes + fileSize(file), 0)
 	const configuredLimit = PersistStatus.get('music.cacheLimitMB')
 	const limit =
 		(configuredLimit && [256, 512, 1024, 2048, 4096, 8192].includes(configuredLimit)
@@ -434,15 +462,10 @@ export const enforceAutomaticCacheLimit = async (preservePaths: ProtectedCachePa
 			: 1024) *
 		1024 *
 		1024
-	files.sort(
-		(a, b) =>
-			(a.info.exists ? a.info.modificationTime ?? 0 : 0) -
-			(b.info.exists ? b.info.modificationTime ?? 0 : 0),
-	)
 	for (const file of files) {
 		if (total <= limit) break
 		if (await removeAutomaticCacheFile(file.entry, () => isPreserved(file.entry, preservePaths)))
-			total -= file.info.exists && !file.info.isDirectory ? file.info.size ?? 0 : 0
+			total -= fileSize(file)
 	}
 }
 

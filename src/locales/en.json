@@ -187,6 +187,13 @@
 		}
 	},
 	"cacheCenter": {
+		"errors": {
+			"automaticDisabled": "Automatic caching is turned off",
+			"wifiRequired": "Connect to Wi-Fi and try again",
+			"alreadyLocal": "This song is already stored locally",
+			"limitExceeded": "Skipped because this song exceeds the automatic cache limit",
+			"diskSpace": "Not enough free space. Free up storage and try again."
+		},
 		"title": "Downloads & Cache",
 		"summary": "%{count} cached song(s)",
 		"tasks": "Download tasks",

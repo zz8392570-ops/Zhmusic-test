@@ -217,6 +217,15 @@ await check('release versions and newly translated prompts stay consistent', () 
 	)
 	const zh = JSON.parse(read('src/locales/zh.json'))
 	const en = JSON.parse(read('src/locales/en.json'))
+	assert.deepEqual(
+		Object.keys(zh.cacheCenter.errors).sort(),
+		Object.keys(en.cacheCenter.errors).sort(),
+	)
+	assert.ok(
+		Object.values(en.cacheCenter.errors).every(
+			(value) => typeof value === 'string' && !/[\u4e00-\u9fff]/.test(value),
+		),
+	)
 	for (const group of ['common', 'sourceImport', 'sourceErrors']) {
 		assert.deepEqual(Object.keys(zh[group]).sort(), Object.keys(en[group]).sort())
 	}

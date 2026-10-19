@@ -338,7 +338,7 @@ const RootNavigation = () => {
 					headerShown: true,
 					gestureEnabled: true,
 					gestureDirection: 'vertical',
-					headerTitle: '应用日志',
+					headerTitle: i18n.t('logScreen.title'),
 					headerStyle: {
 						backgroundColor: colors.background,
 					},

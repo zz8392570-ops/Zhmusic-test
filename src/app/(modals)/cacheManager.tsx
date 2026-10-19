@@ -46,13 +46,19 @@ const CacheManagerScreen = () => {
 		[importedTracks],
 	)
 
-	const refreshSize = useCallback(() => {
+	const [sizeRefresh, setSizeRefresh] = useState(0)
+	const refreshSize = useCallback(() => setSizeRefresh((value) => value + 1), [])
+	useEffect(() => {
+		let active = true
 		void getCacheUsage()
-			.then(setCacheUsage)
+			.then((usage) => {
+				if (active) setCacheUsage(usage)
+			})
 			.catch(() => {})
-	}, [])
-
-	useEffect(refreshSize, [refreshSize, revision, cachedTracks.length])
+		return () => {
+			active = false
+		}
+	}, [revision, cachedTracks.length, sizeRefresh])
 
 	const retryTask = (task: CacheDownloadTask) => {
 		void myTrackPlayer.cacheAndImportMusic(task.track, {

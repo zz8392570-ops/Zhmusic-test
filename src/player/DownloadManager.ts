@@ -125,12 +125,13 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 	let lastProgressAt = -Infinity
 	try {
 		if (task.kind === 'automatic') {
-			if (!autoCacheLocalStore.getValue()) throw new Error('自动缓存已关闭')
+			if (!autoCacheLocalStore.getValue())
+				throw new Error(i18n.t('cacheCenter.errors.automaticDisabled'))
 			if (
 				autoCacheWifiOnlyStore.getValue() &&
 				(await Network.getNetworkStateAsync()).type !== Network.NetworkStateType.WIFI
 			)
-				throw new Error('等待 Wi-Fi 后重试')
+				throw new Error(i18n.t('cacheCenter.errors.wifiRequired'))
 		}
 		await withCacheMaintenance(migrateCacheRetention)
 		const existing = await getCachedAudioInfo(
@@ -143,7 +144,7 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 		if (!localPath) {
 			const local = await resolveLocalFile(task.track.url)
 			if (local.status !== 'nonlocal' && (!task.strictQuality || task.track.platform === 'local'))
-				throw new Error('本地歌曲无需重复下载')
+				throw new Error(i18n.t('cacheCenter.errors.alreadyLocal'))
 			const source = await resolveSource(
 				{ ...task.track, url: 'Unknown' },
 				{
@@ -225,7 +226,7 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 			PersistStatus.set('music.importedLocalMusic', updated)
 			await enforceAutomaticCacheLimit(protectedPaths)
 			const available = await FileSystem.getInfoAsync(getCacheFileUri(localPath))
-			if (!available.exists) throw new Error('歌曲超过自动缓存上限，已跳过')
+			if (!available.exists) throw new Error(i18n.t('cacheCenter.errors.limitExceeded'))
 			if (isCurrent(task)) {
 				update({ ...task, kind, quality, progress: 1, status: 'completed' })
 				if (latest?.silent === false && kind === 'saved')

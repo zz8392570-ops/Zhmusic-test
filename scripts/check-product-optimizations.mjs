@@ -752,7 +752,7 @@ await check(
 	},
 )
 
-function retentionFixture() {
+function retentionFixture({ beforeInfo = async () => {}, beforeResolve = async () => {} } = {}) {
 	const store = persistence(),
 		files = new Map(),
 		deleted = [],
@@ -768,12 +768,14 @@ function retentionFixture() {
 		documentDirectory: 'file:///Documents/',
 		getFreeDiskStorageAsync: async () =>
 			1024 ** 3 - [...files.values()].reduce((sum, file) => sum + file.size, 0),
-		getInfoAsync: async (value) =>
-			value === cacheDir
+		getInfoAsync: async (value) => {
+			await beforeInfo(value)
+			return value === cacheDir
 				? { exists: true, isDirectory: true }
 				: files.has(value)
 					? { exists: true, isDirectory: false, ...files.get(value) }
-					: { exists: false },
+					: { exists: false }
+		},
 		readDirectoryAsync: async () => [...files.keys()].map((value) => value.slice(cacheDir.length)),
 		deleteAsync: async (value) => {
 			deleted.push(value)
@@ -782,8 +784,9 @@ function retentionFixture() {
 	}
 	const local = {
 		fileUriFromPath: (value) => `file://${value.split('/').map(encodeURIComponent).join('/')}`,
-		resolveLocalFile: async (value) =>
-			unsafe.has(value)
+		resolveLocalFile: async (value) => {
+			await beforeResolve(value)
+			return unsafe.has(value)
 				? { status: 'unresolved', reason: 'unsafe-path' }
 				: typeof value === 'string' && files.has(value)
 					? {
@@ -791,9 +794,13 @@ function retentionFixture() {
 							fileUri: value,
 							filePath: decodeURIComponent(value.slice('file://'.length)),
 						}
-					: { status: 'nonlocal' },
+					: { status: 'nonlocal' }
+		},
 	}
 	const cache = loadModule('src/player/CacheManager.ts', {
+		'@/utils/i18n': {
+			t: (key) => (key === 'cacheCenter.errors.diskSpace' ? '设备剩余空间不足' : key),
+		},
 		'@/helpers/downloadFilename': naming,
 		'@/helpers/logger': { logInfo() {}, logError() {} },
 		'./PlayerStore': stores,
@@ -880,4 +887,136 @@ await check('low disk space refuses download when only offline saves remain', as
 	await assert.rejects(h.ensureCacheDiskSpace(), /剩余空间不足/)
 	assert.equal(h.deleted.length, 0)
 })
+await check(
+	'concurrent cache totals share one bounded scan and completed scans are refreshed',
+	async () => {
+		let active = 0,
+			peak = 0,
+			probes = 0
+		const gate = deferred()
+		const h = retentionFixture({
+			beforeInfo: async (value) => {
+				if (value.endsWith('/')) return
+				probes++
+				peak = Math.max(peak, ++active)
+				await gate.promise
+				active--
+			},
+		})
+		for (let i = 0; i < 40; i++) h.files.set(h.path(`song${i}.mp3`), { size: 10 })
+		const total = h.getCacheSize()
+		const usage = h.getCacheUsage()
+		await until(() => probes === 4)
+		assert.equal(active, 4)
+		gate.resolve()
+		assert.equal(await total, 400)
+		assert.equal((await usage).total, 400)
+		assert.equal(probes, 40)
+		assert.equal(peak, 4)
+		h.files.delete(h.path('song0.mp3'))
+		assert.equal(await h.getCacheSize(), 390)
+	},
+)
+await check(
+	'cache mutation retires an in-flight scan without overlapping replacement workers',
+	async () => {
+		const gate = deferred()
+		let probes = 0,
+			active = 0,
+			peak = 0
+		const h = retentionFixture({
+			beforeInfo: async (value) => {
+				if (value.endsWith('/')) return
+				probes++
+				peak = Math.max(peak, ++active)
+				await gate.promise
+				active--
+			},
+		})
+		for (let i = 0; i < 8; i++) h.files.set(h.path(`${i}.mp3`), { size: 10 })
+		const old = h.getCacheSize()
+		await until(() => probes === 4)
+		h.files.set(h.path('new.mp3'), { size: 20 })
+		h.markSavedOffline(h.path('new.mp3'))
+		const latest = h.getCacheUsage()
+		gate.resolve()
+		await old
+		const usage = await latest
+		assert.equal(usage.total, 100)
+		assert.equal(usage.saved, 20)
+		assert.equal(probes, 17)
+		assert.equal(peak, 4)
+	},
+)
+await check(
+	'failed cache scans release workers and can be retried without retaining bad snapshots',
+	async () => {
+		let fail = true
+		const h = retentionFixture({
+			beforeInfo: async (value) => {
+				if (fail && !value.endsWith('/')) throw new Error('stat failed')
+			},
+		})
+		h.files.set(h.path('one.mp3'), { size: 10 })
+		await assert.rejects(h.getCacheSize(), /stat failed/)
+		fail = false
+		assert.equal(await h.getCacheSize(), 10)
+	},
+)
+await check(
+	'maintenance skips saved metadata and rechecks protection after asynchronous resolution',
+	async () => {
+		let probes = 0
+		const h = retentionFixture({
+			beforeInfo: async (value) => {
+				if (!value.endsWith('/')) probes++
+			},
+		})
+		h.files.set(h.path('saved.mp3'), { size: 100 })
+		h.markSavedOffline(h.path('saved.mp3'))
+		await h.enforceAutomaticCacheLimit()
+		assert.equal(probes, 0)
+		const gate = deferred()
+		let resolving = false,
+			playing = false
+		const late = retentionFixture({
+			beforeResolve: async () => {
+				resolving = true
+				await gate.promise
+			},
+		})
+		late.files.set(late.path('playing.mp3'), { size: 100 })
+		const clearing = late.clearCache(() => (playing ? [late.path('playing.mp3')] : []))
+		await until(() => resolving)
+		playing = true
+		gate.resolve()
+		await clearing
+		assert.equal(late.deleted.length, 0)
+	},
+)
+await check(
+	'legacy retention migration preserves manual saves made while resolution is pending',
+	async () => {
+		const gate = deferred()
+		let resolving = false
+		const h = retentionFixture({
+			beforeResolve: async () => {
+				resolving = true
+				await gate.promise
+			},
+		})
+		h.files.set(h.path('legacy.mp3'), { size: 100 })
+		h.files.set(h.path('manual.mp3'), { size: 100 })
+		h.stores.importedLocalMusicStore.setValue([
+			track('legacy', 'tx', { url: h.path('legacy.mp3') }),
+		])
+		const migrating = h.migrateCacheRetention()
+		await until(() => resolving)
+		h.markSavedOffline(h.path('manual.mp3'))
+		gate.resolve()
+		await migrating
+		assert.equal(h.store.get('music.savedOffline')['legacy.mp3'], true)
+		assert.equal(h.store.get('music.savedOffline')['manual.mp3'], true)
+	},
+)
 finish()

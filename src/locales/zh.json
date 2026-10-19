@@ -188,6 +188,13 @@
 		}
 	},
 	"cacheCenter": {
+		"errors": {
+			"automaticDisabled": "自动缓存已关闭",
+			"wifiRequired": "等待 Wi-Fi 后重试",
+			"alreadyLocal": "本地歌曲无需重复下载",
+			"limitExceeded": "歌曲超过自动缓存上限，已跳过",
+			"diskSpace": "设备剩余空间不足，请释放空间后重试"
+		},
 		"title": "下载与缓存",
 		"summary": "已缓存 %{count} 首歌曲",
 		"tasks": "下载任务",

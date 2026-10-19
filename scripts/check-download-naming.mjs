@@ -41,6 +41,9 @@ await check(
 		const files = new Set(['file:///Documents/musicCache/'])
 		const state = (value) => ({ getValue: () => value, setValue() {} })
 		const cache = loadModule('src/player/CacheManager.ts', {
+			'@/utils/i18n': {
+				t: (key) => (key === 'cacheCenter.errors.diskSpace' ? '设备剩余空间不足' : key),
+			},
 			'@/helpers/downloadFilename': naming,
 			'@/helpers/logger': { logInfo() {}, logError() {} },
 			'./PlayerStore': {
