@@ -66,6 +66,7 @@ type MusicUrlRequestContext = {
 
 type PreloadEntry = { result: SourceResult; createdAt: number; expiresAt: number }
 const preloadCache = new Map<string, PreloadEntry>()
+const pendingPreloads = new Map<string, { controller: AbortController; promise: Promise<void> }>()
 const CURRENT_SOURCE_REQUEST_TIMEOUT_MS = 5000
 const PRELOAD_SOURCE_REQUEST_TIMEOUT_MS = 12000
 const DEFAULT_PRELOAD_TTL_MS = 5 * 60 * 1000
@@ -116,7 +117,7 @@ const inferUrlExpiry = (url: string) => {
 			if (!raw || !/^\d+$/.test(raw)) continue
 			const value = Number(raw)
 			const milliseconds = value > 10_000_000_000 ? value : value * 1000
-			if (milliseconds > Date.now()) return milliseconds
+			if (Number.isFinite(milliseconds) && milliseconds > 0) return milliseconds
 		}
 	} catch {
 		// The URL has already passed source validation; use a conservative TTL.
@@ -124,28 +125,50 @@ const inferUrlExpiry = (url: string) => {
 	return Date.now() + DEFAULT_PRELOAD_TTL_MS
 }
 
-export const clearPreloadedSources = () => preloadCache.clear()
+export const clearPreloadedSources = (clearCache = true) => {
+	for (const pending of pendingPreloads.values()) pending.controller.abort()
+	pendingPreloads.clear()
+	if (clearCache) preloadCache.clear()
+}
 
-export const preloadSource = async (item: IMusic.IMusicItem): Promise<void> => {
+export const preloadSource = (item: IMusic.IMusicItem): Promise<void> => {
 	const key = makePreloadKey(item)
-	if (preloadCache.has(key)) return
-	try {
-		const result = await resolveSource(item, { requestType: 'preload' })
-		if (result.url && !result.url.includes('fake')) {
-			const expiresAt = result.urlExpiresAt ?? inferUrlExpiry(result.url)
-			preloadCache.set(key, {
-				result: { ...result, urlExpiresAt: expiresAt },
-				createdAt: Date.now(),
-				expiresAt,
+	if (getPreloadedUrl(item)) return Promise.resolve()
+	const pending = pendingPreloads.get(key)
+	if (pending) return pending.promise
+	const controller = new AbortController()
+	const promise = (async () => {
+		try {
+			const result = await resolveSource(item, {
+				requestType: 'preload',
+				signal: controller.signal,
 			})
-			if (preloadCache.size > 10) {
-				const firstKey = preloadCache.keys().next().value
-				if (firstKey) preloadCache.delete(firstKey)
+			if (
+				!controller.signal.aborted &&
+				key === makePreloadKey(item) &&
+				result.url &&
+				!result.url.includes('fake')
+			) {
+				const expiresAt = result.urlExpiresAt ?? inferUrlExpiry(result.url)
+				if (expiresAt <= Date.now()) return
+				preloadCache.set(key, {
+					result: { ...result, urlExpiresAt: expiresAt },
+					createdAt: Date.now(),
+					expiresAt,
+				})
+				if (preloadCache.size > 10) {
+					const firstKey = preloadCache.keys().next().value
+					if (firstKey) preloadCache.delete(firstKey)
+				}
 			}
+		} catch {
+			// Preload failures and cancellation are silent.
+		} finally {
+			if (pendingPreloads.get(key)?.controller === controller) pendingPreloads.delete(key)
 		}
-	} catch {
-		// preload failures are silent
-	}
+	})()
+	pendingPreloads.set(key, { controller, promise })
+	return promise
 }
 
 const resolveSourceInternal = async (

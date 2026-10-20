@@ -505,7 +505,7 @@ await check(
 		assert.equal(result[0].sourceAlternatives[0].id, 'late')
 	},
 )
-function resolverFixture(getUrl) {
+function resolverFixture(getUrl, extraGlobals = {}) {
 	const selected = { id: 'primary', name: 'Primary' },
 		backup = { id: 'backup', name: 'Backup' }
 	const store = persistence(),
@@ -567,7 +567,7 @@ function resolverFixture(getUrl) {
 			'@/player/PlayerStore': stores,
 			'@/store/PersistStatus': store,
 		},
-		globals,
+		{ ...globals, ...extraGlobals },
 	)
 	return { ...resolver, store, stores, calls, notices, progress }
 }
@@ -609,6 +609,59 @@ await check(
 		assert.equal(h.stores.nowApiState.getValue(), null)
 	},
 )
+await check(
+	'preloads share in-flight work and cancellation prevents late cache refills',
+	async () => {
+		const late = deferred()
+		const h = resolverFixture(() => late.promise)
+		const song = track('preload')
+		const a = h.preloadSource(song),
+			b = h.preloadSource(song)
+		assert.equal(a, b)
+		await flush()
+		assert.equal(h.calls.length, 1)
+		h.clearPreloadedSources()
+		await Promise.all([a, b])
+		assert.equal(h.calls[0].signal.aborted, true)
+		late.resolve('https://audio.test/late.mp3')
+		await flush()
+		assert.equal(h.getPreloadedUrl(song), undefined)
+		await h.preloadSource(song)
+		assert.equal(h.calls.length, 2)
+		assert.equal(h.getPreloadedUrl(song), 'https://audio.test/late.mp3')
+		h.clearPreloadedSources(false)
+		assert.equal(h.getPreloadedUrl(song), 'https://audio.test/late.mp3')
+	},
+)
+await check(
+	'expired preloads request a fresh URL and source/quality changes cannot reuse stale entries',
+	async () => {
+		let now = Date.now()
+		const h = resolverFixture(async () => 'https://audio.test/temporary.mp3', {
+			Date: { now: () => now },
+		})
+		const song = track('expiring')
+		await h.preloadSource(song)
+		assert.equal(h.calls.length, 1)
+		now += 6 * 60_000
+		await h.preloadSource(song)
+		assert.equal(h.calls.length, 2)
+		h.stores.qualityStore.setValue('320k')
+		assert.equal(h.getPreloadedUrl(song), undefined)
+		await h.preloadSource(song)
+		assert.equal(h.calls.length, 3)
+		h.stores.musicApiSelectedStore.setValue({ id: 'backup', name: 'Backup' })
+		assert.equal(h.getPreloadedUrl(song), undefined)
+	},
+)
+await check('a URL with an explicit expired timestamp is never retained as a preload', async () => {
+	const h = resolverFixture(async () => 'https://audio.test/song.mp3?expires=1600000000', { URL })
+	const song = track('already-expired')
+	await h.preloadSource(song)
+	assert.equal(h.getPreloadedUrl(song), undefined)
+	await h.preloadSource(song)
+	assert.equal(h.calls.length, 2)
+})
 await check(
 	'LX cancellation aborts associated HTTP and rejects later HTTP from the cancelled parent',
 	async () => {

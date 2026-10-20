@@ -132,7 +132,7 @@ import {
 	updateListeningProgress,
 } from './listeningStats'
 
-const NEXT_TRACK_PRELOAD_DELAY_MS = 8000
+const SOURCE_RESOLUTION_BUDGET_MS = 20_000
 const PROGRESS_PERSIST_INTERVAL_SECONDS = 10
 const createTrackSourceLoadingToken = (musicItem: IMusic.IMusicItem) =>
 	`track_source_${musicItem.id}_${Date.now().toString(36)}_${Math.random()
@@ -184,6 +184,64 @@ let nativeQueue: {
 	handoffConsumed: boolean
 } | null = null
 let lastPersistedProgressBucket = -1
+let autoCacheTimer: ReturnType<typeof setTimeout> | undefined
+let backgroundRevision = 0
+let nextPreloadAttempt: string | null = null
+
+function retireBackgroundTasks(clearCache = false) {
+	backgroundRevision++
+	nextPreloadAttempt = null
+	clearTimeout(autoCacheTimer)
+	autoCacheTimer = undefined
+	clearPreloadedSources(clearCache)
+}
+
+async function preloadNextTrack(position: number, duration: number) {
+	const revision = backgroundRevision
+	const token = nativeQueue?.token
+	const current = nativeQueue?.track
+	if (
+		!token ||
+		!current ||
+		playbackIntentStore.getValue() !== 'play' ||
+		!Number.isFinite(position) ||
+		position < 0 ||
+		!Number.isFinite(duration) ||
+		duration <= 10 ||
+		duration - position > 10 ||
+		duration - position <= 0 ||
+		current.url?.startsWith('file://') ||
+		repeatModeStore.getValue() === MusicRepeatMode.SINGLE
+	)
+		return
+	const next = getPlayListMusicAt(currentIndex + 1)
+	if (!next || isSameMediaItem(next, current as IMusic.IMusicItem)) return
+	if (autoCacheWifiOnlyStore.getValue()) {
+		try {
+			const network = await Network.getNetworkStateAsync()
+			if (network.type !== Network.NetworkStateType.WIFI) return
+		} catch {
+			return
+		}
+	}
+	if (
+		backgroundRevision !== revision ||
+		nativeQueue?.token !== token ||
+		playbackIntentStore.getValue() !== 'play' ||
+		!isSameMediaItem(next, getPlayListMusicAt(currentIndex + 1))
+	)
+		return
+	const attempt = JSON.stringify([
+		token,
+		next.platform,
+		next.id,
+		qualityStore.getValue(),
+		musicApiSelectedStore.getValue()?.id,
+	])
+	if (nextPreloadAttempt === attempt) return
+	nextPreloadAttempt = attempt
+	await preloadSource(next)
+}
 
 const persistPlaybackProgress = (position: number, duration: number, force = false) => {
 	if (!Number.isFinite(position) || position < 0) return
@@ -260,6 +318,7 @@ function handleNativeTransition(item: MediaItem | null | undefined, index: numbe
 }
 
 function observeNativeTransport(intent: 'play' | 'pause' | 'stop') {
+	if (intent !== 'play') retireBackgroundTasks()
 	// Hybrid transport already ran natively. Only reconcile pending JS work here.
 	setPlaybackIntent(intent)
 	if (intent === 'play') {
@@ -279,6 +338,7 @@ function observeNativeSeek(position: number) {
 }
 
 function reset() {
+	retireBackgroundTasks(true)
 	favoritePlayback = null
 	activeSourceRequest?.abort(requestAbortError())
 	activeSourceRequest = null
@@ -372,11 +432,18 @@ async function setupTrackPlayer() {
 	const restoredSelectedMusicApi = selectedMusicApi
 		? availableApis.find((api) => api.id === selectedMusicApi.id)
 		: undefined
-	if (restoredSelectedMusicApi) {
-		musicApiSelectedStore.setValue(restoredSelectedMusicApi)
-		await reloadNowSelectedMusicApi()
-	} else if (availableApis.length) {
-		await setMusicApiAsSelectedById(availableApis[0].id, { silent: true, notify: false })
+	try {
+		if (restoredSelectedMusicApi) {
+			musicApiSelectedStore.setValue(restoredSelectedMusicApi)
+			await reloadNowSelectedMusicApi()
+		} else if (availableApis.length) {
+			await setMusicApiAsSelectedById(availableApis[0].id, { silent: true, notify: false })
+		}
+	} catch (error) {
+		// Source scripts are optional for local/cache playback and queue restoration.
+		nowApiState.setValue('异常')
+		logError('启动时加载音源失败，继续恢复播放器:', error)
+		showToast(i18n.t('common.error'), i18n.t('sourceImport.selectionFailed'), 'error')
 	}
 	void runBackgroundHealthTests()
 	if (importedLocalMusic) {
@@ -433,6 +500,7 @@ async function setupTrackPlayer() {
 				if (!isCurrentProgressEvent(event)) return
 				updateListeningProgress(event.position, event.duration)
 				persistPlaybackProgress(event.position, event.duration)
+				void preloadNextTrack(event.position, event.duration).catch(() => {})
 			}),
 		)
 		logInfo('播放器初始化完成')
@@ -687,7 +755,7 @@ const addAll = (
 	beforeIndex?: number,
 	shouldShuffle?: boolean,
 ) => {
-	clearPreloadedSources()
+	retireBackgroundTasks(true)
 	const now = Date.now()
 	let newPlayList: IMusic.IMusicItem[] = []
 	const currentPlayList = getPlayList()
@@ -746,7 +814,7 @@ const isCurrentMusic = (musicItem: IMusic.IMusicItem | null | undefined) => {
  *
  */
 const remove = async (musicItem: IMusic.IMusicItem) => {
-	clearPreloadedSources()
+	retireBackgroundTasks(true)
 	const playList = getPlayList()
 	let newPlayList: IMusic.IMusicItem[] = []
 	let currentMusic: IMusic.IMusicItem | null = currentMusicStore.getValue()
@@ -806,7 +874,7 @@ const moveQueueTrack = (fromIndex: number, toIndex: number) => {
 		toIndex >= playList.length
 	)
 		return false
-	clearPreloadedSources()
+	retireBackgroundTasks(true)
 	const next = [...playList]
 	const [item] = next.splice(fromIndex, 1)
 	next.splice(toIndex, 0, item)
@@ -833,7 +901,7 @@ function updateNextMetadata() {
  * @param mode 播放模式
  */
 const setRepeatMode = (mode: MusicRepeatMode) => {
-	clearPreloadedSources()
+	retireBackgroundTasks(true)
 	const playList = getPlayList()
 	let newPlayList
 	const prevMode = repeatModeStore.getValue()
@@ -861,7 +929,7 @@ const setRepeatMode = (mode: MusicRepeatMode) => {
 
 /** 清空播放列表 */
 const clear = async () => {
-	clearPreloadedSources()
+	retireBackgroundTasks(true)
 	setPlayList([])
 	setCurrentMusic(null)
 
@@ -871,7 +939,7 @@ const clear = async () => {
 }
 /** 清空待播列表 */
 const clearToBePlayed = async () => {
-	clearPreloadedSources()
+	retireBackgroundTasks(true)
 	// 获取当前正在播放的音乐
 	const currentMusic = currentMusicStore.getValue()
 
@@ -891,6 +959,7 @@ const clearToBePlayed = async () => {
 
 /** 暂停 */
 const pause = () => {
+	retireBackgroundTasks()
 	setPlaybackIntent('pause')
 	const progress = getProgress()
 	persistPlaybackProgress(progress.position, progress.duration, true)
@@ -898,6 +967,7 @@ const pause = () => {
 }
 
 const stop = () => {
+	retireBackgroundTasks()
 	setPlaybackIntent('stop')
 	const progress = getProgress()
 	persistPlaybackProgress(progress.position, progress.duration, true)
@@ -929,6 +999,7 @@ const markPlaybackStarted = (track: IMusic.IMusicItem) => {
 
 /** 设置音源 */
 const setTrackSource = (track: Track, restoring = false) => {
+	retireBackgroundTasks()
 	currentIndex = getPlaybackMusicIndex(track as IMusic.IMusicItem)
 	const resumePosition =
 		!restoring && favoritePlayback && containsPlaybackVariant(favoritePlayback, track)
@@ -1009,6 +1080,7 @@ const setCurrentMusic = (musicItem?: IMusic.IMusicItem | null) => {
 }
 
 const setQuality = (quality: IMusic.IQualityKey) => {
+	retireBackgroundTasks(true)
 	qualityStore.setValue(quality)
 	PersistStatus.set('music.quality', quality)
 }
@@ -1370,6 +1442,7 @@ const play = async (
 		}
 
 		trackSourceLoadingToken = createTrackSourceLoadingToken(musicItem)
+		retireBackgroundTasks()
 		activeSourceRequest?.abort(requestAbortError())
 		sourceRequest = new AbortController()
 		activeSourceRequest = sourceRequest
@@ -1385,10 +1458,18 @@ const play = async (
 
 		// 4. Resolve source (cache check + network if needed)
 		let resolved: Awaited<ReturnType<typeof resolveSource>>
+		const resolutionDeadline = Date.now() + SOURCE_RESOLUTION_BUDGET_MS
 		for (;;) {
 			try {
+				const remaining = resolutionDeadline - Date.now()
+				if (remaining <= 0) {
+					const timeout = new Error('获取音源超时，请换源或重试')
+					timeout.name = 'TimeoutError'
+					throw timeout
+				}
 				resolved = await resolveSource(musicItem, {
 					requestType: 'current',
+					totalTimeoutMs: remaining,
 					signal: sourceRequest.signal,
 					onProgress: (progress) => {
 						if (trackSourceLoadingStore.getValue() === trackSourceLoadingToken)
@@ -1402,6 +1483,7 @@ const play = async (
 					sourceRequest.signal.aborted ||
 					trackSourceLoadingStore.getValue() !== trackSourceLoadingToken ||
 					(error as Error)?.name === 'AbortError' ||
+					(error as Error)?.name === 'TimeoutError' ||
 					(error as Error)?.message === PlayFailReason.FORBID_CELLUAR_NETWORK_PLAY
 				)
 					throw error
@@ -1461,7 +1543,15 @@ const play = async (
 			autoCacheLocalStore.getValue() &&
 			!sourceUrl.startsWith('file://')
 		) {
-			setTimeout(async () => {
+			const revision = backgroundRevision
+			autoCacheTimer = setTimeout(async () => {
+				if (
+					backgroundRevision !== revision ||
+					!autoCacheLocalStore.getValue() ||
+					nativeQueue?.token !== appliedToken ||
+					playbackIntentStore.getValue() !== 'play'
+				)
+					return
 				if (autoCacheWifiOnlyStore.getValue()) {
 					try {
 						const state = await Network.getNetworkStateAsync()
@@ -1471,24 +1561,19 @@ const play = async (
 						return
 					}
 				}
+				if (
+					backgroundRevision !== revision ||
+					!autoCacheLocalStore.getValue() ||
+					nativeQueue?.token !== appliedToken ||
+					playbackIntentStore.getValue() !== 'play'
+				)
+					return
 				void cacheAndImportMusic(track, {
 					quality: playbackQuality ?? qualityStore.getValue(),
 					silent: true,
 					kind: 'automatic',
 				})
 			}, 5000)
-		}
-
-		// 9. 仅在当前曲目为远端音源时才预加载下一首，避免播放本地/缓存歌曲时继续发起音源请求
-		const shouldPreloadNextTrack =
-			sourceUrl !== fakeAudioMp3Uri &&
-			!sourceUrl.includes('fake') &&
-			!sourceUrl.startsWith('file://')
-		const nextTrack = getPlayListMusicAt(currentIndex + 1)
-		if (shouldPreloadNextTrack && nextTrack && !isSameMediaItem(nextTrack, musicItem)) {
-			setTimeout(() => {
-				preloadSource(nextTrack).catch(() => {})
-			}, NEXT_TRACK_PRELOAD_DELAY_MS)
 		}
 	} catch (e: any) {
 		if (sourceRequest?.signal.aborted || e?.name === 'AbortError') return

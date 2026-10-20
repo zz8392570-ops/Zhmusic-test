@@ -219,7 +219,7 @@ function settingsRuntime() {
 		Object.assign(
 			h.persistence,
 			loadModule('src/store/PersistStatus.ts', {
-				'@/helpers/librarySnapshots': loadModule('src/helpers/librarySnapshots.ts', {}),
+				'./libraryStorage': loadModule('src/store/libraryStorage.ts', {}),
 				react: h.react,
 				'@/store/getOrCreateMMKV': (name) => {
 					assert.equal(name, 'appPersistStatus')
@@ -645,7 +645,7 @@ await check(
 		assert.equal(rebuilt.extras.cymusicPlayback.preciseSeeking, true)
 		assert.notEqual(rebuilt.extras.cymusic.token, original.extras.cymusic.token)
 		h.persistence.set('music.preciseSeeking', false)
-		h.facade.setRepeatMode('single')
+		h.facade.setRepeatMode('SINGLE')
 		h.player.activeIndex = 1
 		h.emit('MediaItemTransition', { index: 1, item: h.player.queue[1] })
 		await flush()
@@ -1261,7 +1261,7 @@ await check(
 		await h.facade.play(song('one', { headers: { Authorization: 'repeat-header' } }))
 		const old = h.player.queue[0]
 		assert.equal(typeof h.player.getQueue()[0].url, 'string')
-		h.facade.setRepeatMode('single')
+		h.facade.setRepeatMode('SINGLE')
 		h.player.activeIndex = 1
 		h.emit('MediaItemTransition', { index: 1, item: h.player.queue[1] })
 		await flush()
@@ -1781,6 +1781,190 @@ await check('module retirement removes service, player and lyric subscriptions',
 	assert.equal(h.player.playing, false)
 	assert.deepEqual(h.persistence.get('music.musicItem'), retained)
 })
+
+await check(
+	'a broken restored source leaves queues, local music and event listeners usable',
+	async () => {
+		const h = runtime()
+		const api = {
+			id: 'broken-selected',
+			name: 'Broken',
+			script: 'throw new Error("broken selected source")',
+			isSelected: true,
+		}
+		h.persistence.set('music.musicApi', [api])
+		h.persistence.set('music.selectedMusicApi', api)
+		h.persistence.set('music.play-list', [song('saved')])
+		h.persistence.set('music.importedLocalMusic', [song('imported')])
+		await h.setup()
+		assert.equal(h.facade.getPlayList()[0].id, 'saved')
+		assert.equal(h.stores.importedLocalMusicStore.getValue()[0].id, 'imported')
+		assert.equal(h.stores.nowApiState.getValue(), '异常')
+		assert.equal(h.player.listenerCount(h.player.Event.PlaybackProgressUpdated), 1)
+		await h.facade.play(song('local-survives', { url: 'file:///local/song.mp3' }))
+		assert.equal(h.player.isPlaying(), true)
+	},
+)
+await check(
+	'cross-platform resolution shares one deadline and an explicit retry starts a fresh budget',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const { group } = favoritePlatforms(h)
+		const realNow = Date.now
+		let now = realNow()
+		Date.now = () => now
+		try {
+			h.setResolver(async () => {
+				now += 12_000
+				return { url: 'fixture://fake-audio.mp3', wasCached: false }
+			})
+			await h.facade.play(group)
+			assert.deepEqual(
+				h.sourceCalls.map(({ options }) => options.totalTimeoutMs),
+				[20_000, 8_000],
+			)
+			assert.equal(h.stores.sourceLoadingErrorStore.getValue(), 'player.sourceLoading.timeout')
+			assert.equal(h.stores.trackSourceLoadingStore.getValue(), null)
+			h.setResolver(async () => ({ url: 'https://media.example/retry.mp3', wasCached: false }))
+			await h.facade.play(group, true)
+			assert.equal(h.sourceCalls.at(-1).options.totalTimeoutMs, 20_000)
+			assert.equal(h.player.isPlaying(), true)
+		} finally {
+			Date.now = realNow
+		}
+	},
+)
+await check('a source deadline does not start another platform attempt', async () => {
+	const h = runtime()
+	await h.setup()
+	const { group } = favoritePlatforms(h)
+	h.setResolver(async () => {
+		const error = new Error('timeout')
+		error.name = 'TimeoutError'
+		throw error
+	})
+	await h.facade.play(group)
+	assert.equal(h.sourceCalls.length, 1)
+	assert.equal(h.stores.sourceLoadingErrorStore.getValue(), 'player.sourceLoading.timeout')
+})
+await check(
+	'preload follows remaining progress, current queue, Wi-Fi policy and playback intent',
+	async () => {
+		const calls = []
+		const h = runtime({
+			'@/utils/mediaIndexMap': loadModule('src/utils/mediaIndexMap.ts', {}),
+			'@/player/MusicSourceResolver': {
+				resolveSource: async (track) => ({ url: track.url, wasCached: false }),
+				preloadSource: async (track) => calls.push(track.id),
+				clearPreloadedSources() {},
+			},
+		})
+		await h.setup()
+		const a = song('current'),
+			b = song('next'),
+			c = song('inserted')
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		const progress = (position, duration = 180) =>
+			h.emit('PlaybackProgressUpdated', {
+				mediaId: h.player.getActiveMediaItem().mediaId,
+				timestamp: Date.now(),
+				position,
+				duration,
+			})
+		progress(8)
+		await flush()
+		assert.equal(calls.length, 0)
+		h.facade.addAsNextTrack(c)
+		progress(171)
+		await flush()
+		assert.deepEqual(calls, ['inserted'])
+		progress(172)
+		await flush()
+		assert.equal(calls.length, 1)
+		h.facade.pause()
+		progress(172)
+		await flush()
+		assert.equal(calls.length, 1)
+		await h.facade.play(a)
+		h.facade.setRepeatMode('SINGLE')
+		progress(173)
+		await flush()
+		assert.equal(calls.length, 1)
+	},
+)
+await check(
+	'Wi-Fi-only preload rejects cellular and retires a network check across pause/resume',
+	async () => {
+		const preloads = []
+		let network = Promise.resolve({ type: 'cellular' })
+		const h = runtime({
+			'expo-network': { NetworkStateType: { WIFI: 'wifi' }, getNetworkStateAsync: () => network },
+			'@/player/MusicSourceResolver': {
+				resolveSource: async (track) => ({ url: track.url, wasCached: false }),
+				preloadSource: async (track) => preloads.push(track.id),
+				clearPreloadedSources() {},
+			},
+		})
+		await h.setup()
+		const a = song('current'),
+			b = song('next')
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		const progress = () =>
+			h.emit('PlaybackProgressUpdated', {
+				mediaId: h.player.getActiveMediaItem().mediaId,
+				timestamp: Date.now(),
+				position: 171,
+				duration: 180,
+			})
+		progress()
+		await flush()
+		assert.equal(preloads.length, 0)
+		const pending = deferred()
+		network = pending.promise
+		progress()
+		h.facade.pause()
+		await h.facade.play(a)
+		pending.resolve({ type: 'wifi' })
+		await flush()
+		assert.equal(preloads.length, 0)
+		progress()
+		await flush()
+		assert.deepEqual(preloads, ['next'])
+	},
+)
+await check(
+	'retired auto-cache callbacks cannot enqueue a skipped song, including after network lookup',
+	async () => {
+		const network = deferred(),
+			downloads = []
+		const h = runtime({
+			'expo-network': {
+				NetworkStateType: { WIFI: 'wifi' },
+				getNetworkStateAsync: () => network.promise,
+			},
+			'@/player/DownloadManager': {
+				configureDownloads() {},
+				restoreDownloadTasks() {},
+				enqueueDownload: (...args) => downloads.push(args),
+			},
+		})
+		await h.setup()
+		const a = song('skipped'),
+			b = song('current')
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		const cache = h.calls.timers.find((timer) => timer.delay === 5000)
+		const waiting = cache.callback()
+		await h.facade.play(b)
+		network.resolve({ type: 'wifi' })
+		await waiting
+		await cache.callback()
+		assert.equal(downloads.length, 0)
+	},
+)
 
 await fixture.dispose()
 const failed = results.filter((result) => !result.passed)

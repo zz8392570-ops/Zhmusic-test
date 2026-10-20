@@ -26,16 +26,18 @@ const state = (value) => ({
 	useValue: () => value,
 })
 function maintenanceFixture() {
-	const disk = new Map()
+	const disk = new Map(),
+		writes = []
 	let failure
 	const store = {
 		getString: (key) => disk.get(key),
 		remove: (key) => disk.delete(key),
 		set: (key, value) => {
-			if (key === failure) {
+			if (key === failure || (typeof failure === 'function' && failure(key))) {
 				failure = null
 				throw new Error('disk full')
 			}
+			writes.push({ key, value })
 			disk.set(key, value)
 		},
 		addOnValueChangedListener: () => ({ remove() {} }),
@@ -43,7 +45,7 @@ function maintenanceFixture() {
 	const persist = loadModule('src/store/PersistStatus.ts', {
 		'@/store/getOrCreateMMKV': () => store,
 		'@/utils/safeParse': (raw) => JSON.parse(raw),
-		'@/helpers/librarySnapshots': snapshots,
+		'./libraryStorage': loadModule('src/store/libraryStorage.ts', {}),
 		react: {},
 	}).default
 	const library = { favorites: [] }
@@ -68,6 +70,7 @@ function maintenanceFixture() {
 		}),
 		persist,
 		disk,
+		writes,
 		library,
 		lists,
 		replaceFavorites,
@@ -113,6 +116,143 @@ await check(
 				.length,
 			0,
 		)
+	},
+)
+await check(
+	'chunked library migration preserves legacy history, playlist metadata and restart reads',
+	() => {
+		const h = maintenanceFixture()
+		const list = {
+			id: 'legacy',
+			name: 'Old',
+			songs: [song('old')],
+			sourceOverrides: { old: 'wy@new' },
+		}
+		const oldHistory = [
+			{
+				id: 'old-history',
+				createdAt: Date.now(),
+				target: 'legacy',
+				title: 'Old',
+				songs: list.songs,
+				playlist: list,
+			},
+		]
+		h.disk.set('music.playLists', JSON.stringify([list]))
+		h.disk.set('library.snapshots', JSON.stringify(oldHistory))
+		h.persist.set('music.playLists', [{ ...list, songs: [song('new')] }])
+		assert.equal(h.persist.get('music.playLists')[0].songs[0].id, 'new')
+		const history = h.persist.get('library.snapshots')
+		assert.equal(history.length, 2)
+		assert.equal(history[0].playlist.sourceOverrides.old, 'wy@new')
+		assert.equal(history[1].id, 'old-history')
+		assert.equal(history[1].songs[0].id, 'old')
+		const storage = loadModule('src/store/libraryStorage.ts', {})
+		const restarted = storage.readLibraryStorage(
+			{ getString: (key) => h.disk.get(key) },
+			'music.playLists',
+		)
+		assert.equal(restarted[0].songs[0].id, 'new')
+		assert.equal(restarted[0].sourceOverrides.old, 'wy@new')
+		h.disk.set('music.favorites', JSON.stringify([song('legacy-favorite')]))
+		h.persist.set('music.favorites', [song('replacement')])
+		assert.equal(h.persist.get('library.snapshots')[0].songs[0].id, 'legacy-favorite')
+	},
+)
+await check(
+	'unchanged chunks and other playlists are reused; edits write bounded data and no-ops write nothing',
+	() => {
+		const h = maintenanceFixture()
+		const tracks = Array.from({ length: 10_000 }, (_, i) => song(String(i)))
+		h.persist.set('music.favorites', tracks)
+		const initial = [...h.disk.keys()].filter((key) => key.startsWith('library.chunk.'))
+		h.writes.length = 0
+		h.persist.set('music.favorites', tracks)
+		assert.equal(h.writes.length, 0)
+		for (let i = 0; i < 8; i++) {
+			tracks[0] = { ...tracks[0], title: 'Edit ' + i }
+			h.persist.set('music.favorites', tracks)
+		}
+		const chunks = [...h.disk.keys()].filter((key) => key.startsWith('library.chunk.'))
+		assert.equal(chunks.length, initial.length + 8)
+		assert.equal(h.persist.get('library.snapshots').length, 8)
+		assert.equal(h.persist.get('library.snapshots').at(-1).songs[0].title, 'Song')
+		assert.ok(h.writes.reduce((total, entry) => total + entry.value.length, 0) < 500_000)
+		const lists = [
+			{ id: 'one', name: 'One', songs: tracks },
+			{ id: 'two', name: 'Two', songs: [song('second')] },
+		]
+		h.persist.set('music.playLists', lists)
+		const manifestBefore = JSON.parse(h.disk.get('music.playLists'))
+		h.writes.length = 0
+		h.persist.set('music.playLists', [{ ...lists[0], name: 'Renamed' }, lists[1]])
+		assert.equal(h.writes.filter((entry) => entry.key.startsWith('library.chunk.')).length, 0)
+		assert.equal(
+			JSON.stringify(JSON.parse(h.disk.get('music.playLists')).entries[1]),
+			JSON.stringify(manifestBefore.entries[1]),
+		)
+		assert.equal(h.persist.get('library.snapshots')[0].title, 'One')
+	},
+)
+await check(
+	'chunk, history and collection failures preserve all live data; retention removes only unreferenced chunks',
+	() => {
+		const h = maintenanceFixture()
+		h.persist.set('music.favorites', [song('keep')])
+		for (const failure of [
+			(key) => key.startsWith('library.chunk.'),
+			'library.snapshots',
+			'music.favorites',
+		]) {
+			const before = JSON.stringify([...h.disk])
+			h.fail(failure)
+			assert.throws(() => h.persist.set('music.favorites', [song('failed')]), /disk full/)
+			assert.equal(JSON.stringify([...h.disk]), before)
+			assert.equal(h.persist.get('music.favorites')[0].id, 'keep')
+		}
+		for (let i = 0; i < 30; i++) h.persist.set('music.favorites', [song(String(i))])
+		assert.equal(h.persist.get('library.snapshots').length, 20)
+		assert.equal([...h.disk.keys()].filter((key) => key.startsWith('library.chunk.')).length, 21)
+		h.persist.set('library.snapshots', [])
+		assert.equal([...h.disk.keys()].filter((key) => key.startsWith('library.chunk.')).length, 1)
+		assert.equal(h.persist.get('music.favorites')[0].id, '29')
+		h.persist.set('music.favorites', undefined)
+		assert.equal(h.persist.get('music.favorites'), null)
+		assert.equal(h.persist.get('library.snapshots')[0].songs[0].id, '29')
+	},
+)
+await check(
+	'interrupted chunk cleanup preserves published data and removes orphaned writes',
+	() => {
+		const h = maintenanceFixture()
+		h.persist.set('music.favorites', [song('published')])
+		const active = [...h.disk.keys()].find((key) => key.startsWith('library.chunk.'))
+		const orphan = 'library.chunk.interrupted-orphan'
+		h.disk.set(orphan, JSON.stringify([song('unpublished')]))
+		h.disk.set('library.pendingChunks', JSON.stringify([active, orphan]))
+		h.persist.set('music.favorites', [song('published')])
+		assert.equal(h.disk.has(orphan), false)
+		assert.equal(h.disk.has(active), true)
+		assert.equal(h.disk.has('library.pendingChunks'), false)
+		assert.equal(h.persist.get('music.favorites')[0].id, 'published')
+	},
+)
+await check(
+	'history size limits prune unique chunks while retaining the latest complete recovery point',
+	() => {
+		const h = maintenanceFixture(),
+			padding = 'x'.repeat(1_100_000)
+		for (let i = 0; i < 10; i++)
+			h.persist.set('music.favorites', [song(String(i), 'tx', { padding })])
+		const history = h.persist.get('library.snapshots')
+		assert.ok(history.length < 9)
+		assert.equal(history[0].songs[0].id, '8')
+		assert.equal(history[0].songs[0].padding, padding)
+		assert.equal(
+			[...h.disk.keys()].filter((key) => key.startsWith('library.chunk.')).length,
+			history.length + 1,
+		)
+		assert.equal(h.persist.get('music.favorites')[0].id, '9')
 	},
 )
 await check(

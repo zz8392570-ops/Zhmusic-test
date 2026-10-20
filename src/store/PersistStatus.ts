@@ -1,7 +1,7 @@
 import getOrCreateMMKV from '@/store/getOrCreateMMKV'
 import safeParse from '@/utils/safeParse'
 import { useEffect, useState } from 'react'
-import { captureLibrarySnapshots } from '@/helpers/librarySnapshots'
+import { isLibraryStorageKey, readLibraryStorage, writeLibraryStorage } from './libraryStorage'
 
 const PersistConfig = {
 	PersistStatus: 'appPersistStatus',
@@ -100,38 +100,17 @@ export interface IPersistConfig {
 
 function set<K extends keyof IPersistConfig>(key: K, value: IPersistConfig[K] | undefined) {
 	const store = getOrCreateMMKV(PersistConfig.PersistStatus)
-	const serialized = value === undefined ? undefined : JSON.stringify(value)
-	const libraryKey = ['music.favorites', 'music.playLists'].includes(key)
-	const previousHistory = libraryKey ? store.getString('library.snapshots') : undefined
-	let captured = false
-	if (libraryKey) {
-		const raw = store.getString(key)
-		const history = previousHistory ? safeParse(previousHistory) : []
-		const nextHistory = captureLibrarySnapshots(
-			key,
-			raw ? safeParse(raw) : null,
-			value,
-			Array.isArray(history) ? history : [],
-		)
-		if (nextHistory !== history && nextHistory.length) {
-			store.set('library.snapshots', JSON.stringify(nextHistory))
-			captured = true
-		}
+	if (isLibraryStorageKey(key)) {
+		writeLibraryStorage(store, key, value)
+		return
 	}
-	try {
-		if (serialized === undefined) store.remove(key)
-		else store.set(key, serialized)
-	} catch (error) {
-		if (captured) {
-			if (previousHistory === undefined) store.remove('library.snapshots')
-			else store.set('library.snapshots', previousHistory)
-		}
-		throw error
-	}
+	if (value === undefined) store.remove(key)
+	else store.set(key, JSON.stringify(value))
 }
 
 function get<K extends keyof IPersistConfig>(key: K): IPersistConfig[K] | null {
 	const store = getOrCreateMMKV(PersistConfig.PersistStatus)
+	if (isLibraryStorageKey(key)) return readLibraryStorage(store, key) as IPersistConfig[K] | null
 	const raw = store.getString(key)
 	if (raw) {
 		return safeParse(raw) as IPersistConfig[K]
