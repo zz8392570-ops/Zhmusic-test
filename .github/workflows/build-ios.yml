@@ -4,6 +4,16 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      clean_build:
+        description: '禁用编译缓存（排查问题时使用；下载缓存仍可复用）'
+        type: boolean
+        default: false
+
+# Keep the latest manually requested build per branch. Tag builds have their own group.
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
 
 jobs:
   build:
@@ -13,10 +23,11 @@ jobs:
       EXPO_NO_TELEMETRY: '1'
       RCT_NEW_ARCH_ENABLED: '1'
       RCT_HERMES_V1_ENABLED: '1'
+      IOS_COMPILATION_CACHE_ENABLED: ${{ inputs.clean_build && 'NO' || 'YES' }}
     steps:
       - uses: actions/checkout@v7
 
-      # Cache Yarn downloads only; node_modules, Pods and DerivedData stay fresh.
+      # Installed dependencies, generated Pods projects and DerivedData stay fresh.
       - uses: actions/setup-node@v7
         with:
           node-version: 24.19.0
@@ -24,11 +35,35 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Verify build tools
+        id: toolchain
         run: |
           xcodebuild -version
           test "$(node --version)" = "v24.19.0"
           test "$(yarn --version)" = "1.22.22"
           echo "NODE_BINARY=$(command -v node)" >> "$GITHUB_ENV"
+          echo "IOS_COMPILATION_CACHE_DIR=$RUNNER_TEMP/zhmusic-xcode-compilation" >> "$GITHUB_ENV"
+          echo "xcode=$(xcodebuild -version | shasum -a 256 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      # Only downloaded Pod sources/artifacts and CDN metadata, never ios/Pods.
+      - name: Restore CocoaPods downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods/repos
+          key: pods-downloads-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('yarn.lock', 'ios/Podfile.lock', 'ios/Podfile', 'ios/Podfile.properties.json') }}
+
+      # Xcode validates compiler inputs inside this content-addressed cache. This
+      # does not restore generated projects, build databases or packaged products.
+      - name: Restore Xcode compilation cache
+        id: compilation-cache
+        if: ${{ !inputs.clean_build }}
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.IOS_COMPILATION_CACHE_DIR }}
+          key: ios-compile-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('package.json', 'yarn.lock', 'ios/Podfile.lock', 'ios/Podfile', 'ios/Podfile.properties.json', 'ios/**/*.pbxproj', 'patches/**') }}-${{ github.sha }}
+          restore-keys: |
+            ios-compile-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.xcode }}-${{ hashFiles('package.json', 'yarn.lock', 'ios/Podfile.lock', 'ios/Podfile', 'ios/Podfile.properties.json', 'ios/**/*.pbxproj', 'patches/**') }}-
 
       - name: Install pinned CocoaPods
         run: |
@@ -57,6 +92,12 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath ios/build \
+            -showBuildTimingSummary \
+            COMPILATION_CACHE_ENABLE_CACHING="$IOS_COMPILATION_CACHE_ENABLED" \
+            COMPILATION_CACHE_CAS_PATH="$IOS_COMPILATION_CACHE_DIR" \
+            COMPILATION_CACHE_KEEP_CAS_DIRECTORY=YES \
+            COMPILATION_CACHE_LIMIT_SIZE=2147483648 \
+            COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -79,3 +120,17 @@ jobs:
         with:
           name: ZhMusic-unsigned-ipa
           path: ZhMusic-unsigned.ipa
+
+      - name: Summarize build cache
+        if: ${{ always() }}
+        env:
+          COMPILATION_CACHE_MATCH: ${{ steps.compilation-cache.outputs.cache-hit }}
+        run: |
+          {
+            printf '### iOS build cache\n\n'
+            printf -- '- Compilation caching enabled: `%s`\n' "$IOS_COMPILATION_CACHE_ENABLED"
+            printf -- '- Exact commit cache match: `%s` (false may still restore a previous commit)\n' "${COMPILATION_CACHE_MATCH:-none}"
+            printf -- '- Compiler cache disk limit: 2 GiB\n'
+            printf -- '- Pods projects and DerivedData are generated fresh for every build.\n'
+            printf -- '- See Build unsigned .app for compiler cache diagnostics and task timings.\n'
+          } >> "$GITHUB_STEP_SUMMARY"

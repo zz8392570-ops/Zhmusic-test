@@ -6,6 +6,31 @@
 本次本机构建使用 Xcode 26.6、Node 24.19.0、Yarn 1.22.22、CocoaPods 1.16.2；
 CI 配置也固定为这组版本。最低运行系统为 iOS 16.4。
 
+## CI 打包耗时与缓存
+
+最近三次 test 构建的作业耗时约 13～18 分钟，主要开销是原生编译：
+`96aba69` 的构建共约 17 分钟，其中原生编译 13 分钟、Pods 安装 74 秒、
+质量与原生检查 89 秒、JavaScript 依赖安装 18 秒。
+
+`build-ios.yml` 启用 Xcode 26 原生编译缓存，按编译器输入判断哪些结果可复用，
+并在 GitHub Actions 中保存缓存。外层缓存键包含 runner 架构、Xcode 实际构建版本、
+依赖锁文件、原生工程和补丁配置；同一组配置可以从最近的提交恢复缓存。
+每次成功构建以提交 SHA 保存更新后的缓存，编译缓存上限为 2 GiB。
+缓存开关、目录和容量使用 Xcode 构建系统的 `COMPILATION_CACHE_*` 参数，
+对应实现见 [Swift Build CASOptions](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBCore/Settings/CASOptions.swift)。
+
+CocoaPods 下载文件和 CDN 元数据也会缓存，`pod install --deployment` 仍然每次执行。
+`node_modules`、`ios/Pods`、DerivedData 和生成的 App/IPA 不会从缓存恢复。
+lint、类型检查、核心回归、原生检查和打包资源校验均保留。
+
+第一次运行需要生成编译缓存，不能据此判断热缓存构建的提速效果。构建日志新增
+`-showBuildTimingSummary` 和编译缓存诊断；运行摘要记录缓存模式及精确提交命中情况。
+缓存按前缀恢复时，`cache-hit: false` 仍可能复用上一次提交的编译结果。
+实际收益需比较后续成功构建的编译耗时和缓存上传/下载开销，当前没有实测的提速比例。
+
+手动触发时可勾选 `clean_build` 禁用编译缓存进行对照或排查问题，下载缓存仍可使用。
+同一分支的手动构建只保留最新运行；标签推送构建按独立分组处理。
+
 ## 安装依赖
 
 以下命令从仓库根目录执行。首次复现使用新的检出目录，不带入已有的
