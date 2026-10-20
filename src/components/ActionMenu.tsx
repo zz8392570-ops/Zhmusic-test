@@ -4,10 +4,12 @@ import {
 	cloneElement,
 	isValidElement,
 	useState,
+	useRef,
+	useEffect,
 	type ReactElement,
 	type ReactNode,
 } from 'react'
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
@@ -25,14 +27,44 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 	const { bottom } = useSafeAreaInsets()
 	const [visible, setVisible] = useState(false)
 	const [submenu, setSubmenu] = useState<MenuAction | null>(null)
+	const pendingAction = useRef<(() => void) | null>(null)
+	const closing = useRef(false)
+	useEffect(
+		() => () => {
+			pendingAction.current = null
+		},
+		[],
+	)
 	const close = () => {
+		pendingAction.current = null
+		closing.current = Platform.OS === 'ios'
 		setVisible(false)
 		setSubmenu(null)
+	}
+	const onDismiss = () => {
+		const action = pendingAction.current
+		pendingAction.current = null
+		closing.current = false
+		action?.()
+	}
+	const select = (action: MenuAction) => {
+		if (closing.current || action.attributes?.disabled) return
+		if (action.subactions?.length) {
+			setSubmenu(action)
+			return
+		}
+		// UIKit cannot present a share sheet, alert or route from a dismissing
+		// modal. Capture the selected callback, then wait for the real completion.
+		const dispatch = () => onPressAction({ nativeEvent: { event: action.id } })
+		close()
+		if (Platform.OS === 'ios') pendingAction.current = dispatch
+		else dispatch() // React Native only emits Modal.onDismiss on iOS.
 	}
 	const child = Children.only(children)
 	const trigger = isValidElement(child)
 		? cloneElement(child as ReactElement<{ onPress?: () => void }>, {
 				onPress: () => {
+					if (closing.current) return
 					setSubmenu(null)
 					setVisible(true)
 				},
@@ -41,7 +73,13 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 	return (
 		<>
 			{trigger}
-			<Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+			<Modal
+				visible={visible}
+				transparent
+				animationType="fade"
+				onRequestClose={close}
+				onDismiss={onDismiss}
+			>
 				<View style={{ flex: 1, justifyContent: 'flex-end' }}>
 					<Pressable
 						accessibilityRole="button"
@@ -86,14 +124,7 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 											disabled: action.attributes?.disabled,
 											selected: action.state === 'on',
 										}}
-										onPress={() => {
-											if (action.subactions?.length) {
-												setSubmenu(action)
-												return
-											}
-											close()
-											onPressAction({ nativeEvent: { event: action.id } })
-										}}
+										onPress={() => select(action)}
 										style={({ pressed }) => ({
 											minHeight: 50,
 											justifyContent: 'center',

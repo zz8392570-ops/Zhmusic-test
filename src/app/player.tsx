@@ -1,4 +1,5 @@
 import { searchSongByTitle } from '@/helpers/songSearchNavigation'
+import { shareSong } from '@/helpers/shareSong'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import Lyric from '@/components/lyric'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
@@ -34,15 +35,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-	Alert,
-	Share,
-	StyleSheet,
-	Text,
-	TouchableOpacity,
-	useWindowDimensions,
-	View,
-} from 'react-native'
+import { Alert, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native'
 import { Image } from 'expo-image'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
@@ -328,20 +321,7 @@ const PlayerScreenContent = () => {
 		[trackToDisplay],
 	)
 
-	const handleShare = useCallback(async () => {
-		try {
-			await Share.share({
-				title: trackToDisplay?.title,
-				message: i18n.t('player.shareMessage', {
-					title: trackToDisplay?.title ?? '',
-					artist: trackToDisplay?.artist ?? '',
-				}),
-				url: trackToDisplay?.url,
-			})
-		} catch (error) {
-			console.error(error.message)
-		}
-	}, [trackToDisplay])
+	const handleShare = useCallback(() => shareSong(trackToDisplay), [trackToDisplay])
 	const handleTimingClose = useCallback((minutes: number) => {
 		if (!setTimingClose(Date.now() + minutes * 60 * 1000)) {
 			hapticWarning()
@@ -750,7 +730,7 @@ const PlayerScreenContent = () => {
 														handleAddToPlaylist()
 														break
 													case 'share':
-														handleShare()
+														void handleShare()
 														break
 													case 'timing_10':
 														handleTimingClose(10)

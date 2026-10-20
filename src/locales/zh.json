@@ -735,7 +735,9 @@
 			"switch": "换源重试",
 			"next": "下一首",
 			"noAlternative": "没有其他可用音源，请先在设置中导入或测试音源"
-		}
+		},
+		"shareFailed": "无法打开歌曲分享，请重试",
+		"shareUnavailable": "当前没有可分享的歌曲"
 	},
 	"menu": {
 		"addToPlayingList": "添加到播放列表",

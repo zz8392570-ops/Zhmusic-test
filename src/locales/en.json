@@ -734,7 +734,9 @@
 			"switch": "Switch source",
 			"next": "Next song",
 			"noAlternative": "No other source is available. Import or test sources in Settings."
-		}
+		},
+		"shareFailed": "Could not open song sharing. Please try again.",
+		"shareUnavailable": "There is no song to share right now."
 	},
 	"menu": {
 		"addToPlayingList": "Add to PlayingList",
