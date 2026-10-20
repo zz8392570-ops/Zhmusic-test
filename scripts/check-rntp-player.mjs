@@ -251,6 +251,7 @@ function settingsRuntime() {
 		},
 		'@/helpers/userApi/importMusicSource': {},
 		'@/helpers/userApi/batchMusicSourceImport': {},
+		'@/helpers/userApi/musicApiControl': {},
 		'@/helpers/leaderboard': {
 			DEFAULT_HOME_BOARD_ID: 'fixture',
 			DEFAULT_HOME_SOURCE: 'tx',

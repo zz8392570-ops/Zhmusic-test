@@ -12,7 +12,7 @@ import { PropsWithChildren, useCallback, useMemo, useState } from 'react'
 import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
 import { Alert } from 'react-native'
-import { getFavoriteVariants, isFavoriteTrack } from '@/helpers/favoriteGroups'
+import { getFavoriteVariants, getFavoriteIndex } from '@/helpers/favoriteGroups'
 import { splitFavoriteGroup } from '@/helpers/favoriteGroupActions'
 import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
 
@@ -34,15 +34,14 @@ export const TrackShortcutsMenu = ({
 }: TrackShortcutsMenuProps) => {
 	const router = useRouter()
 	const { favorites, toggleTrackFavorite } = useFavorites()
-	const isFavorite = favorites.some((trackItem) =>
-		isFavoriteTrack(trackItem, track as IMusic.IMusicItem),
-	)
+	const favoriteIndex = getFavoriteIndex(favorites)
+	const isFavorite = favoriteIndex.has(track)
 	const { activeQueueId } = useQueue()
 
 	const [isInPlaylist, setIsInPlaylist] = useState(false)
 	const canNavigateCatalog = supportsCatalogNavigation(track.platform)
 	const sourceOptions = useMemo(() => {
-		const stored = favorites.find((item) => isFavoriteTrack(item, track))
+		const stored = favoriteIndex.find(track)
 		const items = stored ? getFavoriteVariants(stored) : getFavoriteVariants(track)
 		return items.filter(
 			(item, index) =>
@@ -50,7 +49,7 @@ export const TrackShortcutsMenu = ({
 					(candidate) => candidate.platform === item.platform && candidate.id === item.id,
 				) === index,
 		)
-	}, [favorites, track])
+	}, [favoriteIndex, track])
 	const sourceActions = useMemo<MenuAction[]>(
 		() =>
 			sourceOptions.length > 1

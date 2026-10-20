@@ -22,7 +22,9 @@ function fixture({ empty = false } = {}) {
 		progress = [],
 		errors = []
 	let fail = false,
-		runtimeLoads = 0
+		runtimeLoads = 0,
+		reloadFailures = 0,
+		reloadCalls = 0
 	const existing = {
 		id: 'existing',
 		name: 'Existing',
@@ -51,7 +53,14 @@ function fixture({ empty = false } = {}) {
 				getMusicUrl: async () => 'https://audio.test/lx',
 			}
 		},
-		reloadLxMusicScript: async (api) => api,
+		reloadLxMusicScript: async (api) => {
+			reloadCalls++
+			if (reloadFailures > 0) {
+				reloadFailures--
+				throw new Error('Native reload failed')
+			}
+			return api
+		},
 		disposeLxMusicScript() {},
 	}
 	const importer = loadModule(
@@ -79,7 +88,17 @@ function fixture({ empty = false } = {}) {
 			'@/utils/sourceSwitchNotice': {},
 			'react-native': { Alert: { alert: (...args) => alerts.push(args) } },
 			'../logger': logger,
-			'./musicSourceHealth': {},
+			'./musicSourceHealth': {
+				createTestingHealth: (health) => ({ ...health, status: 'testing' }),
+				selectHealthTestTracks: () => [],
+				probeMusicApi: async () => ({
+					status: 'normal',
+					successCount: 1,
+					totalCount: 1,
+					latencyMs: 1,
+				}),
+				sortMusicApis: (list) => list,
+			},
 			'./lxMusicSourceAdapter': adapter,
 		},
 		{ Error },
@@ -106,6 +125,10 @@ function fixture({ empty = false } = {}) {
 			fail = true
 		},
 		loads: () => runtimeLoads,
+		failReloads: (count) => {
+			reloadFailures = count
+		},
+		reloadCalls: () => reloadCalls,
 	}
 }
 await check(
@@ -242,6 +265,7 @@ await check(
 				}
 			},
 			importMusicSourceFiles: h.importMusicSourceFiles,
+			restoreSelectedRuntime: h.control.restoreSelectedRuntime,
 			sourceFileImportProgress: { setValue: (value) => updates.push(value) },
 			i18n: { t: (key, values) => JSON.stringify({ key, ...values }) },
 			Alert: { alert: (...args) => alerts.push(args) },
@@ -277,6 +301,86 @@ await check(
 		assert.match(alerts.at(-1)[1], /"imported":1,"skipped":0,"failed":1/)
 		assert.equal(updates.at(-1), null)
 		assert.equal(alerts.length, 2)
+		const originalSelected = h.stores.musicApiSelectedStore.getValue()
+		h.stores.musicApiSelectedStore.setValue({ ...originalSelected, script: 'module.exports = {}' })
+		contents.set('two', script('two'))
+		nextResult = Promise.resolve({ canceled: false, assets: [{ uri: 'two', name: 'two.js' }] })
+		await run()
+		const retry = alerts.at(-1)[2][1]
+		assert.match(retry.text, /retryRestore/)
+		assert.equal(h.stores.musicApiStore.getValue().filter((api) => api.id === 'two').length, 1)
+		h.stores.musicApiSelectedStore.setValue(originalSelected)
+		retry.onPress()
+		await flush()
+		assert.match(alerts.at(-1)[1], /restoreSuccess/)
+	},
+)
+await check(
+	'failed LX restoration is reported without discarding imported files; retry actually reloads',
+	async () => {
+		const h = fixture()
+		const selected = {
+			...h.stores.musicApiSelectedStore.getValue(),
+			scriptType: 'lxmusic',
+			script: 'LX:restore',
+		}
+		h.stores.musicApiSelectedStore.setValue(selected)
+		h.failReloads(1)
+		const summary = await h.importMusicSourceFiles([file('new.js', script('new'))])
+		assert.equal(summary.imported, 1)
+		assert.equal(summary.restoreFailed, true)
+		assert.equal(h.stores.musicApiSelectedStore.getValue(), selected)
+		assert.equal(h.reloadCalls(), 1)
+		await h.control.restoreSelectedRuntime()
+		assert.equal(h.reloadCalls(), 2)
+		await h.control.restoreSelectedRuntime()
+		assert.equal(h.reloadCalls(), 2)
+	},
+)
+await check(
+	'failed CommonJS reload cannot reuse a stale getter or leave a successful runtime marker',
+	async () => {
+		const h = fixture(),
+			selected = h.stores.musicApiSelectedStore.getValue()
+		await h.control.ensureApiRuntime(selected)
+		const broken = { ...selected, script: 'throw new Error("Script crashed")' }
+		await assert.rejects(h.control.reloadMusicApi(broken, true), /Script crashed/)
+		await assert.rejects(h.control.ensureApiRuntime(broken), /Script crashed/)
+		const missingGetter = { ...selected, script: 'module.exports = {}' }
+		await assert.rejects(h.control.ensureApiRuntime(missingGetter), /missingGetter/)
+		const ready = await h.control.ensureApiRuntime(selected)
+		assert.equal(await ready.getMusicUrl(), 'https://audio.test/existing')
+	},
+)
+await check('queued restoration follows the latest source selection', async () => {
+	const h = fixture(),
+		gate = deferred()
+	const holding = h.control.withMusicSourceImport(() => gate.promise)
+	const restoring = h.control.restoreSelectedRuntime()
+	const next = { ...h.stores.musicApiSelectedStore.getValue(), id: 'next', script: script('next') }
+	h.stores.musicApiSelectedStore.setValue(next)
+	gate.resolve()
+	await holding
+	assert.equal((await restoring).id, 'next')
+})
+await check(
+	'background health checks contain restoration failures and release their testing state',
+	async () => {
+		const h = fixture()
+		const selected = {
+			...h.stores.musicApiSelectedStore.getValue(),
+			scriptType: 'lxmusic',
+			script: 'LX:restore',
+		}
+		h.stores.musicApiSelectedStore.setValue(selected)
+		h.stores.musicApiStore.setValue([selected])
+		h.failReloads(2)
+		await h.control.testAllMusicApis()
+		assert.equal(h.stores.musicApiTestingStore.getValue(), false)
+		assert.equal(h.reloadCalls(), 2)
+		assert.equal(h.errors.filter((args) => String(args[0]).includes('after health test')).length, 2)
+		await h.control.restoreSelectedRuntime()
+		assert.equal(h.reloadCalls(), 3)
 	},
 )
 finish()

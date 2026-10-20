@@ -37,6 +37,8 @@
 		"back": "返回"
 	},
 	"sourceImport": {
+		"retryRestore": "重试恢复音源",
+		"restoreSuccess": "当前音源已恢复",
 		"batchTitle": "音源导入结果",
 		"batchSummary": "成功 %{imported} 个，跳过重复 %{skipped} 个，失败 %{failed} 个。",
 		"batchFailedFiles": "导入失败的文件（最多显示 5 个）：%{names}",

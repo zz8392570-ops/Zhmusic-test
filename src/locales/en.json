@@ -37,6 +37,8 @@
 		"back": "Back"
 	},
 	"sourceImport": {
+		"retryRestore": "Retry restoring source",
+		"restoreSuccess": "The current source has been restored",
 		"batchTitle": "Source import results",
 		"batchSummary": "Imported %{imported}, skipped %{skipped} duplicates, failed %{failed}.",
 		"batchFailedFiles": "Failed files (up to 5 shown): %{names}",

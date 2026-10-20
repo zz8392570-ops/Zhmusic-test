@@ -366,5 +366,25 @@ await test('CommonJS import still executes its four-argument host protocol', asy
 	await assert.rejects(importer.createMusicApiFromScript('module.exports = {}'), /getMusicUrl/)
 })
 
+await test('LX reload propagates initialization failure and a later retry builds a fresh runtime', async () => {
+ const f = createSourceFixture()
+ const api = { id: 'restore', name: 'Restore', script: script('Restore'), scriptType: 'lxmusic' }
+ const failed = observe(f.adapter.reloadLxMusicScript(api))
+ const failedRuntime = f.adapter.inspectRuntime()
+ f.native.init(undefined, { status: false, errorMessage: 'fixture reload failure', info: null })
+ await failed.done
+ assert.equal(failed.status, 'rejected')
+ assert.match(failed.error.message, /fixture reload failure/)
+ assertRetired(f, failedRuntime)
+ const retry = f.adapter.reloadLxMusicScript(api)
+ const current = f.adapter.inspectRuntime()
+ f.native.init()
+ const ready = await retry
+ assert.equal(typeof ready.getMusicUrl, 'function')
+ assert.notEqual(current, failedRuntime)
+ f.facade.destroy()
+ assertRetired(f, current)
+})
+
 console.log(JSON.stringify({ suite: 'source-host', checks, passed: checks.every(check => check.passed) }, null, 2))
 if (checks.some(check => !check.passed)) process.exitCode = 1

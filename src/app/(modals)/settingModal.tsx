@@ -13,6 +13,7 @@ import myTrackPlayer, {
 } from '@/helpers/trackPlayerIndex'
 import { useThemeColors, useThemeMode } from '@/hooks/useAppTheme'
 import { createMusicApiFromScript, fetchScriptFromUrl } from '@/helpers/userApi/importMusicSource'
+import { restoreSelectedRuntime } from '@/helpers/userApi/musicApiControl'
 import { importMusicSourceFiles } from '@/helpers/userApi/batchMusicSourceImport'
 import PersistStatus from '@/store/PersistStatus'
 import {
@@ -243,11 +244,15 @@ const MusicSourceMenu = ({ isDelete, onSelectSource }) => {
 			logInfo(`开始测试音源: ${api.name}`)
 			statusResults[api.id] = { status: '测试中...' }
 			sourceStatusStore.setValue({ ...statusResults }) // 更新到GlobalState
-			const reloadedApi = await myTrackPlayer.reloadMusicApi(api, true)
-			const result = await testMusicSource(reloadedApi)
-			statusResults[api.id] = result
+			try {
+				const reloadedApi = await myTrackPlayer.reloadMusicApi(api, true)
+				statusResults[api.id] = await testMusicSource(reloadedApi)
+			} catch (error) {
+				logError('测试音源加载失败:', error)
+				statusResults[api.id] = { status: '异常' }
+			}
 			sourceStatusStore.setValue({ ...statusResults }) // 更新到GlobalState
-			logInfo(`音源 ${api.name} 测试结果: ${result.status}`)
+			logInfo(`音源 ${api.name} 测试结果: ${statusResults[api.id].status}`)
 		}
 
 		logInfo('所有音源测试完成')
@@ -418,7 +423,31 @@ const importMusicSourceFromFile = async () => {
 			...(summary.restoreFailed ? [i18n.t('sourceImport.batchRestoreFailed')] : []),
 			i18n.t('sourceImport.batchTestHint'),
 		].join('\n\n')
-		Alert.alert(i18n.t('sourceImport.batchTitle'), message)
+		const retryRestore = async () => {
+			try {
+				const restored = await restoreSelectedRuntime()
+				Alert.alert(
+					i18n.t('common.success'),
+					i18n.t(restored ? 'sourceImport.restoreSuccess' : 'sourceImport.noSource'),
+				)
+			} catch (error) {
+				logError('重试恢复音源失败:', error)
+				Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.batchRestoreFailed'), [
+					{ text: i18n.t('common.confirm') },
+					{ text: i18n.t('sourceImport.retryRestore'), onPress: () => void retryRestore() },
+				])
+			}
+		}
+		Alert.alert(
+			i18n.t('sourceImport.batchTitle'),
+			message,
+			summary.restoreFailed
+				? [
+						{ text: i18n.t('common.confirm') },
+						{ text: i18n.t('sourceImport.retryRestore'), onPress: () => void retryRestore() },
+					]
+				: undefined,
+		)
 	} catch (err) {
 		const errMsg = err instanceof Error ? (err as Error).message : String(err)
 		logError('Error importing music source:', errMsg)

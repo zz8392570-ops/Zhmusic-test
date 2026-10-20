@@ -149,9 +149,12 @@ export const reloadMusicApi = async (
 		return musicApi
 	}
 
+	loadedRuntimeId = null
 	try {
 		if (musicApi.scriptType === 'lxmusic' || isLxMusicScript(musicApi.script)) {
-			return await reloadLxMusicScript(musicApi)
+			const reloaded = await reloadLxMusicScript(musicApi)
+			loadedRuntimeId = musicApi.id
+			return reloaded
 		}
 
 		const context: any = {
@@ -161,16 +164,19 @@ export const reloadMusicApi = async (
 		}
 		const scriptFunction = new Function('module', 'exports', 'require', musicApi.script)
 		scriptFunction.call(context, context.module, context.exports, context.require)
+		if (typeof context.module.exports.getMusicUrl !== 'function') {
+			throw new Error(i18n.t('sourceImport.missingGetter'))
+		}
 		if (!isTest) disposeLxMusicScript()
 		loadedRuntimeId = musicApi.id
 
 		return {
 			...musicApi,
-			getMusicUrl: context.module.exports.getMusicUrl || musicApi.getMusicUrl,
+			getMusicUrl: context.module.exports.getMusicUrl,
 		}
 	} catch (error) {
 		logError(`Error reloading script for API "${musicApi.name}":`, error)
-		return musicApi
+		throw error
 	}
 }
 
@@ -240,10 +246,20 @@ export const requestMusicUrlFromApi = async (
 	}
 }
 
-export const restoreSelectedRuntime = async () => {
-	const selected = musicApiSelectedStore.getValue()
-	if (!selected) return null
-	return withSourceRuntime(() => ensureApiRuntime(selected))
+export const restoreSelectedRuntime = async () =>
+	withSourceRuntime(() => {
+		const selected = musicApiSelectedStore.getValue()
+		return selected ? ensureApiRuntime(selected) : null
+	})
+
+// Health checks are also started in the background. Contain restoration errors there;
+// explicit restoration (including batch import) still rejects so the UI can offer retry.
+const restoreAfterHealthTest = async () => {
+	try {
+		await restoreSelectedRuntime()
+	} catch (error) {
+		logError('Failed to restore selected source after health test:', error)
+	}
 }
 
 export const setMusicApiAsSelectedById = async (
@@ -363,7 +379,7 @@ const testMusicApiInternal = async (apiId: string) => {
 			true,
 		)
 	} finally {
-		await restoreSelectedRuntime()
+		await restoreAfterHealthTest()
 	}
 }
 
@@ -382,7 +398,7 @@ export const testAllMusicApis = () =>
 			await maybeSwitchFromDeadSelected()
 		} finally {
 			musicApiTestingStore.setValue(false)
-			await restoreSelectedRuntime()
+			await restoreAfterHealthTest()
 		}
 	})
 
@@ -408,7 +424,7 @@ export const runBackgroundHealthTests = () =>
 			await maybeSwitchFromDeadSelected()
 		} finally {
 			musicApiTestingStore.setValue(false)
-			await restoreSelectedRuntime()
+			await restoreAfterHealthTest()
 		}
 	})
 

@@ -198,6 +198,70 @@ await check(
 		assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 2)
 	},
 )
+await check(
+	'favorite indexes are shared across consumers and rebuilt for immutable edits without rescanning rows',
+	() => {
+		let reads = 0
+		const first = track('one'),
+			second = track('two', 'wy')
+		const grouped = {
+			...first,
+			get sourceAlternatives() {
+				reads++
+				return [second]
+			},
+		}
+		const snapshot = [grouped]
+		const index = groups.getFavoriteIndex(snapshot)
+		const afterBuild = reads
+		for (let row = 0; row < 200; row++) {
+			assert.equal(groups.getFavoriteIndex(snapshot), index)
+			assert.equal(index.has(second), true)
+			assert.equal(index.find(second), grouped)
+			assert.equal(index.has(track('missing', 'kg')), false)
+		}
+		assert.equal(reads, afterBuild)
+		const changed = [{ ...first, sourceAlternatives: [track('three', 'kg')] }]
+		const replacement = groups.getFavoriteIndex(changed)
+		assert.notEqual(replacement, index)
+		assert.equal(replacement.has(second), false)
+		assert.equal(replacement.has(track('three', 'kg')), true)
+		assert.equal(index.has(second), true)
+		assert.equal(index.has(null), false)
+		assert.equal(index.find(undefined), undefined)
+	},
+)
+await check(
+	'merge, undo, split and toggles replace the shared index and preserve exact platform identities',
+	() => {
+		const first = track('one'),
+			second = track('two', 'wy')
+		const h = fixture([first, second])
+		const before = groups.getFavoriteIndex(h.current())
+		assert.equal(before.find(second), second)
+		h.mergeSelectedFavorites(
+			h.current(),
+			new Set([groups.getFavoriteMergeCandidates(h.current())[0].id]),
+		)
+		const merged = groups.getFavoriteIndex(h.current())
+		assert.notEqual(before, merged)
+		assert.equal(merged.find(second).id, first.id)
+		h.undoFavoriteMerge()
+		const restored = groups.getFavoriteIndex(h.current())
+		assert.equal(restored.find(second).id, second.id)
+		h.useLibraryStore.getState().toggleTrackFavorite(second)
+		const removed = groups.getFavoriteIndex(h.current())
+		assert.equal(removed.has(second), false)
+		h.useLibraryStore.getState().toggleTrackFavorite(second)
+		const linked = groups.getFavoriteIndex(h.current())
+		assert.equal(linked.find(second).id, first.id)
+		h.splitFavoriteGroup(first)
+		const split = groups.getFavoriteIndex(h.current())
+		assert.equal(split.find(second).id, second.id)
+		assert.equal(split.has(track('two', 'kg')), false)
+		assert.equal(groups.getFavoriteIndex([]).has(first), false)
+	},
+)
 const react = {
 	createElement: (type, props, ...children) => ({
 		type,

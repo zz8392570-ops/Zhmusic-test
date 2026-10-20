@@ -1,5 +1,5 @@
 import { useFavorites } from '@/store/library'
-import { isFavoriteTrack } from '@/helpers/favoriteGroups'
+import { getFavoriteIndex } from '@/helpers/favoriteGroups'
 import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
 import { unknownTrackImageUri } from '@/constants/images'
@@ -60,7 +60,7 @@ const TracksListItem = ({
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
 	const { favorites, toggleTrackFavorite } = useFavorites()
-	const isFavorite = favorites.some((item) => isFavoriteTrack(item, track as IMusic.IMusicItem))
+	const isFavorite = getFavoriteIndex(favorites).has(track)
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const cacheRevision = cacheRevisionStore.useValue()
 	const preferredCacheQuality = qualityStore.useValue()

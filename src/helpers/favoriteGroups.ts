@@ -101,6 +101,37 @@ export const mergeFavoriteGroup = (tracks: Track[]): Track => {
 export const isFavoriteTrack = (favorite: Track, track: Track) =>
 	getFavoriteVariants(favorite).some((variant) => key(variant) === key(track))
 
+type FavoriteIndex = {
+	has: (track: Track | null | undefined) => boolean
+	find: (track: Track | null | undefined) => Track | undefined
+}
+const favoriteIndexes = new WeakMap<readonly Track[], FavoriteIndex>()
+
+/** Favorite arrays are immutable snapshots. All rows share one index until that snapshot changes. */
+export const getFavoriteIndex = (favorites: readonly Track[]): FavoriteIndex => {
+	const cached = favoriteIndexes.get(favorites)
+	if (cached) return cached
+	const owners = new Map<string, Track>()
+	const add = (variant: Track, owner: Track) => {
+		const identity = key(variant)
+		if (!owners.has(identity)) owners.set(identity, owner)
+	}
+	for (const favorite of favorites) {
+		add(favorite, favorite)
+		if (Array.isArray(favorite.sourceAlternatives)) {
+			for (const variant of favorite.sourceAlternatives) {
+				if (validVariant(variant)) add(variant, favorite)
+			}
+		}
+	}
+	const index: FavoriteIndex = {
+		has: (track) => !!track && owners.has(key(track)),
+		find: (track) => (track ? owners.get(key(track)) : undefined),
+	}
+	favoriteIndexes.set(favorites, index)
+	return index
+}
+
 export const addFavoriteTrack = (favorites: Track[], track: Track): Track[] => {
 	const index = favorites.findIndex((item) => isFavoriteTrack(item, track) || canMerge(item, track))
 	if (index < 0) return [...favorites, track]

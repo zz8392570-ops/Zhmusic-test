@@ -686,6 +686,6 @@ export const reloadLxMusicScript = async (musicApi: IMusic.MusicApi): Promise<IM
 		}
 	} catch (err) {
 		logError(`[lxMusicAdapter] Failed to reload lx-music script "${musicApi.name}":`, err)
-		return musicApi
+		throw err
 	}
 }
