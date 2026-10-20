@@ -277,6 +277,8 @@ try {
 			'@/hooks/useAppTheme': { useThemeColors: () => ({ primary: 'red' }) },
 			'@/styles': { useDefaultStyles: () => ({ container: {} }) },
 			'@/utils/i18n': { t: (key) => key },
+			'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+			'@/helpers/favoriteGroupActions': {},
 			'@/utils/mediaItem': { isSameMediaItem: () => false },
 			'./TracksListItem': 'TrackRow',
 		},
@@ -302,6 +304,8 @@ try {
 			const { default: TrackRow } = loadModule('src/components/TracksListItem.tsx', {
 				react: { ...react, useEffect() {} },
 				'@/store/library': { useFavorites: () => ({ favorites: [], toggleTrackFavorite() {} }) },
+				'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+				'@/helpers/favoriteGroupActions': {},
 				'@/utils/mediaItem': { isSameMediaItem: () => false },
 				'@/components/TrackShortcutsMenu': { TrackShortcutsMenu: 'TrackMenu' },
 				'@/components/AudioQualityBadge': 'QualityBadge',

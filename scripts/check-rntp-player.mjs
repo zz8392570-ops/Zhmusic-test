@@ -878,6 +878,8 @@ await check('favorite display compares platform and id and uses the app record',
 		},
 		react: h.react,
 		'@/player/PlayerStore': h.stores,
+		'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+		'@/helpers/favoriteGroupActions': {},
 		'@/utils/mediaItem': {
 			isSameMediaItem: (a, b) => a?.id === b?.id && a?.platform === b?.platform,
 		},

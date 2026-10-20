@@ -247,6 +247,7 @@ const RootNavigation = () => {
 				[
 					['(modals)/releaseNotes', 'releaseNotes.title'],
 					['(modals)/recycleBin', 'recycleBin.title'],
+					['(modals)/favoriteDuplicates', 'favoriteGroups.title'],
 					['(modals)/listeningReport', 'listeningReport.title'],
 					['(modals)/playlistRefresh', 'playlistAutoRefresh.title'],
 				] as const

@@ -17,7 +17,9 @@ import { create } from 'zustand'
 
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import PersistStatus from '@/store/PersistStatus'
-import { isSameMediaItem } from '@/utils/mediaItem'
+import { isFavoriteTrack, toggleFavoriteTrack } from '@/helpers/favoriteGroups'
+import { showToast } from '@/utils/utils'
+import i18n from '@/utils/i18n'
 
 export { DEFAULT_HOME_BOARD_ID, DEFAULT_HOME_SOURCE }
 
@@ -70,25 +72,19 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 	nowLyric: '当前无歌词',
 	playlists: [],
 	toggleTrackFavorite: (track: Track) => {
+		let linked = false
 		set((state) => {
-			const favorites = [...state.favorites]
-			const index = favorites.findIndex((favorite) =>
-				isSameMediaItem(favorite, track as IMusic.IMusicItem),
-			)
-
-			if (index !== -1) {
-				// 如果存在，则从数组中删除
-				favorites.splice(index, 1)
-			} else {
-				// 如果不存在，则添加到数组中
-				favorites.push(track as IMusic.IMusicItem)
-			}
+			const favorites = toggleFavoriteTrack(state.favorites, track) as IMusic.IMusicItem[]
+			linked =
+				favorites.length === state.favorites.length &&
+				!state.favorites.some((item) => isFavoriteTrack(item, track))
 			// 更新持久化存储中的favorites
 			PersistStatus.set('music.favorites', favorites)
 
 			// 返回新的状态
 			return { favorites }
 		})
+		if (linked) showToast(i18n.t('favoriteGroups.linked'), '', 'success')
 	},
 	addToPlaylist: (track, playlistName) =>
 		set((state) => ({
@@ -244,8 +240,8 @@ export const useFavorites = () => {
 }
 
 export const replaceFavorites = (favorites: IMusic.IMusicItem[]) => {
-	useLibraryStore.setState({ favorites })
 	PersistStatus.set('music.favorites', favorites)
+	useLibraryStore.setState({ favorites })
 }
 export const useNowLyric = () => {
 	const nowLyric = useLibraryStore((state) => state.nowLyric)

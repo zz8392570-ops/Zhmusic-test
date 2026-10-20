@@ -5,11 +5,13 @@ import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import React, { useCallback, useMemo, useState } from 'react'
 import { Alert, View } from 'react-native'
+import { useRouter } from 'expo-router'
 import type { Track } from '@/player/types'
 import { repairUnavailableTracks } from '@/helpers/libraryRepair'
 import type { MenuAction } from '@react-native-menu/menu'
 import { copyLibraryTracks, mergeLibraryRepairs } from '@/helpers/libraryEdits'
 const FavoriteMusicScreen = () => {
+	const router = useRouter()
 	const defaultStyles = useDefaultStyles()
 	// const search = useNavigationSearch({
 	// 	searchBarOptions: {
@@ -60,6 +62,7 @@ const FavoriteMusicScreen = () => {
 	}, [favorites, isRepairing])
 	const managementActions = useMemo<MenuAction[]>(
 		() => [
+			{ id: 'duplicates', title: i18n.t('favoriteGroups.title'), image: 'square.stack.3d.up' },
 			{
 				id: 'repair',
 				title: i18n.t(isRepairing ? 'playlistTools.repairing' : 'playlistTools.repairUnavailable'),
@@ -77,7 +80,11 @@ const FavoriteMusicScreen = () => {
 				playlist={playListItem as Playlist}
 				tracks={filteredFavoritesTracks}
 				managementActions={managementActions}
-				onManagementAction={() => void repairFavorites()}
+				onManagementAction={(action) =>
+					action === 'duplicates'
+						? router.push('/(modals)/favoriteDuplicates')
+						: void repairFavorites()
+				}
 			/>
 		</View>
 	)

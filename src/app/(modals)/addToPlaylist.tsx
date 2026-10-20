@@ -13,7 +13,7 @@ import { useMemo } from 'react'
 import { Alert, Pressable, StyleSheet, Text } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { Track } from '@/player/types'
-import { isSameMediaItem } from '@/utils/mediaItem'
+import { isFavoriteTrack } from '@/helpers/favoriteGroups'
 
 const AddToPlaylistModal = () => {
 	const defaultStyles = useDefaultStyles()
@@ -43,7 +43,7 @@ const AddToPlaylistModal = () => {
 	const handlePlaylistPress = async (playlist: IMusic.PlayList) => {
 		let result: 'success' | 'duplicate' | 'error' | 'not-found' = 'success'
 		if (playlist.id === 'favorites') {
-			if (favorites.some((item) => isSameMediaItem(item, track))) {
+			if (favorites.some((item) => isFavoriteTrack(item, track))) {
 				result = 'duplicate'
 			} else {
 				toggleTrackFavorite(track as Track)

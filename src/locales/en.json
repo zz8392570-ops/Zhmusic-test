@@ -1,4 +1,21 @@
 {
+	"favoriteGroups": {
+		"title": "Organize duplicate favorites",
+		"description": "Select recordings to merge. Original platform records are retained; use the song menu to choose a platform or split them. Only matching titles, complete artists and similar durations are linked. Live recordings, covers and other versions remain separate.",
+		"confirmTitle": "Merge selected favorites",
+		"confirm": "Merge %{count} duplicate groups? All platform versions will be retained; unchecked songs stay unchanged.",
+		"mergeSelected": "Merge selected (%{count} groups)",
+		"complete": "Merged %{count} groups. Songs edited during confirmation were skipped.",
+		"undo": "Undo last organization",
+		"undoUnavailable": "No organization can be undone, or favorites have since changed. Individual songs can still be split.",
+		"merged": "Merged songs",
+		"split": "Split platform versions",
+		"empty": "No duplicate favorites to merge",
+		"unknownDuration": "Unknown duration",
+		"review": "Possible duplicate: missing duration; automatic merging is disabled.",
+		"failed": "Could not organize favorites. Please try again.",
+		"linked": "Added another platform version"
+	},
 	"downloadNaming": {
 		"title": "Download file naming",
 		"description": "Applies to new downloads and new automatic cache files. Existing files keep their names and are reused when downloaded again. Extensions follow actual quality; duplicate names get a number.",

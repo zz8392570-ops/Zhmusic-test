@@ -1,3 +1,4 @@
+import { normalizeFavoriteGroups } from '@/helpers/favoriteGroups'
 import PersistStatus, { IPersistConfig } from '@/store/PersistStatus'
 import { Buffer } from 'buffer'
 import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
@@ -152,7 +153,10 @@ export function restoreMusicBackup(
 		mode === 'replace'
 			? backup.library
 			: {
-					favorites: mergeTracks(existing.library.favorites, backup.library.favorites),
+					favorites: normalizeFavoriteGroups([
+						...existing.library.favorites,
+						...backup.library.favorites,
+					]) as IMusic.IMusicItem[],
 					recentlyPlayed: mergeTracks(
 						existing.library.recentlyPlayed,
 						backup.library.recentlyPlayed,
@@ -170,6 +174,7 @@ export function restoreMusicBackup(
 				}
 		}
 	}
+	library.favorites = normalizeFavoriteGroups(library.favorites) as IMusic.IMusicItem[]
 	const values: Partial<IPersistConfig> = {
 		'music.favorites': library.favorites,
 		'music.playLists': library.playlists,

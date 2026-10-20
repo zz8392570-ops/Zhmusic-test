@@ -1,3 +1,4 @@
+import { normalizeFavoriteGroups } from '@/helpers/favoriteGroups'
 import { playListsStore } from '@/helpers/trackPlayerIndex'
 import PersistStatus from '@/store/PersistStatus'
 import { useLibraryStore } from '@/store/library'
@@ -323,7 +324,9 @@ export const getLocalListData = (): LxListData => ({
 
 export const setLocalListData = (data: LxListData) => {
 	data = validateLxListData(data)
-	const favorites = data.loveList.map(fromLxMusicInfo)
+	const favorites = normalizeFavoriteGroups(
+		data.loveList.map(fromLxMusicInfo),
+	) as IMusic.IMusicItem[]
 	const localOrganization = new Map(
 		(playListsStore.getValue() ?? []).map((playlist) => [
 			playlist.id,

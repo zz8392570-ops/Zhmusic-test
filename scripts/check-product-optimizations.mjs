@@ -66,6 +66,7 @@ function persistence() {
 function backupFixture() {
 	const store = persistence()
 	const backup = loadModule('src/helpers/musicBackup.ts', {
+		'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
 		'@/helpers/downloadFilename': naming,
 		'@/store/PersistStatus': store,
 		buffer: { Buffer },
@@ -173,7 +174,7 @@ await check(
 	},
 )
 await check(
-	'merge deduplicates platform/id, merges playlist songs and leaves settings off when requested',
+	'backup merge groups equivalent favorites, retains platform records and keeps playlist/settings rules',
 	() => {
 		const h = backupFixture()
 		h.store.set('music.favorites', [track('same'), track('old')])
@@ -186,8 +187,9 @@ await check(
 		const library = h.restoreMusicBackup(backup, 'merge', false)
 		assert.deepEqual(
 			Array.from(library.favorites, (item) => `${item.platform}:${item.id}`),
-			['tx:same', 'tx:old', 'wy:same'],
+			['tx:same', 'tx:old'],
 		)
+		assert.equal(library.favorites[0].sourceAlternatives[0].platform, 'wy')
 		assert.equal(library.playlists[0].name, 'Current')
 		assert.deepEqual(
 			Array.from(library.playlists[0].songs, (item) => item.id),

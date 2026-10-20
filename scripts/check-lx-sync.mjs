@@ -46,6 +46,7 @@ function fixture() {
 		},
 	}
 	const sync = loadModule('src/helpers/sync/lxSyncData.ts', {
+		'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
 		'@/helpers/trackPlayerIndex': { playListsStore },
 		'@/store/PersistStatus': persist,
 		'@/store/library': { useLibraryStore },
@@ -221,15 +222,16 @@ await check('moving into an unknown list cannot remove songs from the source', (
 	seed(h, [], [{ id: 'from', name: 'From', songs: [music('one')] }])
 	const before = JSON.stringify([...h.disk])
 	assert.throws(
-		() => h.applyRemoteListAction({
-			action: 'list_music_move',
-			data: {
-				fromId: 'from',
-				toId: 'missing',
-				musicInfos: [h.toLxMusicInfo(music('one'))],
-				addMusicLocationType: 'top',
-			},
-		}),
+		() =>
+			h.applyRemoteListAction({
+				action: 'list_music_move',
+				data: {
+					fromId: 'from',
+					toId: 'missing',
+					musicInfos: [h.toLxMusicInfo(music('one'))],
+					addMusicLocationType: 'top',
+				},
+			}),
 		/Unsupported sync list/,
 	)
 	assert.equal(JSON.stringify([...h.disk]), before)
@@ -264,4 +266,28 @@ await check('legacy pairing migrates to secure storage and clear removes both co
 	assert.equal(h.secure.size, 0)
 })
 
+await check(
+	'full sync groups equivalent favorites and roundtrips every platform version and split choice',
+	() => {
+		const h = fixture()
+		const first = music('one'),
+			second = music('two', { platform: 'wy', title: first.title })
+		h.setLocalListData({
+			defaultList: [],
+			loveList: [first, second].map(h.toLxMusicInfo),
+			userList: [],
+		})
+		assert.equal(h.favorites().length, 1)
+		assert.equal(h.favorites()[0].sourceAlternatives[0].platform, 'wy')
+		const roundtrip = h.getLocalListData()
+		h.setLocalListData(roundtrip)
+		assert.equal(h.favorites()[0].sourceAlternatives[0].id, second.id)
+		h.setLocalListData({
+			defaultList: [],
+			loveList: [{ ...first, favoriteKeepSeparate: true }, second].map(h.toLxMusicInfo),
+			userList: [],
+		})
+		assert.equal(h.favorites().length, 2)
+	},
+)
 finish()

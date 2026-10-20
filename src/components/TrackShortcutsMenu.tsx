@@ -12,7 +12,8 @@ import { PropsWithChildren, useCallback, useMemo, useState } from 'react'
 import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
 import { Alert } from 'react-native'
-import { isSameMediaItem } from '@/utils/mediaItem'
+import { getFavoriteVariants, isFavoriteTrack } from '@/helpers/favoriteGroups'
+import { splitFavoriteGroup } from '@/helpers/favoriteGroupActions'
 import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
 
 type TrackShortcutsMenuProps = PropsWithChildren<{
@@ -34,21 +35,22 @@ export const TrackShortcutsMenu = ({
 	const router = useRouter()
 	const { favorites, toggleTrackFavorite } = useFavorites()
 	const isFavorite = favorites.some((trackItem) =>
-		isSameMediaItem(trackItem, track as IMusic.IMusicItem),
+		isFavoriteTrack(trackItem, track as IMusic.IMusicItem),
 	)
 	const { activeQueueId } = useQueue()
 
 	const [isInPlaylist, setIsInPlaylist] = useState(false)
 	const canNavigateCatalog = supportsCatalogNavigation(track.platform)
 	const sourceOptions = useMemo(() => {
-		const items = [track, ...(track.sourceAlternatives ?? [])]
+		const stored = favorites.find((item) => isFavoriteTrack(item, track))
+		const items = stored ? getFavoriteVariants(stored) : getFavoriteVariants(track)
 		return items.filter(
 			(item, index) =>
 				items.findIndex(
 					(candidate) => candidate.platform === item.platform && candidate.id === item.id,
 				) === index,
 		)
-	}, [track])
+	}, [favorites, track])
 	const sourceActions = useMemo<MenuAction[]>(
 		() =>
 			sourceOptions.length > 1
@@ -178,6 +180,13 @@ export const TrackShortcutsMenu = ({
 						.catch(() => Alert.alert(i18n.t('cacheCenter.downloadFailed')))
 				},
 			)
+			.with('split-favorite', () => {
+				try {
+					splitFavoriteGroup(track)
+				} catch {
+					Alert.alert(i18n.t('favoriteGroups.failed'))
+				}
+			})
 			.with('replace-source', async () => {
 				onReplaceSource?.(track)
 			})
@@ -239,6 +248,15 @@ export const TrackShortcutsMenu = ({
 						]
 					: []),
 				...sourceActions,
+				...(isFavorite && sourceOptions.length > 1
+					? [
+							{
+								id: 'split-favorite',
+								title: i18n.t('favoriteGroups.split'),
+								image: 'arrow.triangle.branch',
+							},
+						]
+					: []),
 				...(isSinger || !canNavigateCatalog ? [] : (artistActions as MenuAction[])),
 				...(allowDelete
 					? [

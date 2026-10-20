@@ -1,5 +1,5 @@
 import { useFavorites } from '@/store/library'
-import { isSameMediaItem } from '@/utils/mediaItem'
+import { isFavoriteTrack } from '@/helpers/favoriteGroups'
 import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
 import { unknownTrackImageUri } from '@/constants/images'
@@ -60,7 +60,7 @@ const TracksListItem = ({
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
 	const { favorites, toggleTrackFavorite } = useFavorites()
-	const isFavorite = favorites.some((item) => isSameMediaItem(item, track as IMusic.IMusicItem))
+	const isFavorite = favorites.some((item) => isFavoriteTrack(item, track as IMusic.IMusicItem))
 	const isCachedIconVisible = isCachedIconVisibleStore.useValue()
 	const cacheRevision = cacheRevisionStore.useValue()
 	const preferredCacheQuality = qualityStore.useValue()
@@ -143,7 +143,15 @@ const TracksListItem = ({
 		? i18n.t(platformLabelKey)
 		: String(track.platform ?? '').toUpperCase()
 	const sourceCount = new Set(track.availablePlatforms ?? [track.platform]).size
-	const sourceBadgeLabel = sourceCount > 1 ? `${platformLabel} +${sourceCount - 1}` : platformLabel
+	const sourceBadgeLabel =
+		sourceCount > 1
+			? (track.availablePlatforms ?? [])
+					.map((platform) => {
+						const label = getMusicPlatformLabelKey(platform)
+						return label ? i18n.t(label) : platform
+					})
+					.join(' · ')
+			: platformLabel
 	const selectionKey = getLibraryTrackKey(track)
 	const selected = selectedTracks?.has(selectionKey) === true
 	const handlePress = () => {
@@ -245,7 +253,7 @@ const TracksListItem = ({
 								{track.title}
 							</Text>
 						</View>
-						{track.artist || showSourceBadge || cachedQuality ? (
+						{track.artist || showSourceBadge || sourceCount > 1 || cachedQuality ? (
 							<View style={styles.trackMetadataRow}>
 								{track.artist ? (
 									<Text numberOfLines={1} style={styles.trackArtistText}>
@@ -253,7 +261,7 @@ const TracksListItem = ({
 									</Text>
 								) : null}
 								<View style={styles.badgesRow}>
-									{showSourceBadge && sourceBadgeLabel ? (
+									{(showSourceBadge || sourceCount > 1) && sourceBadgeLabel ? (
 										<View style={styles.sourceBadge}>
 											<Text style={styles.sourceBadgeText}>{sourceBadgeLabel}</Text>
 										</View>

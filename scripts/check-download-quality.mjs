@@ -361,6 +361,8 @@ try {
 					'@/store/playList': { isInPlayList: () => false },
 					'@/store/queue': { useQueue: () => ({}) },
 					'expo-router': { useFocusEffect() {}, useRouter: () => ({}) },
+					'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+					'@/helpers/favoriteGroupActions': {},
 					'@/utils/mediaItem': { isSameMediaItem: () => false },
 				},
 				{ React: react },
