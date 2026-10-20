@@ -7,7 +7,11 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
-	'music.favoriteMergeUndo': { before: IMusic.IMusicItem[]; after: IMusic.IMusicItem[] }
+	'music.favoriteMergeUndo': {
+		before: IMusic.IMusicItem[]
+		after: IMusic.IMusicItem[]
+		groups?: { before: number[]; after: number }[]
+	}
 	'music.downloadResume': Record<
 		string,
 		{ url: string; fileUri: string; resumeData: string; savedAt: number }

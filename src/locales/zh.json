@@ -1,13 +1,13 @@
 {
 	"favoriteGroups": {
 		"title": "整理重复收藏",
-		"description": "勾选要合并的歌曲。各平台原始记录会保留，可在歌曲菜单切换平台或拆分。歌名、歌手与时长一致的跨平台录音才会合并；Live、翻唱等版本分别保留。",
+		"description": "勾选要合并的歌曲。各平台原始记录会保留，可在歌曲菜单设置默认播放来源或拆分。歌名、歌手与时长一致的跨平台录音才会合并；Live、翻唱等版本分别保留。",
 		"confirmTitle": "合并选中的收藏",
 		"confirm": "合并 %{count} 组重复歌曲？各平台版本会保留；未勾选的歌曲不变。",
 		"mergeSelected": "合并选中（%{count} 组）",
 		"complete": "已合并 %{count} 组；期间发生改动的歌曲已跳过。",
 		"undo": "撤销上次整理",
-		"undoUnavailable": "没有可撤销的整理，或收藏已发生其他改动。你仍可单独拆分歌曲。",
+		"undoUnavailable": "没有可撤销的整理，或合并歌曲已被修改、移除。你仍可单独拆分歌曲。",
 		"merged": "已合并的歌曲",
 		"split": "拆分平台版本",
 		"empty": "没有可合并的重复收藏",
@@ -740,6 +740,7 @@
 		"removeFromPlayingList": "从播放列表移除",
 		"showArtist": "查看歌手",
 		"selectSource": "选择播放来源",
+		"preferSource": "设为默认来源并播放",
 		"addToPlaylist": "添加到歌单",
 		"delete": "删除"
 	},

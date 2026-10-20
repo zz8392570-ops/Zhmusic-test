@@ -1,13 +1,13 @@
 {
 	"favoriteGroups": {
 		"title": "Organize duplicate favorites",
-		"description": "Select recordings to merge. Original platform records are retained; use the song menu to choose a platform or split them. Only matching titles, complete artists and similar durations are linked. Live recordings, covers and other versions remain separate.",
+		"description": "Select recordings to merge. Original platform records are retained; use the song menu to set a default playback source or split them. Only matching titles, complete artists and similar durations are linked. Live recordings, covers and other versions remain separate.",
 		"confirmTitle": "Merge selected favorites",
 		"confirm": "Merge %{count} duplicate groups? All platform versions will be retained; unchecked songs stay unchanged.",
 		"mergeSelected": "Merge selected (%{count} groups)",
 		"complete": "Merged %{count} groups. Songs edited during confirmation were skipped.",
 		"undo": "Undo last organization",
-		"undoUnavailable": "No organization can be undone, or favorites have since changed. Individual songs can still be split.",
+		"undoUnavailable": "No organization can be undone, or a merged song has been changed or removed. Individual songs can still be split.",
 		"merged": "Merged songs",
 		"split": "Split platform versions",
 		"empty": "No duplicate favorites to merge",
@@ -737,6 +737,7 @@
 		"addToFavorites": "Add to Favorites",
 		"showArtist": "Show Artist",
 		"selectSource": "Choose Playback Source",
+		"preferSource": "Set Default Source and Play",
 		"addToPlaylist": "Add to Playlist",
 		"removeFromFavorites": "Remove from Favorites",
 		"removeFromPlayingList": "Remove from PlayingList",

@@ -134,19 +134,152 @@ await check(
 	},
 )
 await check(
-	'undo refuses to overwrite later changes, while split preserves versions and suppresses regrouping',
+	'undo preserves unrelated additions; split preserves versions and suppresses regrouping',
 	() => {
 		const songs = [track('one'), track('two', 'wy')]
 		const h = fixture(songs)
 		h.mergeSelectedFavorites(songs, new Set([groups.getFavoriteMergeCandidates(songs)[0].id]))
 		const merged = h.current()[0]
 		h.useLibraryStore.getState().toggleTrackFavorite(track('new', 'kg', { title: 'New' }))
-		assert.equal(h.undoFavoriteMerge(), false)
+		assert.equal(h.undoFavoriteMerge(), true)
+		assert.deepEqual(
+			Array.from(h.current(), (item) => item.id),
+			['one', 'two', 'new'],
+		)
+		h.mergeSelectedFavorites(
+			h.current(),
+			new Set([groups.getFavoriteMergeCandidates(h.current())[0].id]),
+		)
 		h.splitFavoriteGroup(merged)
 		assert.equal(h.current().length, 3)
 		assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 1)
 		assert.equal(groups.normalizeFavoriteGroups(h.current()).length, 3)
 		assert.equal(groups.getFavoriteMergeCandidates(h.current()).length, 0)
+	},
+)
+await check(
+	'undo retains unrelated removals, edits and current order across multiple groups',
+	() => {
+		const songs = [
+			track('one'),
+			track('unrelated', 'tx', { title: 'Other' }),
+			track('two', 'wy'),
+			track('three', 'tx', { title: 'Second' }),
+			track('four', 'wy', { title: 'Second' }),
+			track('removed', 'kg', { title: 'Removed' }),
+		]
+		const h = fixture(songs)
+		h.mergeSelectedFavorites(
+			songs,
+			new Set(groups.getFavoriteMergeCandidates(songs).map((group) => group.id)),
+		)
+		const [first, unrelated, second] = h.current()
+		const edited = { ...unrelated, title: 'Edited', lyric: { rawLrc: 'Keep this edit' } }
+		h.replaceFavorites([second, edited, first])
+		assert.equal(h.undoFavoriteMerge(), true)
+		assert.deepEqual(
+			h.current().map((item) => item.id),
+			['three', 'four', 'unrelated', 'one', 'two'],
+		)
+		assert.deepEqual(h.current()[2], edited)
+		assert.equal(h.undoFavoriteMerge(), false)
+	},
+)
+await check(
+	'undo refuses group edits, removal, splits and new overlapping platform entries atomically',
+	() => {
+		const songs = [
+			track('one'),
+			track('two', 'wy'),
+			track('three', 'tx', { title: 'Second' }),
+			track('four', 'wy', { title: 'Second' }),
+		]
+		for (const change of [
+			(h) =>
+				h.replaceFavorites(
+					h.current().map((item, i) => (i === 1 ? { ...item, title: 'Changed' } : item)),
+				),
+			(h) => h.replaceFavorites(h.current().slice(0, 1)),
+			(h) => h.splitFavoriteGroup(h.current()[1]),
+			(h) => h.replaceFavorites([...h.current(), track('two', 'wy')]),
+			(h) => h.preferFavoriteSource(h.current()[1], track('four', 'wy')),
+		]) {
+			const h = fixture(songs)
+			h.mergeSelectedFavorites(
+				songs,
+				new Set(groups.getFavoriteMergeCandidates(songs).map((group) => group.id)),
+			)
+			change(h)
+			const before = JSON.stringify(h.current())
+			assert.equal(h.undoFavoriteMerge(), false)
+			assert.equal(JSON.stringify(h.current()), before)
+			assert.equal(h.disk.has('music.favoriteMergeUndo'), true)
+		}
+	},
+)
+await check(
+	'scoped undo survives restart and failed writes; legacy snapshots remain compatible',
+	() => {
+		const songs = [track('one'), track('two', 'wy')]
+		const h = fixture(songs)
+		h.mergeSelectedFavorites(songs, new Set([groups.getFavoriteMergeCandidates(songs)[0].id]))
+		const recovery = h.disk.get('music.favoriteMergeUndo')
+		const restarted = fixture([...h.current(), track('new', 'kg', { title: 'New' })])
+		restarted.disk.set('music.favoriteMergeUndo', recovery)
+		restarted.fail('music.favorites')
+		assert.throws(() => restarted.undoFavoriteMerge(), /Storage failed/)
+		assert.deepEqual(restarted.disk.get('music.favoriteMergeUndo'), recovery)
+		assert.equal(restarted.current().length, 2)
+		assert.equal(restarted.undoFavoriteMerge(), true)
+		assert.deepEqual(
+			restarted.current().map((item) => item.id),
+			['one', 'two', 'new'],
+		)
+		const legacy = { before: recovery.before, after: recovery.after }
+		const old = fixture(recovery.after)
+		old.disk.set('music.favoriteMergeUndo', legacy)
+		old.replaceFavorites([...old.current(), track('new', 'kg', { title: 'New' })])
+		assert.equal(old.undoFavoriteMerge(), false)
+		old.replaceFavorites(recovery.after)
+		assert.equal(old.undoFavoriteMerge(), true)
+		assert.deepEqual(old.current(), songs)
+	},
+)
+await check(
+	'default favorite source persists, retains every platform and rejects stale choices',
+	() => {
+		const first = track('one', 'tx', { cachedQuality: 'flac' })
+		const second = track('two', 'wy', { lyric: { rawLrc: 'saved' } })
+		const h = fixture([
+			groups.mergeFavoriteGroup([first, second]),
+			track('other', 'kg', { title: 'Other' }),
+		])
+		const before = h.current()
+		assert.equal(h.preferFavoriteSource(first, track('missing', 'wy')), undefined)
+		assert.equal(h.current(), before)
+		const preferred = h.preferFavoriteSource(first, second)
+		assert.equal(preferred.platform, 'wy')
+		assert.equal(h.current()[0], preferred)
+		assert.deepEqual(preferred.lyric, second.lyric)
+		assert.equal(preferred.sourceAlternatives[0].cachedQuality, 'flac')
+		assert.equal(h.current()[1], before[1])
+		const restarted = fixture(h.disk.get('music.favorites'))
+		assert.equal(restarted.current()[0].platform, 'wy')
+		assert.equal(
+			groups.normalizeFavoriteGroups([...restarted.current(), first, second])[0].platform,
+			'wy',
+		)
+		assert.equal(groups.getFavoriteVariants(restarted.current()[0]).length, 2)
+		const saved = h.current()
+		assert.equal(h.preferFavoriteSource(first, second), preferred)
+		assert.equal(h.current(), saved)
+		h.fail('music.favorites')
+		assert.throws(() => h.preferFavoriteSource(first, first), /Storage failed/)
+		assert.equal(h.current(), saved)
+		h.replaceFavorites([first])
+		assert.equal(h.preferFavoriteSource(first, second), undefined)
+		h.replaceFavorites([])
+		assert.equal(h.preferFavoriteSource(first, second), undefined)
 	},
 )
 await check(
@@ -275,7 +408,8 @@ await check(
 	'actual song menu exposes every platform, plays the chosen version and can split favorites',
 	async () => {
 		const h = fixture([groups.mergeFavoriteGroup([track('one'), track('two', 'wy')])]),
-			played = []
+			played = [],
+			alerts = []
 		const { TrackShortcutsMenu } = loadModule(
 			'src/components/TrackShortcutsMenu.tsx',
 			{
@@ -293,7 +427,7 @@ await check(
 				'@/utils/i18n': { t: (key) => key },
 				'@/components/ActionMenu': { MenuView: 'MenuView' },
 				'expo-router': { useFocusEffect() {}, useRouter: () => ({}) },
-				'react-native': { Alert: { alert() {} } },
+				'react-native': { Alert: { alert: (...args) => alerts.push(args) } },
 				'@/helpers/favoriteGroups': groups,
 				'@/helpers/favoriteGroupActions': h,
 				'@/helpers/downloadQuality': loadModule('src/helpers/downloadQuality.ts', {
@@ -303,14 +437,41 @@ await check(
 			{ React: react },
 		)
 		const menu = TrackShortcutsMenu({ track: h.current()[0] })
+		const sources = menu.props.actions.find((action) => action.id === 'select-source')
+		assert.equal(sources.title, 'menu.preferSource')
+		assert.deepEqual(
+			Array.from(sources.subactions, (action) => action.state),
+			['on', 'off'],
+		)
 		assert.equal(
 			menu.props.actions.find((action) => action.id === 'select-source').subactions.length,
 			2,
 		)
 		await menu.props.onPressAction({ nativeEvent: { event: 'play-source-1' } })
 		assert.equal(played[0].platform, 'wy')
+		assert.equal(h.disk.get('music.favorites')[0].platform, 'wy')
+		assert.equal(played[0], h.current()[0])
+		const updated = TrackShortcutsMenu({ track: track('one') })
+		const updatedSources = updated.props.actions.find((action) => action.id === 'select-source')
+		assert.equal(updatedSources.subactions[0].title, 'wy')
+		assert.equal(updatedSources.subactions[0].state, 'on')
+		h.fail('music.favorites')
+		await updated.props.onPressAction({ nativeEvent: { event: 'play-source-1' } })
+		assert.equal(played.length, 1)
+		assert.equal(h.current()[0].platform, 'wy')
+		assert.equal(alerts[0][0], 'favoriteGroups.failed')
 		await menu.props.onPressAction({ nativeEvent: { event: 'split-favorite' } })
 		assert.equal(h.current().length, 2)
+		const saved = h.current()
+		const searchMenu = TrackShortcutsMenu({
+			track: groups.mergeFavoriteGroup([track('external'), track('external-wy', 'wy')]),
+		})
+		const searchSources = searchMenu.props.actions.find((action) => action.id === 'select-source')
+		assert.equal(searchSources.title, 'menu.selectSource')
+		assert.equal(searchSources.subactions[0].state, 'off')
+		await searchMenu.props.onPressAction({ nativeEvent: { event: 'play-source-1' } })
+		assert.equal(played[1].id, 'external-wy')
+		assert.equal(h.current(), saved)
 	},
 )
 await check(

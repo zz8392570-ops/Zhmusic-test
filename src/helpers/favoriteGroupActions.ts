@@ -9,13 +9,14 @@ import {
 } from './favoriteGroups'
 import type { Track } from '@/player/types'
 
+const identity = (track: Track) => JSON.stringify([track.platform, track.id])
+
 export const mergeSelectedFavorites = (baseline: Track[], selected: Set<string>) => {
 	const current = useLibraryStore.getState().favorites as Track[]
 	const candidates = getFavoriteMergeCandidates(baseline).filter(
 		(group) => !group.review && selected.has(group.id),
 	)
 	const byIdentity = new Map<string, number[]>()
-	const identity = (track: Track) => JSON.stringify([track.platform, track.id])
 	current.forEach((track, index) => {
 		const key = identity(track)
 		const indexes = byIdentity.get(key) ?? []
@@ -24,6 +25,7 @@ export const mergeSelectedFavorites = (baseline: Track[], selected: Set<string>)
 	})
 	const replacements = new Map<number, Track>()
 	const removed = new Set<number>()
+	const undoGroups: { before: number[]; after: Track }[] = []
 	let merged = 0
 	for (const group of candidates) {
 		const indexes: number[] = []
@@ -40,7 +42,10 @@ export const mergeSelectedFavorites = (baseline: Track[], selected: Set<string>)
 		}
 		if (indexes.some((index) => index < 0)) continue
 		indexes.sort((a, b) => a - b)
-		replacements.set(indexes[0], mergeFavoriteGroup(indexes.map((index) => current[index])))
+		const before = indexes.map((index) => current[index])
+		const after = mergeFavoriteGroup(before)
+		replacements.set(indexes[0], after)
+		undoGroups.push({ before: indexes, after })
 		for (const index of indexes.slice(1)) removed.add(index)
 		merged++
 	}
@@ -52,6 +57,10 @@ export const mergeSelectedFavorites = (baseline: Track[], selected: Set<string>)
 	PersistStatus.set('music.favoriteMergeUndo', {
 		before: copyLibraryTracks(current) as IMusic.IMusicItem[],
 		after: copyLibraryTracks(next) as IMusic.IMusicItem[],
+		groups: undoGroups.map((group) => ({
+			before: group.before,
+			after: next.indexOf(group.after),
+		})),
 	})
 	try {
 		replaceFavorites(next as IMusic.IMusicItem[])
@@ -63,16 +72,74 @@ export const mergeSelectedFavorites = (baseline: Track[], selected: Set<string>)
 }
 export const undoFavoriteMerge = () => {
 	const undo = PersistStatus.get('music.favoriteMergeUndo')
-	if (!undo || JSON.stringify(useLibraryStore.getState().favorites) !== JSON.stringify(undo.after))
-		return false
+	if (!undo) return false
+	const current = useLibraryStore.getState().favorites
+	let next = undo.before
+	if (JSON.stringify(current) !== JSON.stringify(undo.after)) {
+		// Older recovery records remain usable when the complete snapshot still matches.
+		if (!undo.groups?.length) return false
+		const replacements = new Map<number, IMusic.IMusicItem[]>()
+		const owners = new Map<string, Set<number>>()
+		for (const [index, item] of current.entries()) {
+			for (const variant of getFavoriteVariants(item)) {
+				const key = identity(variant)
+				const indexes = owners.get(key) ?? new Set<number>()
+				indexes.add(index)
+				owners.set(key, indexes)
+			}
+		}
+		for (const group of undo.groups) {
+			const merged = undo.after[group.after]
+			const matches = [...(owners.get(identity(merged)) ?? [])].filter((index) =>
+				isUneditedLibraryTrack(current[index], merged),
+			)
+			if (matches.length !== 1 || replacements.has(matches[0])) return false
+			const index = matches[0]
+			// Do not restore copies of a platform version that has since been added elsewhere.
+			if (
+				getFavoriteVariants(merged).some((variant) => {
+					const indexes = owners.get(identity(variant))
+					return indexes && (indexes.size !== 1 || !indexes.has(index))
+				})
+			)
+				return false
+			replacements.set(
+				index,
+				group.before.map((originalIndex) => undo.before[originalIndex]),
+			)
+		}
+		next = current.flatMap((item, index) => replacements.get(index) ?? [item])
+	}
 	PersistStatus.set('music.favoriteMergeUndo', undefined)
 	try {
-		replaceFavorites(undo.before)
+		replaceFavorites(next)
 	} catch (error) {
 		PersistStatus.set('music.favoriteMergeUndo', undo)
 		throw error
 	}
 	return true
+}
+
+/** The group's primary record is also its persisted default playback source. */
+export const preferFavoriteSource = (track: Track, source: Track): Track | undefined => {
+	const current = useLibraryStore.getState().favorites as Track[]
+	const index = current.findIndex((item) => isFavoriteTrack(item, track))
+	if (index < 0) return undefined
+	const favorite = current[index]
+	const variants = getFavoriteVariants(favorite)
+	const selected = variants.find(
+		(item) => item.id === source.id && item.platform === source.platform,
+	)
+	if (!selected) return undefined
+	if (favorite.id === selected.id && favorite.platform === selected.platform) return favorite
+	const preferred = mergeFavoriteGroup([
+		selected,
+		...variants.filter((item) => item.id !== selected.id || item.platform !== selected.platform),
+	])
+	replaceFavorites(
+		current.map((item, i) => (i === index ? preferred : item)) as IMusic.IMusicItem[],
+	)
+	return preferred
 }
 export const splitFavoriteGroup = (track: Track) => {
 	const current = useLibraryStore.getState().favorites as Track[]

@@ -13,7 +13,7 @@ import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
 import { Alert } from 'react-native'
 import { getFavoriteVariants, getFavoriteIndex } from '@/helpers/favoriteGroups'
-import { splitFavoriteGroup } from '@/helpers/favoriteGroupActions'
+import { preferFavoriteSource, splitFavoriteGroup } from '@/helpers/favoriteGroupActions'
 import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
 
 type TrackShortcutsMenuProps = PropsWithChildren<{
@@ -56,7 +56,7 @@ export const TrackShortcutsMenu = ({
 				? [
 						{
 							id: 'select-source',
-							title: i18n.t('menu.selectSource'),
+							title: i18n.t(isFavorite ? 'menu.preferSource' : 'menu.selectSource'),
 							image: 'antenna.radiowaves.left.and.right',
 							subactions: sourceOptions.map((item, index) => {
 								const labelKey = getMusicPlatformLabelKey(item.platform)
@@ -64,12 +64,13 @@ export const TrackShortcutsMenu = ({
 									id: `play-source-${index}`,
 									title: labelKey ? i18n.t(labelKey) : String(item.platform ?? '').toUpperCase(),
 									image: 'music.note',
+									state: isFavorite && index === 0 ? 'on' : 'off',
 								}
 							}),
 						},
 					]
 				: [],
-		[sourceOptions],
+		[sourceOptions, isFavorite],
 	)
 
 	const updateIsInPlaylist = useCallback(() => {
@@ -197,7 +198,14 @@ export const TrackShortcutsMenu = ({
 				async (actionId) => {
 					const index = Number(actionId.replace('play-source-', ''))
 					const selectedSource = sourceOptions[index]
-					if (selectedSource) await myTrackPlayer.play(selectedSource as IMusic.IMusicItem)
+					if (selectedSource) {
+						try {
+							const preferred = preferFavoriteSource(track, selectedSource)
+							await myTrackPlayer.play((preferred ?? selectedSource) as IMusic.IMusicItem)
+						} catch {
+							Alert.alert(i18n.t('favoriteGroups.failed'))
+						}
+					}
 				},
 			)
 			.otherwise(() => {
