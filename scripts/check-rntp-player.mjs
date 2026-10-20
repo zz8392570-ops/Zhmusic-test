@@ -1966,6 +1966,414 @@ await check(
 	},
 )
 
+await check(
+	'dislike rules skip automatic choices across platforms while manual selection remains available',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('allowed-a', { title: 'Allowed A', artist: 'Singer A' }),
+			b = song('blocked', { title: 'Same song', artist: 'Singer B' }),
+			other = { ...b, id: 'other-platform', platform: 'wy' },
+			c = song('allowed-c', { title: 'Allowed C', artist: 'Singer C' })
+		h.facade.addAll([a, b, other, c])
+		await h.facade.play(a)
+		h.facade.dislikeSong(b)
+		assert.equal(h.facade.getNextMusic().id, c.id)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, c.id)
+		await h.facade.skipToPrevious()
+		assert.equal(h.facade.getCurrentMusic().id, a.id)
+		await h.facade.play(b)
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+		assert.equal(h.player.isPlaying(), true)
+		h.facade.setRepeatMode('SINGLE')
+		h.player.activeIndex = 1
+		h.emit('MediaItemTransition', { index: 1, item: h.player.queue[1] })
+		await flush()
+		assert.equal(h.facade.getCurrentMusic().id, c.id)
+		const rule = h.persistence.get('music.dislikeRules')[0]
+		h.facade.removeDislikeRule(rule.id)
+		await h.facade.play(a)
+		assert.equal(h.facade.getNextMusic().id, a.id)
+		h.facade.setRepeatMode('QUEUE')
+		assert.equal(h.facade.getNextMusic().id, b.id)
+	},
+)
+await check(
+	'independent play-later drains in order and returns to the original queue without inserting temporary songs',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const [a, b, c, t, u] = ['a', 'b', 'c', 'temporary', 'temporary-two'].map((id) => song(id))
+		h.facade.addAll([a, b, c])
+		await h.facade.play(a)
+		const original = JSON.stringify(h.facade.getPlayList())
+		assert.equal(await h.facade.addToPlayLater([t, u]), 2)
+		assert.equal(await h.facade.addToPlayLater(t), 0)
+		assert.equal(h.facade.getNextMusic().id, t.id)
+		for (const expected of [t, u, b, c]) {
+			await h.facade.skipToNext()
+			assert.equal(h.facade.getCurrentMusic().id, expected.id)
+			assert.equal(JSON.stringify(h.facade.getPlayList()), original)
+		}
+		assert.equal(h.facade.getPlayLaterState().pending.length, 0)
+		assert.equal(h.facade.getPlayLaterState().active, undefined)
+		assert.equal(
+			h.persistence.get('music.recentlyPlayed').some((track) => track.playLaterEntryId),
+			false,
+		)
+	},
+)
+await check('a temporary copy of a base-queue song has separate playback identity', async () => {
+	const h = runtime()
+	await h.setup()
+	const a = song('a'),
+		b = song('b'),
+		c = song('c')
+	h.facade.addAll([a, b, c])
+	await h.facade.play(a)
+	await h.facade.addToPlayLater(b)
+	await h.facade.skipToNext()
+	assert.ok(h.facade.getCurrentMusic().playLaterEntryId)
+	const temporaryMediaId = h.player.queue[0].mediaId
+	assert.equal(
+		h.load('src/helpers/favoritePlayback.ts').isPlaybackQueueTrack(b, h.facade.getCurrentMusic()),
+		false,
+	)
+	await h.facade.skipToNext()
+	assert.equal(h.facade.getCurrentMusic().id, b.id)
+	assert.equal(h.facade.getCurrentMusic().playLaterEntryId, undefined)
+	assert.notEqual(h.player.queue[0].mediaId, temporaryMediaId)
+	await h.facade.skipToNext()
+	assert.equal(h.facade.getCurrentMusic().id, c.id)
+})
+await check(
+	'removing or moving the base anchor during temporary playback preserves the return point',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('anchor'),
+			b = song('successor'),
+			c = song('third'),
+			t = song('temporary')
+		h.facade.addAll([a, b, c])
+		await h.facade.play(a)
+		await h.facade.addToPlayLater(t)
+		await h.facade.skipToNext()
+		await h.facade.remove(a)
+		assert.equal(h.facade.getCurrentMusic().id, t.id)
+		assert.equal(h.facade.getNextMusic().id, b.id)
+		h.facade.moveQueueTrack(0, 1)
+		assert.equal(h.facade.getNextMusic().id, b.id)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+		assert.deepEqual(
+			h.facade.getPlayList().map((track) => track.id),
+			[c.id, b.id],
+		)
+	},
+)
+await check(
+	'clearing waiting temporary entries keeps the active entry; clearing all upcoming songs does not insert it into the base queue',
+	async () => {
+		for (const clearAll of [false, true]) {
+			const h = runtime()
+			await h.setup()
+			const a = song('a'),
+				b = song('b'),
+				t = song('temporary'),
+				u = song('waiting')
+			h.facade.addAll([a, b])
+			await h.facade.play(a)
+			await h.facade.addToPlayLater([t, u])
+			await h.facade.skipToNext()
+			if (clearAll) await h.facade.clearToBePlayed()
+			else h.facade.clearPlayLater()
+			assert.equal(h.facade.getCurrentMusic().id, t.id)
+			assert.equal(h.facade.getPlayLaterState().pending.length, 0)
+			assert.equal(h.facade.getPlayLaterState().active.track.id, t.id)
+			assert.equal(
+				h.facade.getPlayList().some((track) => track.id === t.id),
+				false,
+			)
+			await h.facade.skipToNext()
+			assert.equal(h.facade.getCurrentMusic()?.id ?? null, clearAll ? null : b.id)
+		}
+	},
+)
+await check(
+	'temporary playback restores paused after restart and restoration-off retains the interrupted item as pending',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('a'),
+			b = song('b'),
+			t = song('temporary'),
+			u = song('waiting')
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		await h.facade.addToPlayLater([t, u])
+		await h.facade.skipToNext()
+		const state = h.persistence.get('music.playLater')
+		for (const restore of [true, false]) {
+			const restarted = runtime()
+			for (const key of ['music.play-list', 'music.playLater', 'music.musicItem'])
+				restarted.persistence.set(key, h.persistence.get(key))
+			restarted.persistence.set('music.restorePlaybackOnStartup', restore)
+			await restarted.setup()
+			assert.equal(restarted.player.isPlaying(), false)
+			if (restore) {
+				assert.equal(restarted.facade.getCurrentMusic().id, t.id)
+				assert.equal(restarted.facade.getCurrentMusic().playLaterEntryId, state.active.id)
+				assert.equal(restarted.facade.getPlayList().length, 2)
+				await restarted.facade.skipToNext()
+				assert.equal(restarted.facade.getCurrentMusic().id, u.id)
+				await restarted.facade.skipToNext()
+				assert.equal(restarted.facade.getCurrentMusic().id, b.id)
+			} else {
+				assert.equal(restarted.facade.getCurrentMusic(), null)
+				assert.equal(restarted.facade.getPlayLaterState().active, undefined)
+				assert.deepEqual(
+					restarted.facade.getPlayLaterState().pending.map((entry) => entry.track.id),
+					[t.id, u.id],
+				)
+			}
+		}
+	},
+)
+await check(
+	'platform failover of a temporary song keeps its independent identity and original return point',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('a'),
+			b = song('b')
+		const { group } = favoritePlatforms(h)
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		await h.facade.addToPlayLater(group)
+		h.setResolver(async (track) => ({
+			url:
+				track.platform === 'tx' && track.id === group.id
+					? 'fixture://fake-audio.mp3'
+					: 'https://media.example/ok.mp3',
+			wasCached: false,
+		}))
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().platform, 'wy')
+		assert.equal(
+			h.facade.getCurrentMusic().playLaterEntryId,
+			h.facade.getPlayLaterState().active.id,
+		)
+		assert.deepEqual(
+			h.facade.getPlayList().map((track) => track.id),
+			[a.id, b.id],
+		)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+	},
+)
+await check(
+	'single-repeat plays temporary entries once, then returns to the original song',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('a'),
+			b = song('b'),
+			t = song('temporary')
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		h.facade.setRepeatMode('SINGLE')
+		await h.facade.addToPlayLater(t)
+		for (const expected of [t, a, a]) {
+			h.player.activeIndex = 1
+			h.emit('MediaItemTransition', { index: 1, item: h.player.queue[1] })
+			await flush()
+			assert.equal(h.facade.getCurrentMusic().id, expected.id)
+		}
+	},
+)
+await check(
+	'all-disliked selections stop without looping; blocked pending entries remain available for manual play',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('a', { artist: 'Blocked Singer' }),
+			b = song('b', { artist: 'Blocked Singer' }),
+			t = song('temporary', { artist: 'Blocked Singer' })
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		h.facade.dislikeArtist('Blocked Singer')
+		await h.facade.addToPlayLater(t)
+		await h.facade.skipToNext()
+		assert.equal(h.player.isPlaying(), false)
+		assert.equal(h.sourceCalls.length, 1)
+		assert.equal(h.facade.getPlayLaterState().pending.length, 1)
+		await h.facade.playLaterNow(h.facade.getPlayLaterState().pending[0].id)
+		assert.equal(h.facade.getCurrentMusic().id, t.id)
+		assert.equal(h.player.isPlaying(), true)
+	},
+)
+await check(
+	'manual playlist selection retires temporary context and ignores its late source result',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('a'),
+			b = song('new-base'),
+			t = song('temporary'),
+			u = song('waiting')
+		h.facade.addAll([a])
+		await h.facade.play(a)
+		await h.facade.addToPlayLater([t, u])
+		const late = deferred()
+		h.setResolver(async (track) =>
+			track.id === t.id ? late.promise : { url: track.url, wasCached: false },
+		)
+		const selecting = h.facade.skipToNext()
+		await flush()
+		await h.facade.playWithReplacePlayList(b, [b])
+		late.resolve({ url: t.url, wasCached: false })
+		await selecting
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+		assert.equal(h.facade.getPlayLaterState().active, undefined)
+		assert.equal(h.facade.getPlayLaterState().pending[0].track.id, u.id)
+		assert.equal(h.player.queue[0].extras.cymusic.id, b.id)
+	},
+)
+await check(
+	'failed preference writes leave the pending queue and current playback unchanged',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('a'),
+			t = song('temporary')
+		h.facade.addAll([a])
+		await h.facade.play(a)
+		const save = h.persistence.set
+		h.persistence.set = (key, value) => {
+			if (key === 'music.playLater' || key === 'music.dislikeRules') throw new Error('disk full')
+			save(key, value)
+		}
+		await assert.rejects(h.facade.addToPlayLater(t), /disk full/)
+		assert.throws(() => h.facade.dislikeSong(a), /disk full/)
+		assert.equal(h.facade.getPlayLaterState().pending.length, 0)
+		assert.equal(h.facade.getCurrentMusic().id, a.id)
+		h.persistence.set = save
+		await h.facade.addToPlayLater(t)
+		h.persistence.set = (key, value) => {
+			if (key === 'music.playLater') throw new Error('disk full')
+			save(key, value)
+		}
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getPlayLaterState().pending[0].track.id, t.id)
+		assert.equal(h.facade.getCurrentMusic().id, a.id)
+		assert.equal(h.sourceCalls.length, 1)
+	},
+)
+
+await check(
+	'automatic playlist start skips disliked songs and explicit song selection still overrides the rule',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('blocked', { artist: 'Blocked' }),
+			b = song('allowed', { artist: 'Allowed' })
+		h.facade.dislikeArtist('Blocked')
+		await h.facade.playWithReplacePlayList(a, [a, b], true)
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+		await h.facade.playWithReplacePlayList(a, [a, b])
+		assert.equal(h.facade.getCurrentMusic().id, a.id)
+		h.facade.dislikeArtist('Allowed')
+		await h.facade.playWithReplacePlayList(a, [a, b], true)
+		assert.equal(h.player.isPlaying(), false)
+		assert.equal(h.facade.getCurrentMusic(), null)
+		assert.equal(h.facade.getPlayList().length, 2)
+	},
+)
+await check(
+	'an initially empty player can play a temporary queue and stops after it drains',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const t = song('temporary'),
+			u = song('waiting')
+		await h.facade.addToPlayLater([t, u])
+		assert.equal(h.facade.getCurrentMusic().id, t.id)
+		assert.equal(h.facade.getPlayList().length, 0)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, u.id)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic(), null)
+		assert.equal(h.player.isPlaying(), false)
+	},
+)
+await check(
+	'Previous during temporary playback returns to the base anchor and retains pending entries',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('anchor'),
+			b = song('next'),
+			t = song('temporary'),
+			u = song('waiting')
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		await h.facade.addToPlayLater([t, u])
+		await h.facade.skipToNext()
+		await h.facade.skipToPrevious()
+		assert.equal(h.facade.getCurrentMusic().id, a.id)
+		assert.equal(h.facade.getPlayLaterState().pending[0].track.id, u.id)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, u.id)
+	},
+)
+await check(
+	'unavailable temporary platform variants recover to the next eligible base song once',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('anchor'),
+			b = song('next')
+		const { group } = favoritePlatforms(h)
+		h.facade.addAll([a, b])
+		await h.facade.play(a)
+		await h.facade.addToPlayLater(group)
+		h.setResolver(async (track) => ({
+			url: track.title === group.title ? 'fixture://fake-audio.mp3' : track.url,
+			wasCached: false,
+		}))
+		const selecting = h.facade.skipToNext()
+		await flush()
+		assert.equal(h.delays.length, 1)
+		h.delays[0].resolve()
+		await selecting
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+		assert.equal(h.facade.getPlayLaterState().active, undefined)
+		assert.equal(h.facade.getPlayList().length, 2)
+	},
+)
+
+await check(
+	'removing the last base anchor during temporary playback wraps to the original first song',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const a = song('first'),
+			b = song('last'),
+			t = song('temporary')
+		h.facade.addAll([a, b])
+		await h.facade.play(b)
+		await h.facade.addToPlayLater(t)
+		await h.facade.skipToNext()
+		await h.facade.remove(b)
+		assert.equal(h.facade.getCurrentMusic().id, t.id)
+		assert.equal(h.facade.getNextMusic().id, a.id)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, a.id)
+	},
+)
+
 await fixture.dispose()
 const failed = results.filter((result) => !result.passed)
 console.log(

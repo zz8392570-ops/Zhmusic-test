@@ -249,6 +249,8 @@ const RootNavigation = () => {
 					['(modals)/recycleBin', 'recycleBin.title'],
 					['(modals)/favoriteDuplicates', 'favoriteGroups.title'],
 					['(modals)/favoriteVersions', 'versions.title'],
+					['(modals)/dislikes', 'dislikes.title'],
+					['(modals)/playLater', 'playLater.title'],
 					['(modals)/libraryRepair', 'maintenance.title'],
 					['(modals)/libraryHistory', 'history.title'],
 					['(modals)/sourceDiagnostics', 'diagnostics.title'],

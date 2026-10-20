@@ -208,6 +208,7 @@ export const TracksList = React.memo(
 			() => ({
 				currentTrackId: currentMusic?.id ?? null,
 				currentTrackPlatform: currentMusic?.platform ?? null,
+				playLaterEntryId: currentMusic?.playLaterEntryId ?? null,
 				queueOriginId: queueOrigin?.id,
 				queueOriginPlatform: queueOrigin?.platform,
 				playing,
@@ -217,6 +218,7 @@ export const TracksList = React.memo(
 			[
 				currentMusic?.id,
 				currentMusic?.platform,
+				currentMusic?.playLaterEntryId,
 				queueOrigin?.id,
 				queueOrigin?.platform,
 				playing,

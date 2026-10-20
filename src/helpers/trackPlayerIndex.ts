@@ -26,7 +26,6 @@ import PersistStatus from '@/store/PersistStatus'
 import {
 	getMusicIndex,
 	getPlayList,
-	getPlayListMusicAt,
 	isInPlayList,
 	isPlayListEmpty,
 	setPlayList,
@@ -48,6 +47,28 @@ import {
 import { resolveLocalFile } from './localFile'
 import { importLocalMusic } from './localMusicImport'
 import { resolveLibraryTrack } from './libraryEdits'
+import {
+	createDislikeMatcher,
+	createDislikeRule,
+	getDislikeArtistCredit,
+	normalizeDislikeRules,
+	type DislikeRule,
+} from './dislikeRules'
+import {
+	getPlayLaterState,
+	enqueuePlayLater,
+	activatePlayLater,
+	finishPlayLater,
+	clearPlayLater,
+	removePlayLater,
+	movePlayLater,
+	getPlayLaterAnchorIndex,
+	rebasePlayLaterAnchor,
+	restorePlayLater,
+	projectPlayLaterEntry,
+	isPlayLaterTrack,
+	cleanQueueTrack,
+} from '@/player/PlayLaterQueue'
 import {
 	createFavoritePlayback,
 	containsPlaybackVariant,
@@ -211,10 +232,10 @@ async function preloadNextTrack(position: number, duration: number) {
 		duration - position > 10 ||
 		duration - position <= 0 ||
 		current.url?.startsWith('file://') ||
-		repeatModeStore.getValue() === MusicRepeatMode.SINGLE
+		trackSourceLoadingStore.getValue() !== null
 	)
 		return
-	const next = getPlayListMusicAt(currentIndex + 1)
+	const next = getPlaybackCandidate(1, true)?.track
 	if (!next || isSameMediaItem(next, current as IMusic.IMusicItem)) return
 	if (autoCacheWifiOnlyStore.getValue()) {
 		try {
@@ -228,7 +249,7 @@ async function preloadNextTrack(position: number, duration: number) {
 		backgroundRevision !== revision ||
 		nativeQueue?.token !== token ||
 		playbackIntentStore.getValue() !== 'play' ||
-		!isSameMediaItem(next, getPlayListMusicAt(currentIndex + 1))
+		!isSameMediaItem(next, getPlaybackCandidate(1, true)?.track)
 	)
 		return
 	const attempt = JSON.stringify([
@@ -311,9 +332,10 @@ function handleNativeTransition(item: MediaItem | null | undefined, index: numbe
 		return
 	nativeQueue.handoffConsumed = true
 	logInfo('队列末尾，播放下一首')
-	const repeatCurrent = repeatModeStore.getValue() === MusicRepeatMode.SINGLE
+	const next = getPlaybackCandidate(1, true)?.track
+	const repeatCurrent = next && isSameMediaItem(next, currentMusicStore.getValue())
 	if (repeatCurrent) finishListeningSession('stopped')
-	const advance = repeatCurrent ? play(null, true) : skipToNext()
+	const advance = skipToNext(true)
 	void advance.catch((error) => logError('自动切歌失败', error))
 }
 
@@ -469,7 +491,12 @@ async function setupTrackPlayer() {
 	if (songsNumsToLoad) {
 		songsNumsToLoadStore.setValue(songsNumsToLoad)
 	}
-	if (restorePlaybackOnStartup && restoredMusic && getPlaybackMusicIndex(restoredMusic) >= 0) {
+	restorePlayLater(restorePlaybackOnStartup ? restoredMusic : null)
+	if (
+		restorePlaybackOnStartup &&
+		restoredMusic &&
+		(isPlayLaterTrack(restoredMusic) || getPlaybackMusicIndex(restoredMusic) >= 0)
+	) {
 		setCurrentMusic(restoredMusic)
 		setPlaybackIntent('pause')
 		await play(restoredMusic, true, undefined, false, true)
@@ -512,8 +539,7 @@ async function setupTrackPlayer() {
  * 获取下一个 track 并设置其属性为假音频。这在测试或处理特殊情况时非常有用
  */
 const getFakeNextTrack = (): Track => {
-	const repeatMode = repeatModeStore.getValue()
-	const track = getPlayListMusicAt(currentIndex + (repeatMode === MusicRepeatMode.SINGLE ? 0 : 1))
+	const track = getPlaybackCandidate(1, true)?.track
 	return {
 		id: track?.id ?? 'empty',
 		platform: track?.platform,
@@ -532,6 +558,7 @@ let favoritePlayback: FavoritePlayback | null = null
 // An alternate platform is still the same business-queue entry.
 const getPlaybackMusicIndex = (track?: IMusic.IMusicItem | null) => {
 	if (!track) return -1
+	if (isPlayLaterTrack(track)) return getPlayLaterAnchorIndex(getPlayList())
 	const origin = (track as Track).playbackQueueOrigin
 	if (origin) {
 		const index = getMusicIndex(origin as IMusic.IMusicItem)
@@ -542,6 +569,87 @@ const getPlaybackMusicIndex = (track?: IMusic.IMusicItem | null) => {
 		if (index >= 0) return index
 	}
 	return getMusicIndex(track)
+}
+
+function getPlaybackCandidate(direction: 1 | -1 = 1, automatic = false, excluded?: Track) {
+	const state = getPlayLaterState()
+	const disliked = createDislikeMatcher(
+		normalizeDislikeRules(PersistStatus.get('music.dislikeRules')),
+	)
+	const allowed = (track: IMusic.IMusicItem) =>
+		!disliked(track) &&
+		(!excluded ||
+			(!isSameMediaItem(track, excluded as IMusic.IMusicItem) &&
+				(!favoritePlayback || !containsPlaybackVariant(favoritePlayback, track))))
+	if (direction === 1) {
+		const later = state.pending.find((entry) => allowed(entry.track))
+		if (later) return { track: projectPlayLaterEntry(later), entryId: later.id }
+	}
+	const queue = getPlayList()
+	const single = automatic && repeatModeStore.getValue() === MusicRepeatMode.SINGLE
+	const current = currentMusicStore.getValue()
+	if (single && !state.active && current && getPlaybackMusicIndex(current) >= 0 && allowed(current))
+		return { track: current, entryId: undefined }
+	const anchorIndex = getPlayLaterAnchorIndex(queue, state)
+	const start = state.active
+		? anchorIndex +
+			(direction === -1 ? (state.anchor?.before ? -1 : 0) : single || state.anchor?.before ? 0 : 1)
+		: currentIndex < 0
+			? 0
+			: currentIndex + (single ? 0 : direction)
+	for (let offset = 0; offset < queue.length; offset++) {
+		const index = (((start + offset * direction) % queue.length) + queue.length) % queue.length
+		if (allowed(queue[index])) return { track: queue[index], entryId: undefined }
+	}
+	return null
+}
+
+function refreshPlaybackPlan() {
+	retireBackgroundTasks(true)
+	updateNextMetadata()
+}
+
+function addDislikeRule(rule: DislikeRule | null) {
+	if (!rule) return false
+	const rules = normalizeDislikeRules(PersistStatus.get('music.dislikeRules'))
+	if (!rules.some((item) => item.id === rule.id)) {
+		if (rules.length >= 5000) throw new Error('Dislike rule limit reached')
+		PersistStatus.set('music.dislikeRules', [...rules, rule])
+	}
+	refreshPlaybackPlan()
+	showToast(i18n.t('dislikes.added'), i18n.t('dislikes.description'), 'info')
+	return true
+}
+const dislikeSong = (track: Track) =>
+	addDislikeRule(createDislikeRule('song', getDislikeArtistCredit(track), track.title))
+const dislikeArtist = (artist: string) => addDislikeRule(createDislikeRule('artist', artist))
+const removeDislikeRule = (id: string) => {
+	PersistStatus.set(
+		'music.dislikeRules',
+		normalizeDislikeRules(PersistStatus.get('music.dislikeRules')).filter((rule) => rule.id !== id),
+	)
+	refreshPlaybackPlan()
+}
+const clearDislikeRules = () => {
+	PersistStatus.set('music.dislikeRules', [])
+	refreshPlaybackPlan()
+}
+
+const addToPlayLater = async (tracks: Track | Track[]) => {
+	const added = enqueuePlayLater(Array.isArray(tracks) ? tracks : [tracks])
+	showToast(i18n.t(added ? 'playLater.added' : 'playLater.exists'), '', 'info')
+	refreshPlaybackPlan()
+	if (!currentMusicStore.getValue()) await skipToNext()
+	return added
+}
+const playLaterNow = async (id: string) => {
+	const track = activatePlayLater(id, currentMusicStore.getValue(), currentIndex)
+	if (track) await play(track, true)
+}
+const changePlayLater = (action: () => unknown) => {
+	const result = action()
+	refreshPlaybackPlan()
+	return result
 }
 
 const switchPlaybackPlatform = (failed: IMusic.IMusicItem) => {
@@ -566,6 +674,9 @@ const switchPlaybackPlatform = (failed: IMusic.IMusicItem) => {
 	return next
 		? ({
 				...next,
+				...(favoritePlayback.root.playLaterEntryId
+					? { playLaterEntryId: favoritePlayback.root.playLaterEntryId }
+					: {}),
 				playbackQueueOrigin: favoritePlayback.root.playbackQueueOrigin ?? {
 					id: favoritePlayback.root.id,
 					platform: favoritePlayback.root.platform,
@@ -593,6 +704,9 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 				) ?? failedMusic),
 				...((failedMusic as Track).playbackQueueOrigin
 					? { playbackQueueOrigin: (failedMusic as Track).playbackQueueOrigin }
+					: {}),
+				...((failedMusic as Track).playLaterEntryId
+					? { playLaterEntryId: (failedMusic as Track).playLaterEntryId }
 					: {}),
 			} as IMusic.IMusicItem | null)
 		const sourceToken = trackSourceLoadingStore.getValue()
@@ -686,14 +800,7 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 				await play(platform, true, undefined, true)
 				return
 			}
-			const nextMusic = getPlayList()
-				.map((_, offset) => getPlayListMusicAt(currentIndex + offset + 1))
-				.find(
-					(item) =>
-						item &&
-						!isSameMediaItem(item, failedMusic) &&
-						(!favoritePlayback || !containsPlaybackVariant(favoritePlayback, item)),
-				)
+			const nextMusic = getPlaybackCandidate(1, false, failedMusic)?.track
 			const willSkip = nextMusic != null
 			const recoveryAction = await showSourceExhaustedNotice({
 				songTitle: failedMusic.title,
@@ -707,7 +814,7 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 				return
 			}
 			if (recoveryAction === 'next' && nextMusic) {
-				await play(nextMusic, true)
+				await skipToNext(false, failedMusic)
 				return
 			}
 			setPlaybackIntent('stop')
@@ -721,13 +828,13 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 		if (
 			favoritePlayback &&
 			favoritePlayback.variants.length > 1 &&
-			!getPlayList().some((item) => !containsPlaybackVariant(favoritePlayback!, item))
+			!getPlaybackCandidate(1, false, failedMusic)
 		) {
 			setPlaybackIntent('stop')
 			sourceLoadingErrorStore.setValue(i18n.t('player.sourceLoading.failed'))
 			return
 		}
-		await skipToNext()
+		await skipToNext(false, failedMusic)
 	} finally {
 		failoverInProgress = false
 	}
@@ -777,6 +884,7 @@ const addAll = (
 	if (shouldShuffle) {
 		newPlayList = shuffle(newPlayList)
 	}
+	rebasePlayLaterAnchor(currentPlayList, newPlayList)
 	setPlayList(newPlayList)
 	const currentMusicItem = currentMusicStore.getValue()
 
@@ -807,7 +915,11 @@ const addAsNextTrack = (musicItem: IMusic.IMusicItem | IMusic.IMusicItem[]) => {
  *
  */
 const isCurrentMusic = (musicItem: IMusic.IMusicItem | null | undefined) => {
-	return isSameMediaItem(musicItem, currentMusicStore.getValue()) ?? false
+	const current = currentMusicStore.getValue()
+	return (
+		(musicItem?.playLaterEntryId ?? null) === (current?.playLaterEntryId ?? null) &&
+		(isSameMediaItem(musicItem, current) ?? false)
+	)
 }
 /**
  * 从播放列表移除IMusicItem
@@ -827,7 +939,7 @@ const remove = async (musicItem: IMusic.IMusicItem) => {
 		return
 	}
 	// 2. 移除的是当前项
-	if (currentIndex === targetIndex) {
+	if (!isPlayLaterTrack(currentMusic) && currentIndex === targetIndex) {
 		// 2.1 停止播放，移除当前项
 		newPlayList = produce(playList, (draft) => {
 			draft.splice(targetIndex, 1)
@@ -853,6 +965,7 @@ const remove = async (musicItem: IMusic.IMusicItem) => {
 		})
 	}
 
+	rebasePlayLaterAnchor(playList, newPlayList)
 	setPlayList(newPlayList)
 	setCurrentMusic(currentMusic)
 	if (shouldPlayCurrent === true) {
@@ -878,6 +991,7 @@ const moveQueueTrack = (fromIndex: number, toIndex: number) => {
 	const next = [...playList]
 	const [item] = next.splice(fromIndex, 1)
 	next.splice(toIndex, 0, item)
+	rebasePlayLaterAnchor(playList, next)
 	setPlayList(next)
 	const current = currentMusicStore.getValue()
 	currentIndex = current ? getPlaybackMusicIndex(current) : -1
@@ -915,6 +1029,7 @@ const setRepeatMode = (mode: MusicRepeatMode) => {
 		} else {
 			newPlayList = sortByTimestampAndIndex(playList, true)
 		}
+		rebasePlayLaterAnchor(playList, newPlayList)
 		setPlayList(newPlayList)
 	}
 
@@ -929,6 +1044,7 @@ const setRepeatMode = (mode: MusicRepeatMode) => {
 
 /** 清空播放列表 */
 const clear = async () => {
+	clearPlayLater(true)
 	retireBackgroundTasks(true)
 	setPlayList([])
 	setCurrentMusic(null)
@@ -939,11 +1055,17 @@ const clear = async () => {
 }
 /** 清空待播列表 */
 const clearToBePlayed = async () => {
+	clearPlayLater()
 	retireBackgroundTasks(true)
 	// 获取当前正在播放的音乐
 	const currentMusic = currentMusicStore.getValue()
 
-	if (currentMusic) {
+	if (currentMusic && isPlayLaterTrack(currentMusic)) {
+		rebasePlayLaterAnchor(getPlayList(), [])
+		setPlayList([])
+		setCurrentMusic(currentMusic)
+		updateNextMetadata()
+	} else if (currentMusic) {
 		// 设置播放列表仅包含当前正在播放的音乐
 		setPlayList([currentMusic])
 		setCurrentMusic(currentMusic)
@@ -987,8 +1109,9 @@ const markPlaybackStarted = (track: IMusic.IMusicItem) => {
 	beginListeningSession(track, !!(playback?.started && playback.exhausted.size > 0))
 	if (playback) playback.started = true
 	const requestedTrack = currentMusicStore.getValue()
-	const recentTrack =
-		requestedTrack && isSameMediaItem(requestedTrack, track) ? requestedTrack : track
+	const recentTrack = cleanQueueTrack(
+		requestedTrack && isSameMediaItem(requestedTrack, track) ? requestedTrack : track,
+	)
 	const recent = recentlyPlayedStore
 		.getValue()
 		.filter((item) => !isSameMediaItem(item, recentTrack))
@@ -1392,6 +1515,9 @@ const play = async (
 		if (!musicItem) {
 			throw new Error(PlayFailReason.PLAY_LIST_IS_EMPTY)
 		}
+		if (musicItem.playLaterEntryId && !isPlayLaterTrack(musicItem))
+			musicItem = cleanQueueTrack(musicItem)
+		if (!isPlayLaterTrack(musicItem) && getPlayLaterState().active) finishPlayLater()
 		if (!isAutomaticRecovery && (!isCurrentMusic(musicItem) || forcePlay)) {
 			favoritePlayback = createFavoritePlayback(
 				musicItem,
@@ -1437,7 +1563,11 @@ const play = async (
 		}
 
 		// 2. Add to playlist if not present
-		if (!isInPlayList(musicItem) && getPlaybackMusicIndex(musicItem) < 0) {
+		if (
+			!isPlayLaterTrack(musicItem) &&
+			!isInPlayList(musicItem) &&
+			getPlaybackMusicIndex(musicItem) < 0
+		) {
 			add(musicItem)
 		}
 
@@ -1675,8 +1805,11 @@ const clearCache = async () => {
 const playWithReplacePlayList = async (
 	musicItem: IMusic.IMusicItem,
 	newPlayList: IMusic.IMusicItem[],
+	automaticStart = false,
 ) => {
 	if (newPlayList.length !== 0) {
+		finishPlayLater()
+		retireBackgroundTasks(true)
 		const now = Date.now()
 		const playListItems = newPlayList.map((item, index) => ({
 			...item,
@@ -1690,7 +1823,16 @@ const playWithReplacePlayList = async (
 			true,
 			true, // lazy index build - defer to first query
 		)
-		await play(musicItem, true)
+		const disliked = createDislikeMatcher(
+			normalizeDislikeRules(PersistStatus.get('music.dislikeRules')),
+		)
+		const initial = automaticStart ? getPlayList().find((track) => !disliked(track)) : musicItem
+		if (initial) await play(initial, true)
+		else {
+			setCurrentMusic(null)
+			reset()
+			showToast(i18n.t('dislikes.noEligible'), '', 'info')
+		}
 	}
 }
 
@@ -1707,6 +1849,9 @@ const runWithTrackSkipLoading = async (
 	trackSkipLoadingStore.setValue(direction)
 	try {
 		await action(operation)
+	} catch (error) {
+		logError('切歌时无法更新队列:', error)
+		showToast(i18n.t('playLater.failed'), '', 'error')
 	} finally {
 		if (activeTrackSkip === operation) {
 			retireTrackSkip()
@@ -1714,26 +1859,36 @@ const runWithTrackSkipLoading = async (
 	}
 }
 
-const skipToNext = async () => {
-	await runWithTrackSkipLoading('next', async (operation) => {
+const advancePlayback = (direction: 1 | -1, automatic = false, excluded?: Track) => {
+	const next = getPlaybackCandidate(direction, automatic, excluded)
+	if (!next) {
+		if (getPlayLaterState().active) finishPlayLater()
 		if (isPlayListEmpty()) {
 			setCurrentMusic(null)
 			reset()
-			return
+		} else {
+			stop()
+			showToast(i18n.t('dislikes.noEligible'), '', 'info')
 		}
-		await play(getPlayListMusicAt(currentIndex + 1), true, operation)
+		return null
+	}
+	if (next.entryId)
+		return activatePlayLater(next.entryId, currentMusicStore.getValue(), currentIndex)
+	finishPlayLater()
+	return next.track
+}
+
+const skipToNext = async (automatic = false, excluded?: Track) => {
+	await runWithTrackSkipLoading('next', async (operation) => {
+		const track = advancePlayback(1, automatic, excluded)
+		if (track) await play(track, true, operation)
 	})
 }
 
 const skipToPrevious = async () => {
 	await runWithTrackSkipLoading('previous', async (operation) => {
-		if (isPlayListEmpty()) {
-			setCurrentMusic(null)
-			reset()
-			return
-		}
-
-		await play(getPlayListMusicAt(currentIndex === -1 ? 0 : currentIndex - 1), true, operation)
+		const track = advancePlayback(-1)
+		if (track) await play(track, true, operation)
 	})
 }
 
@@ -1794,7 +1949,7 @@ function getPreviousMusic() {
 		return null
 	}
 
-	return getPlayListMusicAt(currentIndex - 1)
+	return getPlaybackCandidate(-1)?.track ?? null
 }
 
 function getNextMusic() {
@@ -1803,7 +1958,7 @@ function getNextMusic() {
 		return null
 	}
 
-	return getPlayListMusicAt(currentIndex + 1)
+	return getPlaybackCandidate(1, true)?.track ?? null
 }
 const addImportedLocalMusic = async (
 	musicItem: IMusic.IMusicItem[],
@@ -1879,6 +2034,16 @@ const myTrackPlayer = {
 	addAll,
 	add,
 	addAsNextTrack,
+	addToPlayLater,
+	playLaterNow,
+	getPlayLaterState,
+	removePlayLater: (id: string) => changePlayLater(() => removePlayLater(id)),
+	movePlayLater: (from: number, to: number) => changePlayLater(() => movePlayLater(from, to)),
+	clearPlayLater: () => changePlayLater(() => clearPlayLater()),
+	dislikeSong,
+	dislikeArtist,
+	removeDislikeRule,
+	clearDislikeRules,
 	skipToNext,
 	skipToPrevious,
 	play,

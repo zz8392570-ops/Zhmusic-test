@@ -8,6 +8,8 @@ export interface Track extends Partial<IMusic.IMusicItem> {
 	availablePlatforms?: string[]
 	/** Keep an automatic platform fallback at its original business-queue position. */
 	playbackQueueOrigin?: Pick<Track, 'id' | 'platform'>
+	/** Identity within the independent, persistent play-later queue. */
+	playLaterEntryId?: string
 	headers?: Record<string, string>
 	userAgent?: string
 	isLiveStream?: boolean

@@ -163,7 +163,8 @@ await check(
 		assert.equal(values.get('music.downloadFilenameTemplate'), '{title} - {artist}')
 		assert.equal(alerts.at(-1)[0], 'common.error')
 		const backup = loadModule('src/helpers/musicBackup.ts', {
-		'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+			'@/helpers/dislikeRules': loadModule('src/helpers/dislikeRules.ts', {}),
+			'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
 			'@/store/PersistStatus': store,
 			buffer: { Buffer },
 			'@/helpers/downloadFilename': naming,

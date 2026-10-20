@@ -3,7 +3,6 @@ import { ThemeColors } from '@/constants/tokens'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import { useUtilsStyles } from '@/styles'
-import { isSameMediaItem } from '@/utils/mediaItem'
 import i18n from '@/utils/i18n'
 import { showToast } from '@/utils/utils'
 import { FlashList, type FlashListRef } from '@shopify/flash-list'
@@ -13,6 +12,10 @@ import { Image } from 'expo-image'
 import type { Track } from '@/player/types'
 import { useIsPlaying } from '@rntp/player'
 import TracksListItem from './TracksListItem'
+import PersistStatus from '@/store/PersistStatus'
+import { normalizePlayLaterState } from '@/player/PlayLaterQueue'
+import { isPlaybackQueueTrack } from '@/helpers/favoritePlayback'
+import { router } from 'expo-router'
 
 export type TracksListProps = {
 	id: string
@@ -53,12 +56,13 @@ export const NowPlayList = React.memo(({ tracks }: TracksListProps) => {
 	const currentMusic = myTrackPlayer.useCurrentMusic()
 	const playing = useIsPlaying()
 	const [editingOrder, setEditingOrder] = useState(false)
+	const later = normalizePlayLaterState(PersistStatus.useValue('music.playLater'))
 
 	const initialIndex = useMemo(
 		() =>
 			currentMusic
 				? tracks.findIndex((track) =>
-						isSameMediaItem(
+						isPlaybackQueueTrack(
 							track as IMusic.IMusicItem,
 							currentMusic as IMusic.IMusicItem | null | undefined,
 						),
@@ -73,7 +77,7 @@ export const NowPlayList = React.memo(({ tracks }: TracksListProps) => {
 
 	const renderItem = useCallback(
 		({ item: track, index }: { item: Track; index: number }) => {
-			const isActiveTrack = isSameMediaItem(
+			const isActiveTrack = isPlaybackQueueTrack(
 				track as IMusic.IMusicItem,
 				currentMusic as IMusic.IMusicItem | null | undefined,
 			)
@@ -176,9 +180,10 @@ export const NowPlayList = React.memo(({ tracks }: TracksListProps) => {
 		() => ({
 			currentTrackId: currentMusic?.id ?? null,
 			currentTrackPlatform: currentMusic?.platform ?? null,
+			playLaterEntryId: currentMusic?.playLaterEntryId ?? null,
 			playing,
 		}),
-		[currentMusic?.id, currentMusic?.platform, playing],
+		[currentMusic?.id, currentMusic?.platform, currentMusic?.playLaterEntryId, playing],
 	)
 
 	return (
@@ -204,6 +209,22 @@ export const NowPlayList = React.memo(({ tracks }: TracksListProps) => {
 							</Text>
 						</Pressable>
 					</View>
+				</View>
+				<View style={styles.headerRow}>
+					<Pressable
+						accessibilityRole="button"
+						onPress={() => router.push('/(modals)/playLater')}
+						style={{ minHeight: 44, justifyContent: 'center' }}
+					>
+						<Text style={styles.headerActionText}>
+							{i18n.t('playLater.summary', { count: later.pending.length })}
+						</Text>
+					</Pressable>
+					{later.active ? (
+						<Text numberOfLines={1} style={[styles.headerActionText, { flexShrink: 1 }]}>
+							{i18n.t('playLater.playing', { title: later.active.track.title })}
+						</Text>
+					) : null}
 				</View>
 			</View>
 			<View style={styles.listContainer}>

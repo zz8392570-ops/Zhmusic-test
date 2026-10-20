@@ -1000,5 +1000,36 @@
 		"allow": "Allow other platform copies",
 		"description": "Off by default: reuse cached copies of the same recording. Explicit quality choices reuse the same quality only. Enable to download additional platform copies manually; automatic caching still avoids duplicates.",
 		"reused": "Reused a cached copy of this recording"
+	},
+	"dislikes": {
+		"title": "Dislike rules",
+		"menu": "Dislike…",
+		"song": "Dislike this song",
+		"artist": "Dislike artist: %{artist}",
+		"description": "Skip disliked songs and artists during automatic selection. You can still select a song manually.",
+		"hint": "Add rules from a song menu. Song rules match the title and full artist credit across providers; different titles such as Live and Remix remain separate.",
+		"added": "Dislike rule saved",
+		"failed": "Unable to save dislike rules. Please retry.",
+		"empty": "No dislike rules yet",
+		"artistRule": "Skip songs featuring this artist",
+		"remove": "Remove rule",
+		"clear": "Clear rules",
+		"confirmClear": "Automatic playback will include these songs and artists again.",
+		"noEligible": "No eligible songs. Select a song manually or change your dislike rules."
+	},
+	"playLater": {
+		"title": "Play later",
+		"add": "Add to play later",
+		"description": "These songs play after the current song, then return to your original playlist without changing its order. In single-repeat mode, playback returns to the original song.",
+		"added": "Added to play later",
+		"exists": "Already in play later",
+		"failed": "Unable to update play later. Please retry.",
+		"empty": "No waiting songs. Add songs from their menus.",
+		"summary": "Play later (%{count})",
+		"playing": "Playing: %{title}",
+		"playNow": "Play now: %{title}",
+		"clear": "Clear waiting songs",
+		"confirmClear": "Remove waiting songs here and keep the current song and original playlist.",
+		"disliked": "Matches a dislike rule and will be skipped automatically. Tap to play anyway."
 	}
 }

@@ -5,6 +5,7 @@ const key = (track: Track) => JSON.stringify([track.platform, track.id])
 
 export const isPlaybackQueueTrack = (track: Track, current?: Track | null) =>
 	!!current &&
+	!current.playLaterEntryId &&
 	(key(track) === key(current) ||
 		(!!current.playbackQueueOrigin && key(track) === key(current.playbackQueueOrigin)))
 

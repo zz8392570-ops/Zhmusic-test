@@ -285,4 +285,25 @@ await suite.check(
 		}
 	},
 )
+await suite.check(
+	'a temporary copy does not highlight or hijack the matching base-queue row',
+	async () => {
+		const track = {
+			id: 'temporary-copy',
+			platform: 'tx',
+			title: 'Song',
+			artist: 'Singer',
+			url: 'Unknown',
+		}
+		currentMusic = { ...track, playLaterEntryId: 'temporary-entry' }
+		const tree = TracksList({ id: 'base', tracks: [track] })
+		assert.equal(tree.props.extraData.playLaterEntryId, 'temporary-entry')
+		const row = tree.props.renderItem({ item: track, index: 0 })
+		assert.equal(row.props.isActiveTrack, false)
+		const before = plays.length
+		await row.props.onTrackSelect(track)
+		assert.equal(plays.length, before + 1)
+		currentMusic = null
+	},
+)
 suite.finish()

@@ -20,7 +20,9 @@ export const normalizeArtworkUrl = (value: string | undefined) => {
 	return getFullArtwork(secureUrl)
 }
 
-export function getNativeTrackIdentity(item: MediaItem | null | undefined): NativeTrackIdentity | null {
+export function getNativeTrackIdentity(
+	item: MediaItem | null | undefined,
+): NativeTrackIdentity | null {
 	const identity = item?.extras?.cymusic
 	if (!identity || typeof identity !== 'object') return null
 	const value = identity as Partial<NativeTrackIdentity>
@@ -28,14 +30,19 @@ export function getNativeTrackIdentity(item: MediaItem | null | undefined): Nati
 		typeof value.platform === 'string' &&
 		typeof value.token === 'string' &&
 		typeof value.placeholder === 'boolean'
-		? value as NativeTrackIdentity
+		? (value as NativeTrackIdentity)
 		: null
 }
 
 function requireMediaUri(value: unknown): string {
 	// Bare names become asset:// in RNTP. Missing assets can fatalError on iOS;
 	// only send resolved URLs (including the bundled silent file's resolved URI).
-	if (typeof value !== 'string' || !value || value.trim() !== value || /%(?![\da-f]{2})/i.test(value)) {
+	if (
+		typeof value !== 'string' ||
+		!value ||
+		value.trim() !== value ||
+		/%(?![\da-f]{2})/i.test(value)
+	) {
 		throw new Error('INVALID_SOURCE')
 	}
 	try {
@@ -68,7 +75,11 @@ export function toMediaItem(
 		headers['User-Agent'] = track.userAgent
 	}
 	return {
-		mediaId: placeholder ? `cymusic:placeholder:${token}` : `cymusic:${JSON.stringify([identity.platform, identity.id])}`,
+		mediaId: placeholder
+			? `cymusic:placeholder:${token}`
+			: track.playLaterEntryId
+				? `cymusic:later:${JSON.stringify([track.playLaterEntryId, identity.platform, identity.id])}`
+				: `cymusic:${JSON.stringify([identity.platform, identity.id])}`,
 		url: Object.keys(headers).length ? { uri, headers } : uri,
 		title: track.title,
 		artist: track.artist,
@@ -80,7 +91,8 @@ export function toMediaItem(
 		extras: {
 			cymusic: identity,
 			cymusicPlayback: {
-				preciseSeeking: playbackOptions?.preciseSeeking === true && !placeholder && !track.isLiveStream,
+				preciseSeeking:
+					playbackOptions?.preciseSeeking === true && !placeholder && !track.isLiveStream,
 			},
 		},
 	}

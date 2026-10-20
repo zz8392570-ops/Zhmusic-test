@@ -442,6 +442,7 @@ await check(
 		const { TrackShortcutsMenu } = loadModule(
 			'src/components/TrackShortcutsMenu.tsx',
 			{
+				'@/helpers/dislikeRules': loadModule('src/helpers/dislikeRules.ts', {}),
 				react,
 				'ts-pattern': { match, P },
 				'@/helpers/trackPlayerIndex': { play: async (item) => played.push(item) },

@@ -1,6 +1,6 @@
 import { ThemeColors } from '@/constants/tokens'
 import { useThemeColors } from '@/hooks/useAppTheme'
-import myTrackPlayer, { MusicRepeatMode, repeatModeStore } from '@/helpers/trackPlayerIndex'
+import myTrackPlayer, { MusicRepeatMode } from '@/helpers/trackPlayerIndex'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
@@ -56,21 +56,23 @@ export const QueueControls = ({
 	const handlePlay = async () => {
 		if (isEmpty) return
 		hapticLight()
+		myTrackPlayer.setRepeatMode(MusicRepeatMode.QUEUE)
 		await myTrackPlayer.playWithReplacePlayList(
 			tracks[0] as IMusic.IMusicItem,
 			tracks as IMusic.IMusicItem[],
+			true,
 		)
-		myTrackPlayer.setRepeatMode(MusicRepeatMode.QUEUE)
 	}
 
 	const handleShufflePlay = async () => {
 		if (isEmpty) return
 		hapticLight()
 		const shuffledTracks = shuffle(tracks)
-		repeatModeStore.setValue(MusicRepeatMode.SHUFFLE)
+		myTrackPlayer.setRepeatMode(MusicRepeatMode.SHUFFLE)
 		await myTrackPlayer.playWithReplacePlayList(
 			shuffledTracks[0] as IMusic.IMusicItem,
 			shuffledTracks as IMusic.IMusicItem[],
+			true,
 		)
 	}
 

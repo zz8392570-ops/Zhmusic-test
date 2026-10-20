@@ -350,6 +350,7 @@ try {
 			const { TrackShortcutsMenu } = loadModule(
 				'src/components/TrackShortcutsMenu.tsx',
 				{
+					'@/helpers/dislikeRules': loadModule('src/helpers/dislikeRules.ts', {}),
 					...common,
 					'ts-pattern': { match, P },
 					'@/helpers/musicPlatform': {

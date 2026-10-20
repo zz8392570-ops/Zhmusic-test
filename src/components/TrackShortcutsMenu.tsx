@@ -15,6 +15,7 @@ import { Alert } from 'react-native'
 import { getFavoriteVariants, getFavoriteIndex } from '@/helpers/favoriteGroups'
 import { preferFavoriteSource, splitFavoriteGroup } from '@/helpers/favoriteGroupActions'
 import { getDownloadQuality, getDownloadQualityActions } from '@/helpers/downloadQuality'
+import { getDislikeArtists } from '@/helpers/dislikeRules'
 
 type TrackShortcutsMenuProps = PropsWithChildren<{
 	track: Track
@@ -40,6 +41,7 @@ export const TrackShortcutsMenu = ({
 
 	const [isInPlaylist, setIsInPlaylist] = useState(false)
 	const canNavigateCatalog = supportsCatalogNavigation(track.platform)
+	const dislikeArtists = getDislikeArtists(track)
 	const sourceOptions = useMemo(() => {
 		const stored = favoriteIndex.find(track)
 		const items = stored ? getFavoriteVariants(stored) : getFavoriteVariants(track)
@@ -134,6 +136,31 @@ export const TrackShortcutsMenu = ({
 
 	const handlePressAction = async (id: string) => {
 		await match(id)
+			.with('play-later', async () => {
+				try {
+					await myTrackPlayer.addToPlayLater(track)
+				} catch {
+					Alert.alert(i18n.t('playLater.failed'))
+				}
+			})
+			.with('dislike-song', () => {
+				try {
+					myTrackPlayer.dislikeSong(track)
+				} catch {
+					Alert.alert(i18n.t('dislikes.failed'))
+				}
+			})
+			.with(
+				P.when((actionId) => actionId.startsWith('dislike-artist-')),
+				(actionId) => {
+					const artist = dislikeArtists[Number(actionId.replace('dislike-artist-', ''))]
+					try {
+						if (artist) myTrackPlayer.dislikeArtist(artist)
+					} catch {
+						Alert.alert(i18n.t('dislikes.failed'))
+					}
+				},
+			)
 			.with('add-to-favorites', async () => {
 				toggleTrackFavorite(track)
 				if (activeQueueId?.startsWith('favorites')) {
@@ -224,6 +251,26 @@ export const TrackShortcutsMenu = ({
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => handlePressAction(event)}
 			actions={[
+				{ id: 'play-later', title: i18n.t('playLater.add'), image: 'text.badge.plus' },
+				...(dislikeArtists.length
+					? [
+							{
+								id: 'dislike',
+								title: i18n.t('dislikes.menu'),
+								image: 'hand.thumbsdown',
+								subactions: [
+									...(track.title
+										? [{ id: 'dislike-song', title: i18n.t('dislikes.song'), image: 'music.note' }]
+										: []),
+									...dislikeArtists.map((artist, index) => ({
+										id: `dislike-artist-${index}`,
+										title: i18n.t('dislikes.artist', { artist }),
+										image: 'person',
+									})),
+								],
+							},
+						]
+					: []),
 				{
 					id: isInPlaylist ? 'remove-from-playlist' : 'add-to-playlist',
 					title: isInPlaylist

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const checks = [
+	'check-playback-preferences.mjs',
 	'check-settings-storage.mjs',
 	'check-library-tools.mjs',
 	'check-favorite-groups.mjs',

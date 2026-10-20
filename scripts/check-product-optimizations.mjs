@@ -70,6 +70,7 @@ function persistence() {
 function backupFixture() {
 	const store = persistence()
 	const backup = loadModule('src/helpers/musicBackup.ts', {
+		'@/helpers/dislikeRules': loadModule('src/helpers/dislikeRules.ts', {}),
 		'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
 		'@/helpers/downloadFilename': naming,
 		'@/store/PersistStatus': store,

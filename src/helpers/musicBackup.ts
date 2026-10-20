@@ -2,8 +2,10 @@ import { normalizeFavoriteGroups } from '@/helpers/favoriteGroups'
 import PersistStatus, { IPersistConfig } from '@/store/PersistStatus'
 import { Buffer } from 'buffer'
 import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
+import { isValidDislikeRules } from '@/helpers/dislikeRules'
 
 const settingValidators = {
+	'music.dislikeRules': isValidDislikeRules,
 	'music.downloadWifiOnly': (value: unknown) => typeof value === 'boolean',
 	'music.allowDuplicateDownloads': (value: unknown) => typeof value === 'boolean',
 	'library.autoRefresh': (value: unknown) => typeof value === 'number' && [0, 1, 7].includes(value),

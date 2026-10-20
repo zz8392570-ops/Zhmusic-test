@@ -594,6 +594,8 @@ const SettingModal = () => {
 				{ id: 'library-repair', title: i18n.t('maintenance.title'), type: 'link' },
 				{ id: 'favorite-versions', title: i18n.t('versions.title'), type: 'link' },
 				{ id: 'library-history', title: i18n.t('history.title'), type: 'link' },
+				{ id: 'dislikes', title: i18n.t('dislikes.title'), type: 'link' },
+				{ id: 'play-later', title: i18n.t('playLater.title'), type: 'link' },
 				{ id: 'source-diagnostics', title: i18n.t('diagnostics.title'), type: 'link' },
 				{ id: 'listening-report', title: i18n.t('listeningReport.title'), type: 'link' },
 				{ id: 'playlist-refresh', title: i18n.t('playlistAutoRefresh.title'), type: 'link' },
@@ -884,6 +886,8 @@ const SettingModal = () => {
 						if (item.id === 'library-repair') router.push('/(modals)/libraryRepair')
 						if (item.id === 'favorite-versions') router.push('/(modals)/favoriteVersions')
 						if (item.id === 'library-history') router.push('/(modals)/libraryHistory')
+						if (item.id === 'dislikes') router.push('/(modals)/dislikes')
+						if (item.id === 'play-later') router.push('/(modals)/playLater')
 						if (item.id === 'source-diagnostics') router.push('/(modals)/sourceDiagnostics')
 						if (item.id === 'recycle-bin') router.push('/(modals)/recycleBin')
 						if (item.id === 'listening-report') router.push('/(modals)/listeningReport')
