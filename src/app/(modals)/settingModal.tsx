@@ -13,6 +13,7 @@ import myTrackPlayer, {
 } from '@/helpers/trackPlayerIndex'
 import { useThemeColors, useThemeMode } from '@/hooks/useAppTheme'
 import { createMusicApiFromScript, fetchScriptFromUrl } from '@/helpers/userApi/importMusicSource'
+import { importMusicSourceFiles } from '@/helpers/userApi/batchMusicSourceImport'
 import PersistStatus from '@/store/PersistStatus'
 import {
 	DEFAULT_HOME_BOARD_ID,
@@ -50,6 +51,7 @@ const QUALITY_OPTIONS = ['128k', '320k', 'flac']
 const CURRENT_VERSION = Constants.expoConfig?.version ?? '未知版本'
 const IOS_MODAL_DISMISS_DELAY_MS = 350
 let isMusicSourceFilePickerOpen = false
+const sourceFileImportProgress = new GlobalState<{ completed: number; total: number } | null>(null)
 
 type SettingItemBase = {
 	id: string
@@ -334,6 +336,10 @@ const MusicSourceMenu = ({ isDelete, onSelectSource }) => {
 }
 
 const importMusicSourceFromUrl = async () => {
+	if (isMusicSourceFilePickerOpen) {
+		Alert.alert(i18n.t('common.notice'), i18n.t('sourceImport.pickerBusy'))
+		return
+	}
 	Alert.prompt(
 		i18n.t('sourceImport.title'),
 		i18n.t('sourceImport.urlPrompt'),
@@ -374,10 +380,12 @@ const importMusicSourceFromFile = async () => {
 		return
 	}
 	isMusicSourceFilePickerOpen = true
+	sourceFileImportProgress.setValue({ completed: 0, total: 0 })
 	try {
 		const result = await DocumentPicker.getDocumentAsync({
-			type: 'text/javascript',
-			copyToCacheDirectory: false,
+			type: ['text/javascript', 'application/javascript', 'text/plain'],
+			copyToCacheDirectory: true,
+			multiple: true,
 		})
 
 		if (result.canceled === true) {
@@ -385,12 +393,32 @@ const importMusicSourceFromFile = async () => {
 			return
 		}
 
-		// logInfo('File selected:', result.assets[0].uri)
-		const fileContents = await new File(result.assets[0].uri).text()
-		logInfo('File contents:', fileContents)
-		const musicApi = await createMusicApiFromScript(fileContents)
-		myTrackPlayer.addMusicApi(musicApi)
-		return
+		sourceFileImportProgress.setValue({ completed: 0, total: result.assets.length })
+		const summary = await importMusicSourceFiles(
+			result.assets.map((asset) => ({ name: asset.name, read: () => new File(asset.uri).text() })),
+			(completed, total) => sourceFileImportProgress.setValue({ completed, total }),
+		)
+		const message = [
+			i18n.t('sourceImport.batchSummary', {
+				imported: summary.imported,
+				skipped: summary.skipped,
+				failed: summary.failures.length,
+			}),
+			...(summary.failures.length
+				? [
+						i18n.t('sourceImport.batchFailedFiles', {
+							names: summary.failures
+								.slice(0, 5)
+								.map((file) => file.name)
+								.join('、'),
+						}),
+						i18n.t('sourceImport.batchFailureHint'),
+					]
+				: []),
+			...(summary.restoreFailed ? [i18n.t('sourceImport.batchRestoreFailed')] : []),
+			i18n.t('sourceImport.batchTestHint'),
+		].join('\n\n')
+		Alert.alert(i18n.t('sourceImport.batchTitle'), message)
 	} catch (err) {
 		const errMsg = err instanceof Error ? (err as Error).message : String(err)
 		logError('Error importing music source:', errMsg)
@@ -398,9 +426,11 @@ const importMusicSourceFromFile = async () => {
 		logError('导入音源失败: ' + errMsg)
 	} finally {
 		isMusicSourceFilePickerOpen = false
+		sourceFileImportProgress.setValue(null)
 	}
 }
 const SettingModal = () => {
+	const fileImportProgress = sourceFileImportProgress.useValue()
 	const colors = useThemeColors()
 	const { themeMode, setThemeMode } = useThemeMode()
 	const styles = useMemo(() => createStyles(colors), [colors])
@@ -568,8 +598,18 @@ const SettingModal = () => {
 				{ id: 'url', title: i18n.t('settings.actions.import.fromUrl') },
 			]}
 		>
-			<TouchableOpacity style={styles.menuTrigger}>
-				<Text style={styles.menuTriggerText}>{i18n.t('settings.actions.import.title')}</Text>
+			<TouchableOpacity
+				style={styles.menuTrigger}
+				disabled={fileImportProgress !== null}
+				accessibilityState={{ busy: fileImportProgress !== null }}
+			>
+				<Text style={styles.menuTriggerText}>
+					{fileImportProgress
+						? fileImportProgress.total
+							? i18n.t('sourceImport.batchProgress', fileImportProgress)
+							: i18n.t('sourceImport.importing')
+						: i18n.t('settings.actions.import.title')}
+				</Text>
 			</TouchableOpacity>
 		</MenuView>
 	)

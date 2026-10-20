@@ -20,6 +20,13 @@
 		"back": "Back"
 	},
 	"sourceImport": {
+		"batchTitle": "Source import results",
+		"batchSummary": "Imported %{imported}, skipped %{skipped} duplicates, failed %{failed}.",
+		"batchFailedFiles": "Failed files (up to 5 shown): %{names}",
+		"batchFailureHint": "Check the files or view the logs for details. Other imported sources have been kept.",
+		"batchRestoreFailed": "Could not restore the current source. Please select it again.",
+		"batchTestHint": "Use “Test all sources” in the source list to check availability.",
+		"batchProgress": "Importing %{completed}/%{total}",
 		"title": "Import music source",
 		"urlPrompt": "Enter the source URL",
 		"urlEmpty": "URL cannot be empty",
@@ -125,7 +132,7 @@
 		"actions": {
 			"import": {
 				"title": "Import Music Source",
-				"fromFile": "Import from File",
+				"fromFile": "Import from files (multiple)",
 				"fromUrl": "Import from URL"
 			},
 			"autoCacheLocal": {

@@ -32,6 +32,8 @@ type SelectMusicApiOptions = {
 type AddMusicApiOptions = {
 	silent?: boolean
 	autoTest?: boolean
+	skipExisting?: boolean
+	throwOnError?: boolean
 }
 
 const failedApiByMusicId = new Map<string, Set<string>>()
@@ -57,10 +59,17 @@ const enqueueHealthWork = (fn: () => Promise<void>) => {
 	return healthQueue
 }
 
+/** Script parsing may replace the single native runtime used by playback. */
+export const withMusicSourceImport = <T>(prepare: () => Promise<T>): Promise<T> =>
+	withSourceRuntime(async () => {
+		loadedRuntimeId = null
+		return prepare()
+	})
+
 const persistApiList = (list: IMusic.MusicApi[], shouldSort = false) => {
 	const next = shouldSort ? sortMusicApis(list) : list
-	musicApiStore.setValue(next)
 	PersistStatus.set('music.musicApi', next)
+	musicApiStore.setValue(next)
 	return next
 }
 
@@ -410,6 +419,13 @@ export const addMusicApi = (musicApi: IMusic.MusicApi, options: AddMusicApiOptio
 			(existingApi) => existingApi.id === musicApi.id,
 		)
 		const shouldAutoTest = options.autoTest !== false
+		if (
+			options.skipExisting &&
+			nowMusicApiList.some(
+				(api) => api.id === musicApi.id || api.script?.trim() === musicApi.script?.trim(),
+			)
+		)
+			return false
 
 		if (existingApiIndex !== -1) {
 			if (options.silent) {
@@ -460,8 +476,10 @@ export const addMusicApi = (musicApi: IMusic.MusicApi, options: AddMusicApiOptio
 			])
 		}
 		if (shouldAutoTest) void testMusicApiById(musicApi.id)
+		return true
 	} catch (error) {
 		logError('Error adding/updating music API:', error)
+		if (options.throwOnError) throw error
 		if (!options.silent) {
 			Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'), [
 				{ text: i18n.t('common.confirm'), onPress: () => logInfo('Error alert closed') },

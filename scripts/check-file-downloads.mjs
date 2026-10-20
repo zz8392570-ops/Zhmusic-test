@@ -399,28 +399,40 @@ async function main() {
 				'File',
 				'logInfo',
 				'logError',
-				'createMusicApiFromScript',
-				'myTrackPlayer',
+				'importMusicSourceFiles',
+				'sourceFileImportProgress',
 				'Alert',
 				'i18n',
 				`${code}\nreturn importMusicSourceFromFile`,
 			)(
 				{
 					getDocumentAsync: async (options) => {
-						assert.deepEqual(options, { type: 'text/javascript', copyToCacheDirectory: false })
+						assert.deepEqual(options, {
+							type: ['text/javascript', 'application/javascript', 'text/plain'],
+							copyToCacheDirectory: true,
+							multiple: true,
+						})
 						return outcome === 'cancel'
 							? { canceled: true }
-							: { canceled: false, assets: [{ uri: selected }] }
+							: { canceled: false, assets: [{ uri: selected, name: '音源 #100%23.js' }] }
 					},
 				},
 				h.expoFs.File,
 				() => {},
 				() => {},
-				async (text) => {
-					parsed.push(text)
-					return { id: 'fixture-source' }
+				async (files) => {
+					const failures = []
+					for (const file of files) {
+						try {
+							parsed.push(await file.read())
+							imported.push({ id: 'fixture-source' })
+						} catch (error) {
+							failures.push({ name: file.name, error: error.message })
+						}
+					}
+					return { imported: imported.length, skipped: 0, failures, restoreFailed: false }
 				},
-				{ addMusicApi: (api) => imported.push(api) },
+				{ setValue() {} },
 				{ alert: (...args) => alerts.push(args) },
 				{ t: (key) => key },
 			)
@@ -428,9 +440,8 @@ async function main() {
 			assert.deepEqual(h.calls.text, outcome === 'cancel' ? [] : [selected])
 			assert.deepEqual(parsed, outcome === 'unicode' ? [content] : [])
 			assert.equal(imported.length, outcome === 'unicode' ? 1 : 0)
-			assert.equal(alerts.length, outcome === 'read-error' ? 1 : 0)
-			if (outcome === 'read-error')
-				assert.deepEqual(alerts[0], ['common.error', 'sourceImport.failed'])
+			assert.equal(alerts.length, outcome === 'cancel' ? 0 : 1)
+			if (outcome === 'read-error') assert.equal(alerts[0][0], 'sourceImport.batchTitle')
 		})
 
 	await test('source picker: ignores a second request while the first picker is open', async () => {
@@ -444,8 +455,8 @@ async function main() {
 			'File',
 			'logInfo',
 			'logError',
-			'createMusicApiFromScript',
-			'myTrackPlayer',
+			'importMusicSourceFiles',
+			'sourceFileImportProgress',
 			'Alert',
 			'i18n',
 			`${code}\nreturn importMusicSourceFromFile`,
@@ -460,7 +471,7 @@ async function main() {
 			() => {},
 			() => {},
 			async () => ({ id: 'unused' }),
-			{ addMusicApi() {} },
+			{ setValue() {} },
 			{ alert() {} },
 			{ t: (key) => key },
 		)

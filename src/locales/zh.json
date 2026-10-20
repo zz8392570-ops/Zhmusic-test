@@ -20,6 +20,13 @@
 		"back": "返回"
 	},
 	"sourceImport": {
+		"batchTitle": "音源导入结果",
+		"batchSummary": "成功 %{imported} 个，跳过重复 %{skipped} 个，失败 %{failed} 个。",
+		"batchFailedFiles": "导入失败的文件（最多显示 5 个）：%{names}",
+		"batchFailureHint": "请检查文件内容或在日志中查看失败原因；其他文件已保留。",
+		"batchRestoreFailed": "当前音源恢复失败，请重新选择音源。",
+		"batchTestHint": "可在音源列表中点击“测试所有音源”检查可用性。",
+		"batchProgress": "导入中 %{completed}/%{total}",
 		"title": "导入音源",
 		"urlPrompt": "请输入音源 URL",
 		"urlEmpty": "URL 不能为空",
@@ -125,7 +132,7 @@
 		"actions": {
 			"import": {
 				"title": "导入音源",
-				"fromFile": "从文件导入",
+				"fromFile": "从文件导入（可多选）",
 				"fromUrl": "从URL导入"
 			},
 			"autoCacheLocal": {
