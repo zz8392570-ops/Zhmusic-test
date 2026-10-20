@@ -4,7 +4,7 @@ import TracksListItem from '@/components/TracksListItem'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { createPersonalLibrarySearch } from '@/helpers/personalLibrarySearch'
 import { useThemeColors } from '@/hooks/useAppTheme'
-import { isSameMediaItem } from '@/utils/mediaItem'
+import { isPlaybackQueueTrack } from '@/helpers/favoritePlayback'
 import {
 	importedLocalMusicStore,
 	playListsStore,
@@ -43,7 +43,7 @@ const FavoritesScreen = () => {
 		const records = listeningStats ?? []
 		return (['frequent', 'mostPlayed', 'recentlyAdded', 'forgotten'] as SmartPlaylistKind[]).map(
 			(kind) => {
-				const tracks = getSmartPlaylistTracks(kind, records)
+				const tracks = getSmartPlaylistTracks(kind, records, favorites)
 				return {
 					name: kind,
 					id: `smart:${kind}`,
@@ -54,7 +54,7 @@ const FavoritesScreen = () => {
 				}
 			},
 		)
-	}, [listeningStats])
+	}, [listeningStats, favorites])
 	const playLists = useMemo(
 		() =>
 			[
@@ -89,11 +89,11 @@ const FavoritesScreen = () => {
 	)
 
 	const searchLibrary = useMemo(
-		() => showSearch ? createPersonalLibrarySearch(playLists) : null,
+		() => (showSearch ? createPersonalLibrarySearch(playLists) : null),
 		[playLists, showSearch],
 	)
 	const results = useMemo(
-		() => searchLibrary ? searchLibrary(search) : { playlists: playLists, tracks: [] },
+		() => (searchLibrary ? searchLibrary(search) : { playlists: playLists, tracks: [] }),
 		[searchLibrary, search, playLists],
 	)
 	const filteredPlayLists = results.playlists as Playlist[]
@@ -182,7 +182,7 @@ const FavoritesScreen = () => {
 										onTrackSelect={(selectedTrack) =>
 											void myTrackPlayer.play(selectedTrack as IMusic.IMusicItem)
 										}
-										isActiveTrack={isSameMediaItem(track as IMusic.IMusicItem, currentTrack)}
+										isActiveTrack={isPlaybackQueueTrack(track, currentTrack)}
 										isPlaying={playing}
 									/>
 									<Text

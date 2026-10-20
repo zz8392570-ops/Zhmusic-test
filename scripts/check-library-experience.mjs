@@ -97,7 +97,12 @@ await check(
 )
 await check('reports separate two seven-day periods, platforms and real listening duration', () => {
 	const store = persistence(),
-		api = loadModule('src/helpers/listeningReport.ts', { '@/store/PersistStatus': store })
+		api = loadModule('src/helpers/listeningReport.ts', {
+			'@/store/PersistStatus': store,
+			'./listeningIdentity': loadModule('src/helpers/listeningIdentity.ts', {
+				'./favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+			}),
+		})
 	api.recordListeningDay(song('same'), 120, 1, new Date(2026, 9, 19, 12))
 	api.recordListeningDay(song('same', 'tx'), 60, 2, new Date(2026, 9, 18, 12))
 	api.recordListeningDay(song('old'), 900, 5, new Date(2026, 9, 12, 12))
@@ -112,6 +117,89 @@ await check('reports separate two seven-day periods, platforms and real listenin
 	assert.equal(api.buildListeningReport(days, now, true).seconds, 900)
 	assert.equal(store.get('music.listeningDailySince'), new Date(2026, 9, 19, 12).getTime())
 })
+await check(
+	'weekly reports combine same recordings and historical favorite keys while preserving raw data and split choices',
+	() => {
+		const store = persistence()
+		const groups = loadModule('src/helpers/favoriteGroups.ts', {})
+		const api = loadModule('src/helpers/listeningReport.ts', {
+			'@/store/PersistStatus': store,
+			'./listeningIdentity': loadModule('src/helpers/listeningIdentity.ts', {
+				'./favoriteGroups': groups,
+			}),
+		})
+		const now = new Date(2026, 9, 19, 12)
+		const first = { ...song('a', 'tx'), title: 'Same', duration: 180 }
+		const second = { ...song('b', 'wy'), title: 'Same', duration: 182 }
+		api.recordListeningDay(first, 120, 1, now)
+		api.recordListeningDay(second, 60, 2, new Date(2026, 9, 18, 12))
+		const days = store.get('music.listeningDaily'),
+			before = JSON.stringify(days)
+		let report = api.buildListeningReport(days, now)
+		assert.equal(report.songCount, 1)
+		assert.equal(report.seconds, 180)
+		assert.equal(report.plays, 3)
+		assert.equal(report.tracks[0].plays, 3)
+		assert.equal(
+			report.bars.reduce((sum, bar) => sum + bar.seconds, 0),
+			180,
+		)
+		assert.equal(JSON.stringify(days), before)
+		const split = [first, second].map((item) => ({ ...item, favoriteKeepSeparate: true }))
+		assert.equal(api.buildListeningReport(days, now, false, split).songCount, 2)
+		assert.equal(
+			api.buildListeningReport(days, now, false, [groups.mergeFavoriteGroup([second, first])])
+				.tracks[0].key,
+			JSON.stringify(['wy', 'b']),
+		)
+		const legacy = days.map((day) => ({
+			...day,
+			tracks: day.tracks.map(({ recording, ...item }) => item),
+		}))
+		assert.equal(
+			api.buildListeningReport(legacy, now).songCount,
+			2,
+			'Old records without durations must not be guessed',
+		)
+		assert.equal(
+			api.buildListeningReport(legacy, now, false, [groups.mergeFavoriteGroup([first, second])])
+				.songCount,
+			1,
+		)
+		assert.equal(api.buildListeningReport(legacy, now, false, split).songCount, 2)
+		assert.equal(api.buildListeningReport(legacy, now, true).seconds, 0)
+		for (const changed of [
+			{ title: 'Same Live' },
+			{ artist: 'Guest' },
+			{ duration: 200 },
+			{ platform: 'local' },
+		]) {
+			const otherStore = persistence()
+			const otherApi = loadModule('src/helpers/listeningReport.ts', {
+				'@/store/PersistStatus': otherStore,
+				'./listeningIdentity': loadModule('src/helpers/listeningIdentity.ts', {
+					'./favoriteGroups': groups,
+				}),
+			})
+			otherApi.recordListeningDay(first, 10, 1, now)
+			otherApi.recordListeningDay({ ...second, ...changed }, 20, 1, now)
+			assert.equal(
+				otherApi.buildListeningReport(otherStore.get('music.listeningDaily'), now).songCount,
+				2,
+			)
+		}
+		const opaque = [
+			{
+				date: '2026-10-19',
+				tracks: [
+					{ key: 'legacy opaque', title: 'Unknown', artist: 'Unknown', plays: 1, seconds: 10 },
+				],
+			},
+		]
+		assert.equal(api.buildListeningReport(opaque, now).seconds, 10)
+	},
+)
+
 function refreshFixture(initial, remote) {
 	const store = persistence()
 	store.set('library.autoRefresh', 1)

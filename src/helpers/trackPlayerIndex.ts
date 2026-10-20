@@ -49,6 +49,12 @@ import { resolveLocalFile } from './localFile'
 import { importLocalMusic } from './localMusicImport'
 import { resolveLibraryTrack } from './libraryEdits'
 import {
+	createFavoritePlayback,
+	containsPlaybackVariant,
+	nextPlaybackVariant,
+	type FavoritePlayback,
+} from './favoritePlayback'
+import {
 	enqueueDownload,
 	cancelCacheTask,
 	pauseCacheTask,
@@ -273,6 +279,7 @@ function observeNativeSeek(position: number) {
 }
 
 function reset() {
+	favoritePlayback = null
 	activeSourceRequest?.abort(requestAbortError())
 	activeSourceRequest = null
 	sourceLoadingProgressStore.setValue(null)
@@ -395,7 +402,7 @@ async function setupTrackPlayer() {
 	if (songsNumsToLoad) {
 		songsNumsToLoadStore.setValue(songsNumsToLoad)
 	}
-	if (restorePlaybackOnStartup && restoredMusic && isInPlayList(restoredMusic)) {
+	if (restorePlaybackOnStartup && restoredMusic && getPlaybackMusicIndex(restoredMusic) >= 0) {
 		setCurrentMusic(restoredMusic)
 		setPlaybackIntent('pause')
 		await play(restoredMusic, true, undefined, false, true)
@@ -452,6 +459,52 @@ const getFakeNextTrack = (): Track => {
 
 let failoverInProgress = false
 const playbackRetryCounts = new Map<string, number>()
+let favoritePlayback: FavoritePlayback | null = null
+
+// An alternate platform is still the same business-queue entry.
+const getPlaybackMusicIndex = (track?: IMusic.IMusicItem | null) => {
+	if (!track) return -1
+	const origin = (track as Track).playbackQueueOrigin
+	if (origin) {
+		const index = getMusicIndex(origin as IMusic.IMusicItem)
+		if (index >= 0) return index
+	}
+	if (favoritePlayback && containsPlaybackVariant(favoritePlayback, track)) {
+		const index = getMusicIndex(favoritePlayback.root as IMusic.IMusicItem)
+		if (index >= 0) return index
+	}
+	return getMusicIndex(track)
+}
+
+const switchPlaybackPlatform = (failed: IMusic.IMusicItem) => {
+	if (
+		!favoritePlayback ||
+		!containsPlaybackVariant(favoritePlayback, failed) ||
+		playbackIntentStore.getValue() !== 'play'
+	)
+		return undefined
+	const next = nextPlaybackVariant(favoritePlayback, failed)
+	if (next) {
+		logInfo(`播放失败，切换同曲平台: ${failed.platform} → ${next.platform}`)
+		showToast(
+			i18n.t('player.platformFallback.title'),
+			i18n.t('player.platformFallback.message', {
+				from: String(failed.platform ?? '').toUpperCase(),
+				to: String(next.platform ?? '').toUpperCase(),
+			}),
+			'info',
+		)
+	}
+	return next
+		? ({
+				...next,
+				playbackQueueOrigin: favoritePlayback.root.playbackQueueOrigin ?? {
+					id: favoritePlayback.root.id,
+					platform: favoritePlayback.root.platform,
+				},
+			} as IMusic.IMusicItem)
+		: undefined
+}
 
 /** 播放失败时的情况 */
 async function failToPlay(failure?: { code?: string; message?: string }) {
@@ -460,6 +513,20 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 	try {
 		const revision = controlRevision
 		const failedMusic = currentMusicStore.getValue()
+		if (failedMusic && favoritePlayback && containsPlaybackVariant(favoritePlayback, failedMusic)) {
+			const position = getProgress().position
+			favoritePlayback.resumePosition = Number.isFinite(position) && position > 0 ? position : 0
+		}
+		const retryMusic =
+			failedMusic &&
+			({
+				...(favoritePlayback?.variants.find((item) =>
+					isSameMediaItem(item as IMusic.IMusicItem, failedMusic),
+				) ?? failedMusic),
+				...((failedMusic as Track).playbackQueueOrigin
+					? { playbackQueueOrigin: (failedMusic as Track).playbackQueueOrigin }
+					: {}),
+			} as IMusic.IMusicItem | null)
 		const sourceToken = trackSourceLoadingStore.getValue()
 		retireTrackSkip()
 		if (isCurrentNativeItem(ReactNativeTrackPlayer.getActiveMediaItem())) {
@@ -513,7 +580,7 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 				logInfo(`播放链接失败，先使用当前音源重新请求: ${selected.name}`)
 				nativeQueue = null
 				ReactNativeTrackPlayer.clear()
-				await play(failedMusic, true, undefined, true)
+				await play(retryMusic, true, undefined, true)
 				return
 			}
 			playbackRetryCounts.delete(retryKey)
@@ -525,7 +592,9 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 				const switchedSource = await setMusicApiAsSelectedById(backup.id, {
 					silent: true,
 					notify: false,
+					isCurrent: () => revision === controlRevision && isCurrentMusic(failedMusic),
 				})
+				if (revision !== controlRevision || !isCurrentMusic(failedMusic)) return
 				if (switchedSource) {
 					showAutomaticSourceSwitchNotice({
 						fromSource: selected.name,
@@ -534,19 +603,32 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 						songTitle: failedMusic.title,
 					})
 				}
-				await play(failedMusic, true, undefined, true)
+				await play(retryMusic, true, undefined, true)
 				return
 			}
 
+			const platform = switchPlaybackPlatform(failedMusic)
+			if (platform) {
+				nativeQueue = null
+				ReactNativeTrackPlayer.clear()
+				await play(platform, true, undefined, true)
+				return
+			}
 			const nextMusic = getPlayList()
 				.map((_, offset) => getPlayListMusicAt(currentIndex + offset + 1))
-				.find((item) => item && !isSameMediaItem(item, failedMusic))
+				.find(
+					(item) =>
+						item &&
+						!isSameMediaItem(item, failedMusic) &&
+						(!favoritePlayback || !containsPlaybackVariant(favoritePlayback, item)),
+				)
 			const willSkip = nextMusic != null
 			const recoveryAction = await showSourceExhaustedNotice({
 				songTitle: failedMusic.title,
 				triedCount: getFailedApiIds(failureKey).size,
 				willSkip,
 			})
+			if (revision !== controlRevision || !isCurrentMusic(failedMusic)) return
 			clearFailedApis(failureKey)
 			if (recoveryAction === 'retry') {
 				await play(failedMusic, true)
@@ -557,6 +639,20 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 				return
 			}
 			setPlaybackIntent('stop')
+			return
+		}
+		const platform = failedMusic && switchPlaybackPlatform(failedMusic)
+		if (platform) {
+			await play(platform, true, undefined, true)
+			return
+		}
+		if (
+			favoritePlayback &&
+			favoritePlayback.variants.length > 1 &&
+			!getPlayList().some((item) => !containsPlaybackVariant(favoritePlayback!, item))
+		) {
+			setPlaybackIntent('stop')
+			sourceLoadingErrorStore.setValue(i18n.t('player.sourceLoading.failed'))
 			return
 		}
 		await skipToNext()
@@ -613,7 +709,7 @@ const addAll = (
 	const currentMusicItem = currentMusicStore.getValue()
 
 	if (currentMusicItem) {
-		currentIndex = getMusicIndex(currentMusicItem)
+		currentIndex = getPlaybackMusicIndex(currentMusicItem)
 	}
 	updateNextMetadata()
 }
@@ -650,7 +746,9 @@ const remove = async (musicItem: IMusic.IMusicItem) => {
 	const playList = getPlayList()
 	let newPlayList: IMusic.IMusicItem[] = []
 	let currentMusic: IMusic.IMusicItem | null = currentMusicStore.getValue()
-	const targetIndex = getMusicIndex(musicItem)
+	const targetIndex = getMusicIndex(
+		((musicItem as Track).playbackQueueOrigin ?? musicItem) as IMusic.IMusicItem,
+	)
 	let shouldPlayCurrent: boolean | null = null
 	if (targetIndex === -1) {
 		// 1. 这种情况应该是出错了
@@ -709,7 +807,8 @@ const moveQueueTrack = (fromIndex: number, toIndex: number) => {
 	const [item] = next.splice(fromIndex, 1)
 	next.splice(toIndex, 0, item)
 	setPlayList(next)
-	currentIndex = getMusicIndex(currentMusicStore.getValue())
+	const current = currentMusicStore.getValue()
+	currentIndex = current ? getPlaybackMusicIndex(current) : -1
 	updateNextMetadata()
 	return true
 }
@@ -748,7 +847,7 @@ const setRepeatMode = (mode: MusicRepeatMode) => {
 	}
 
 	const currentMusicItem = currentMusicStore.getValue()
-	currentIndex = getMusicIndex(currentMusicItem)
+	currentIndex = getPlaybackMusicIndex(currentMusicItem)
 	repeatModeStore.setValue(mode)
 	// 更新下一首歌的信息
 	updateNextMetadata()
@@ -809,7 +908,10 @@ const seekTo = (position: number) => {
 }
 
 const markPlaybackStarted = (track: IMusic.IMusicItem) => {
-	beginListeningSession(track)
+	const playback =
+		favoritePlayback && containsPlaybackVariant(favoritePlayback, track) ? favoritePlayback : null
+	beginListeningSession(track, !!(playback?.started && playback.exhausted.size > 0))
+	if (playback) playback.started = true
 	const requestedTrack = currentMusicStore.getValue()
 	const recentTrack =
 		requestedTrack && isSameMediaItem(requestedTrack, track) ? requestedTrack : track
@@ -823,7 +925,11 @@ const markPlaybackStarted = (track: IMusic.IMusicItem) => {
 
 /** 设置音源 */
 const setTrackSource = (track: Track, restoring = false) => {
-	currentIndex = getMusicIndex(track as IMusic.IMusicItem)
+	currentIndex = getPlaybackMusicIndex(track as IMusic.IMusicItem)
+	const resumePosition =
+		!restoring && favoritePlayback && containsPlaybackVariant(favoritePlayback, track)
+			? normalizedRestorePosition(favoritePlayback.resumePosition, Number(track.duration))
+			: 0
 	const token = createTrackSourceLoadingToken(track as IMusic.IMusicItem)
 	// Snapshot after source resolution. A preference change never reloads the active item.
 	const playbackOptions = { preciseSeeking: PersistStatus.get('music.preciseSeeking') === true }
@@ -839,8 +945,10 @@ const setTrackSource = (track: Track, restoring = false) => {
 	setCurrentMusic(track as IMusic.IMusicItem)
 	PersistStatus.set('music.musicItem', track as IMusic.IMusicItem)
 	if (!restoring) {
-		lastPersistedProgressBucket = 0
-		PersistStatus.set('music.progress', 0)
+		lastPersistedProgressBucket = Math.floor(resumePosition / PROGRESS_PERSIST_INTERVAL_SECONDS)
+		PersistStatus.set('music.progress', resumePosition)
+		if (resumePosition > 0) ReactNativeTrackPlayer.seekTo(resumePosition)
+		if (favoritePlayback) favoritePlayback.resumePosition = 0
 	}
 
 	const intent = playbackIntentStore.getValue()
@@ -892,7 +1000,7 @@ const setCurrentMusic = (musicItem?: IMusic.IMusicItem | null) => {
 		PersistStatus.set('music.progress', 0)
 		return
 	}
-	currentIndex = getMusicIndex(musicItem)
+	currentIndex = getPlaybackMusicIndex(musicItem)
 	currentMusicStore.setValue(musicItem)
 }
 
@@ -1208,11 +1316,18 @@ const play = async (
 		if (!musicItem) {
 			throw new Error(PlayFailReason.PLAY_LIST_IS_EMPTY)
 		}
-		// Automatic recovery must retain failed sources or A → B will retry A forever.
 		if (!isAutomaticRecovery && (!isCurrentMusic(musicItem) || forcePlay)) {
-			clearFailedApis(getMusicFailureKey(musicItem))
-			for (const key of playbackRetryCounts.keys()) {
-				if (key.startsWith(`${getMusicFailureKey(musicItem)}:`)) playbackRetryCounts.delete(key)
+			favoritePlayback = createFavoritePlayback(
+				musicItem,
+				PersistStatus.get('music.favorites') ?? [],
+			)
+			for (const variant of favoritePlayback.variants) {
+				// Automatic recovery retains failures across platforms; a manual selection resets them.
+				const failureKey = getMusicFailureKey(variant as IMusic.IMusicItem)
+				clearFailedApis(failureKey)
+				for (const key of playbackRetryCounts.keys()) {
+					if (key.startsWith(`${failureKey}:`)) playbackRetryCounts.delete(key)
+				}
 			}
 		}
 		setPlaybackIntent(startPaused ? 'pause' : 'play')
@@ -1246,7 +1361,7 @@ const play = async (
 		}
 
 		// 2. Add to playlist if not present
-		if (!isInPlayList(musicItem)) {
+		if (!isInPlayList(musicItem) && getPlaybackMusicIndex(musicItem) < 0) {
 			add(musicItem)
 		}
 
@@ -1265,19 +1380,39 @@ const play = async (
 		nowLyricState.setValue(null)
 
 		// 4. Resolve source (cache check + network if needed)
+		let resolved: Awaited<ReturnType<typeof resolveSource>>
+		for (;;) {
+			try {
+				resolved = await resolveSource(musicItem, {
+					requestType: 'current',
+					signal: sourceRequest.signal,
+					onProgress: (progress) => {
+						if (trackSourceLoadingStore.getValue() === trackSourceLoadingToken)
+							sourceLoadingProgressStore.setValue(progress)
+					},
+				})
+				if (resolved.url === fakeAudioMp3Uri) throw new Error(PlayFailReason.INVALID_SOURCE)
+				break
+			} catch (error) {
+				if (
+					sourceRequest.signal.aborted ||
+					trackSourceLoadingStore.getValue() !== trackSourceLoadingToken ||
+					(error as Error)?.name === 'AbortError' ||
+					(error as Error)?.message === PlayFailReason.FORBID_CELLUAR_NETWORK_PLAY
+				)
+					throw error
+				const platform = switchPlaybackPlatform(musicItem)
+				if (!platform) throw error
+				musicItem = platform
+				setCurrentMusic(musicItem)
+			}
+		}
 		const {
 			url: sourceUrl,
 			wasCached,
 			quality: playbackQuality,
 			sourceId: resolvedSourceId,
-		} = await resolveSource(musicItem, {
-			requestType: 'current',
-			signal: sourceRequest.signal,
-			onProgress: (progress) => {
-				if (trackSourceLoadingStore.getValue() === trackSourceLoadingToken)
-					sourceLoadingProgressStore.setValue(progress)
-			},
-		})
+		} = resolved
 
 		// 5. Race condition guard
 		if (
@@ -1358,7 +1493,7 @@ const play = async (
 		const message = e?.message
 		if (message === PlayFailReason.FORBID_CELLUAR_NETWORK_PLAY) {
 			logInfo('移动网络')
-		} else if (message === PlayFailReason.INVALID_SOURCE) {
+		} else if (message === PlayFailReason.INVALID_SOURCE && !failoverInProgress) {
 			logError('音源为空，播放失败')
 			await failToPlay({ code: 'source', message })
 		} else if (message === PlayFailReason.PLAY_LIST_IS_EMPTY) {

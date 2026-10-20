@@ -1438,6 +1438,219 @@ await check(
 	},
 )
 
+function favoritePlatforms(h) {
+	const tracks = ['tx', 'wy', 'kg'].map((platform) =>
+		song(`same-${platform}`, {
+			platform,
+			title: 'Same recording',
+			artist: 'Singer',
+			duration: 180,
+			url: 'Unknown',
+		}),
+	)
+	const group = h.load('src/helpers/favoriteGroups.ts').mergeFavoriteGroup(tracks)
+	h.persistence.set('music.favorites', [group])
+	return { tracks, group }
+}
+
+await check(
+	'platform URL failures fall back once per recording, keep the queue slot and default favorite',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const { tracks, group } = favoritePlatforms(h)
+		h.facade.addAll([song('previous'), group, song('next')])
+		h.setResolver(async (track) => {
+			if (track.platform === 'tx') throw new Error('unavailable')
+			return {
+				url:
+					track.platform === 'wy'
+						? 'fixture://fake-audio.mp3'
+						: `https://media.example/${track.id}.mp3`,
+				wasCached: false,
+			}
+		})
+		await h.facade.play(group)
+		assert.deepEqual(
+			h.sourceCalls.map(({ track }) => track.platform),
+			['tx', 'wy', 'kg'],
+		)
+		assert.equal(h.facade.getCurrentMusic().id, tracks[2].id)
+		assert.equal(h.facade.getPlayList().length, 3)
+		assert.equal(h.facade.getPlayList()[1].id, group.id)
+		assert.equal(h.persistence.get('music.favorites')[0].platform, 'tx')
+		assert.equal(
+			h.load('src/player/mediaItem.ts').getNativeTrackIdentity(h.player.queue[1]).id,
+			'next',
+		)
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, 'next')
+	},
+)
+
+await check(
+	'native stream errors exhaust platform variants without cycling or duplicating queue entries',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const { group } = favoritePlatforms(h)
+		h.facade.addAll([group, song('next')])
+		h.setResolver(async (track) => ({
+			url: `https://media.example/${track.id}.mp3`,
+			wasCached: false,
+		}))
+		await h.facade.play(group)
+		for (let index = 0; index < 3; index++) {
+			h.player.progress.position = 20
+			h.player.state = 'error'
+			h.emit('PlaybackError', { code: 'network', message: 'broken' })
+			h.delays[index].resolve()
+			await flush()
+			if (index < 2)
+				assert.equal(
+					h.player.progress.position,
+					20,
+					'Keep listening position across platform fallback',
+				)
+		}
+		assert.deepEqual(
+			h.sourceCalls.map(({ track }) => track.id),
+			['same-tx', 'same-wy', 'same-kg', 'next'],
+		)
+		assert.equal(h.facade.getPlayList().length, 2)
+		assert.equal(h.facade.getCurrentMusic().id, 'next')
+	},
+)
+
+await check(
+	'native API retries refresh the original request before switching platforms and preserve queue origin',
+	async () => {
+		const failed = new Map()
+		const source = { id: 'only', name: 'Only source' }
+		const h = runtime({
+			'@/helpers/userApi/musicApiControl': {
+				runBackgroundHealthTests: async () => {},
+				removeBundledMusicSources() {},
+				getMusicFailureKey: (track) => JSON.stringify([track.platform, track.id]),
+				clearFailedApis: (key) => failed.delete(key),
+				rememberFailedApi: (key, id) => failed.set(key, new Set([id])),
+				recordMusicApiAttempt() {},
+				getFailedApiIds: (key) => failed.get(key) ?? new Set(),
+				getPlaybackFailoverApis: () => [],
+			},
+		})
+		await h.setup()
+		h.stores.musicApiSelectedStore.setValue(source)
+		const { group } = favoritePlatforms(h)
+		h.facade.addAll([group, song('next')])
+		h.setResolver(async (track) => ({
+			url: `https://media.example/${track.id}.mp3`,
+			wasCached: false,
+		}))
+		await h.facade.play(group)
+		for (let index = 0; index < 3; index++) {
+			h.player.state = 'error'
+			h.emit('PlaybackError', { code: 'network', message: 'broken' })
+			h.delays[index].resolve()
+			await flush()
+		}
+		assert.deepEqual(
+			h.sourceCalls.map(({ track }) => track.id),
+			['same-tx', 'same-tx', 'same-wy', 'same-wy'],
+		)
+		assert.equal(
+			h.sourceCalls[1].track.url,
+			'Unknown',
+			'Refresh the original source request instead of reusing a broken URL',
+		)
+		assert.equal(h.persistence.get('music.musicItem').playbackQueueOrigin.id, 'same-tx')
+		await h.facade.skipToNext()
+		assert.equal(h.facade.getCurrentMusic().id, 'next')
+	},
+)
+
+await check(
+	'all platform URL failures stop a single-song queue without cycling back to the default',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const { group } = favoritePlatforms(h)
+		h.setResolver(async () => ({ url: 'fixture://fake-audio.mp3', wasCached: false }))
+		const playing = h.facade.play(group)
+		await flush()
+		assert.equal(h.delays.length, 1)
+		h.delays[0].resolve()
+		await playing
+		assert.deepEqual(
+			h.sourceCalls.map(({ track }) => track.id),
+			['same-tx', 'same-wy', 'same-kg'],
+		)
+		assert.equal(h.stores.playbackIntentStore.getValue(), 'stop')
+		assert.equal(h.player.isPlaying(), false)
+		assert.equal(h.facade.getPlayList().length, 1)
+	},
+)
+
+await check(
+	'late platform failures cannot replace a new selection or restart cancelled loading',
+	async () => {
+		for (const action of ['select', 'cancel', 'pause', 'stop']) {
+			const h = runtime()
+			await h.setup()
+			const { group } = favoritePlatforms(h)
+			const pending = rejectableDeferred()
+			h.setResolver((track) =>
+				track.id === group.id
+					? pending.promise
+					: Promise.resolve({ url: track.url, wasCached: false }),
+			)
+			const playing = h.facade.play(group)
+			await flush()
+			if (action === 'select') await h.facade.play(song('new'))
+			else if (action === 'cancel') h.facade.cancelSourceLoading()
+			else h.facade[action]()
+			pending.reject(new Error('late platform failure'))
+			await playing
+			assert.equal(h.sourceCalls.length, action === 'select' ? 2 : 1)
+			assert.equal(h.facade.getCurrentMusic().id, action === 'select' ? 'new' : group.id)
+			assert.notEqual(
+				h.stores.playbackIntentStore.getValue(),
+				action === 'select' ? 'stop' : 'play',
+			)
+		}
+	},
+)
+
+await check(
+	'platform fallback retains its logical queue position after restoring playback',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		const { group, tracks } = favoritePlatforms(h)
+		h.facade.addAll([song('previous'), group, song('next')])
+		h.setResolver(async (track) => {
+			if (track.id === group.id) throw new Error('unavailable')
+			return { url: `https://media.example/${track.id}.mp3`, wasCached: false }
+		})
+		await h.facade.play(group)
+		const saved = h.persistence.get('music.musicItem')
+		assert.equal(saved.id, tracks[1].id)
+		const restored = runtime()
+		restored.persistence.set('music.play-list', h.facade.getPlayList())
+		restored.persistence.set('music.musicItem', saved)
+		await restored.setup()
+		await restored.facade.skipToNext()
+		assert.equal(restored.facade.getCurrentMusic().id, 'next')
+		await h.facade.remove(saved)
+		assert.equal(h.facade.getCurrentMusic().id, 'next')
+		assert.equal(h.facade.getPlayList().length, 2)
+		assert.equal(
+			h.facade.getPlayList().some((track) => track.id === group.id),
+			false,
+		)
+	},
+)
+
 await check(
 	'lyric/progress events reject another item, a retired queue timestamp and the silent placeholder',
 	async () => {

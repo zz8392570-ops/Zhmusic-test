@@ -8,6 +8,10 @@ const globals = { Error }
 const request = loadModule('src/helpers/requestControl.ts', {}, globals)
 const audioQuality = loadModule('src/helpers/audioQuality.ts', {})
 const naming = loadModule('src/helpers/downloadFilename.ts', { buffer: { Buffer } })
+const favoriteGroups = loadModule('src/helpers/favoriteGroups.ts', {})
+const listeningIdentity = loadModule('src/helpers/listeningIdentity.ts', {
+	'./favoriteGroups': favoriteGroups,
+})
 const state = (initial) => {
 	let value = initial
 	return {
@@ -76,8 +80,10 @@ function backupFixture() {
 function listeningStatsFixture() {
 	const store = persistence()
 	const stats = loadModule('src/helpers/listeningStats.ts', {
+		'./listeningIdentity': listeningIdentity,
 		'./listeningReport': loadModule('src/helpers/listeningReport.ts', {
 			'@/store/PersistStatus': store,
+			'./listeningIdentity': listeningIdentity,
 		}),
 		'./logger': { logError() {} },
 		'@/store/PersistStatus': store,
@@ -120,6 +126,110 @@ await check(
 		)
 	},
 )
+const statsRecord = (track, count = 1, at = 100) => ({
+	key: JSON.stringify([track.platform, track.id]),
+	track,
+	playCount: count,
+	completedCount: count,
+	skippedCount: count,
+	totalSeconds: count * 30,
+	firstPlayedAt: at,
+	lastPlayedAt: at + 10,
+})
+await check(
+	'smart playlists aggregate cross-platform recordings without changing raw totals or merging versions',
+	() => {
+		const h = listeningStatsFixture()
+		const first = track('a', 'tx', { title: 'Same' }),
+			second = track('b', 'wy', { title: 'Same' })
+		const records = [statsRecord(first, 2, 100), statsRecord(second, 3, 200)]
+		const before = JSON.stringify(records)
+		const merged = h.aggregateListeningStats(records)
+		assert.equal(merged.length, 1)
+		assert.equal(merged[0].playCount, 5)
+		assert.equal(merged[0].totalSeconds, 150)
+		assert.equal(merged[0].completedCount, 5)
+		assert.equal(merged[0].skippedCount, 5)
+		assert.equal(merged[0].firstPlayedAt, 100)
+		assert.equal(merged[0].lastPlayedAt, 210)
+		assert.equal(h.getSmartPlaylistTracks('mostPlayed', records).length, 1)
+		assert.equal(JSON.stringify(records), before)
+		for (const extra of [
+			{ title: 'Same Live' },
+			{ album: 'Live' },
+			{ title: 'Same Remix' },
+			{ duration: 200 },
+			{ duration: 0 },
+			{ artist: 'Artist / Guest' },
+			{ platform: 'local' },
+			{ platform: 'tx' },
+			{ favoriteKeepSeparate: true },
+		])
+			assert.equal(
+				h.aggregateListeningStats([records[0], statsRecord({ ...second, ...extra })]).length,
+				2,
+			)
+		const preferred = favoriteGroups.mergeFavoriteGroup([second, first])
+		assert.equal(h.getSmartPlaylistTracks('mostPlayed', records, [preferred])[0].platform, 'wy')
+		const split = [first, second].map((item) => ({ ...item, favoriteKeepSeparate: true }))
+		assert.equal(h.aggregateListeningStats(records, split).length, 2)
+		assert.equal(JSON.stringify(records), before)
+	},
+)
+await check(
+	'platform switches continue one effective listen and retain per-platform seconds for later splitting',
+	() => {
+		const h = listeningStatsFixture()
+		const first = track('a', 'tx', { title: 'Same' }),
+			second = track('b', 'wy', { title: 'Same' })
+		h.beginListeningSession(first)
+		for (let position = 0; position <= 36; position += 3) h.updateListeningProgress(position, 180)
+		h.beginListeningSession(second, true)
+		for (let position = 0; position <= 36; position += 3) h.updateListeningProgress(position, 180)
+		h.finishListeningSession('stopped')
+		const records = h.getListeningStats()
+		assert.equal(records.length, 2)
+		assert.equal(
+			records.reduce((sum, record) => sum + record.playCount, 0),
+			1,
+		)
+		assert.equal(
+			records.reduce((sum, record) => sum + record.totalSeconds, 0),
+			72,
+		)
+		assert.equal(
+			records.reduce((sum, record) => sum + record.skippedCount, 0),
+			0,
+		)
+		assert.equal(h.aggregateListeningStats(records).length, 1)
+		assert.equal(h.aggregateListeningStats(records)[0].totalSeconds, 72)
+		assert.equal(
+			h.store
+				.get('music.listeningDaily')[0]
+				.tracks.reduce((sum, record) => sum + record.seconds, 0),
+			72,
+		)
+		h.store.set(
+			'music.favorites',
+			[first, second].map((item) => ({ ...item, favoriteKeepSeparate: true })),
+		)
+		assert.equal(h.aggregateListeningStats(records).length, 2)
+		const manual = listeningStatsFixture()
+		manual.beginListeningSession(first)
+		for (let position = 0; position <= 30; position += 3)
+			manual.updateListeningProgress(position, 180)
+		manual.beginListeningSession(second)
+		for (let position = 0; position <= 30; position += 3)
+			manual.updateListeningProgress(position, 180)
+		manual.finishListeningSession('stopped')
+		assert.equal(
+			manual.aggregateListeningStats(manual.getListeningStats())[0].playCount,
+			2,
+			'Separate user selections remain separate effective plays',
+		)
+	},
+)
+
 await check(
 	'cancel and deadline release request wait; late completion cannot change its result',
 	async () => {

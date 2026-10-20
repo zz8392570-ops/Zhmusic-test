@@ -3,7 +3,7 @@ import { unknownTrackImageUri } from '@/constants/images'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useQueue } from '@/store/queue'
 import { useUtilsStyles } from '@/styles'
-import { isSameMediaItem } from '@/utils/mediaItem'
+import { isPlaybackQueueTrack } from '@/helpers/favoritePlayback'
 import { FlashList, type FlashListProps } from '@shopify/flash-list'
 import { router } from 'expo-router'
 import React, { useCallback, useMemo } from 'react'
@@ -78,6 +78,7 @@ export const TracksList = React.memo(
 		const utilsStyles = useUtilsStyles()
 		const { activeQueueId, setActiveQueueId } = useQueue()
 		const currentMusic = myTrackPlayer.useCurrentMusic()
+		const queueOrigin = (currentMusic as Track | null)?.playbackQueueOrigin
 		const playing = useIsPlaying()
 		const { bottom } = useSafeAreaInsets()
 
@@ -110,7 +111,7 @@ export const TracksList = React.memo(
 		const handleTrackSelect = useCallback(
 			async (selectedTrack: Track) => {
 				onTrackPress?.()
-				const isCurrentTrack = isSameMediaItem(
+				const isCurrentTrack = isPlaybackQueueTrack(
 					selectedTrack as IMusic.IMusicItem,
 					currentMusic as IMusic.IMusicItem | null | undefined,
 				)
@@ -141,7 +142,7 @@ export const TracksList = React.memo(
 
 		const renderItem = useCallback(
 			({ item: track, index }: { item: Track; index: number }) => {
-				const isActiveTrack = isSameMediaItem(
+				const isActiveTrack = isPlaybackQueueTrack(
 					track as IMusic.IMusicItem,
 					currentMusic as IMusic.IMusicItem | null | undefined,
 				)
@@ -207,11 +208,21 @@ export const TracksList = React.memo(
 			() => ({
 				currentTrackId: currentMusic?.id ?? null,
 				currentTrackPlatform: currentMusic?.platform ?? null,
+				queueOriginId: queueOrigin?.id,
+				queueOriginPlatform: queueOrigin?.platform,
 				playing,
 				isMultiSelectMode,
 				selectedTrackIds: Array.from(selectedTracks),
 			}),
-			[currentMusic?.id, currentMusic?.platform, playing, isMultiSelectMode, selectedTracks],
+			[
+				currentMusic?.id,
+				currentMusic?.platform,
+				queueOrigin?.id,
+				queueOrigin?.platform,
+				playing,
+				isMultiSelectMode,
+				selectedTracks,
+			],
 		)
 
 		const keyExtractor = useCallback((item: Track) => JSON.stringify([item.platform, item.id]), [])

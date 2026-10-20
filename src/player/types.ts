@@ -6,6 +6,8 @@ export interface Track extends Partial<IMusic.IMusicItem> {
 	/** User explicitly split this recording from other platforms. */
 	favoriteKeepSeparate?: boolean
 	availablePlatforms?: string[]
+	/** Keep an automatic platform fallback at its original business-queue position. */
+	playbackQueueOrigin?: Pick<Track, 'id' | 'platform'>
 	headers?: Record<string, string>
 	userAgent?: string
 	isLiveStream?: boolean

@@ -74,7 +74,7 @@ export const TrackShortcutsMenu = ({
 	)
 
 	const updateIsInPlaylist = useCallback(() => {
-		setIsInPlaylist(isInPlayList(track as IMusic.IMusicItem))
+		setIsInPlaylist(isInPlayList((track.playbackQueueOrigin ?? track) as IMusic.IMusicItem))
 	}, [track])
 
 	useFocusEffect(

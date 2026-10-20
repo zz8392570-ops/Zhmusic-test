@@ -3,6 +3,7 @@ import { match, P } from 'ts-pattern'
 import { assert, checks, loadModule } from './native-services-fixture.mjs'
 const { check, finish } = checks()
 const groups = loadModule('src/helpers/favoriteGroups.ts', {})
+const playback = loadModule('src/helpers/favoritePlayback.ts', { './favoriteGroups': groups })
 const edits = loadModule('src/helpers/libraryEdits.ts', {})
 const track = (id, platform = 'tx', extra = {}) => ({
 	id,
@@ -85,6 +86,34 @@ await check(
 			track('three', 'kg', { duration: 188 }),
 		])
 		assert.equal(chain.length, 2)
+	},
+)
+await check(
+	'automatic playback visits only compatible remote versions and respects explicit splits',
+	() => {
+		const first = track('a'),
+			second = track('b', 'wy')
+		for (const other of [
+			track('b', 'wy', { title: 'Song Live' }),
+			track('b', 'wy', { duration: 0 }),
+			track('b', 'wy', { duration: 200 }),
+			track('b', 'wy', { artist: 'Singer / Guest' }),
+			track('b', 'local'),
+		]) {
+			const session = playback.createFavoritePlayback({ ...first, sourceAlternatives: [other] }, [])
+			assert.equal(playback.nextPlaybackVariant(session, first), undefined)
+		}
+		const session = playback.createFavoritePlayback(first, [
+			groups.mergeFavoriteGroup([first, second]),
+		])
+		assert.equal(playback.nextPlaybackVariant(session, first).id, second.id)
+		assert.equal(playback.nextPlaybackVariant(session, second), undefined)
+		assert.equal(playback.nextPlaybackVariant(session, first), undefined)
+		const split = [first, second].map((item) => ({ ...item, favoriteKeepSeparate: true }))
+		assert.equal(
+			playback.nextPlaybackVariant(playback.createFavoritePlayback(first, split), first),
+			undefined,
+		)
 	},
 )
 await check(

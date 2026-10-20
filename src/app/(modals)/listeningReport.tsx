@@ -4,6 +4,7 @@ import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
 import { useMemo, useState } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useFavorites } from '@/store/library'
 
 export default function ListeningReportScreen() {
 	const colors = useThemeColors(),
@@ -11,9 +12,10 @@ export default function ListeningReportScreen() {
 	const enabled = PersistStatus.useValue('music.listeningStatsEnabled', true)
 	const since = PersistStatus.useValue('music.listeningDailySince')
 	const [previous, setPrevious] = useState(false)
+	const { favorites } = useFavorites()
 	const report = useMemo(
-		() => buildListeningReport(days ?? [], new Date(), previous),
-		[days, previous],
+		() => buildListeningReport(days ?? [], new Date(), previous, favorites),
+		[days, previous, favorites],
 	)
 	const maximum = Math.max(1, ...report.bars.map((item) => item.seconds))
 	return (

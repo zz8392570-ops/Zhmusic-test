@@ -3,6 +3,7 @@ import { logError } from './logger'
 import type { Track } from '@/player/types'
 import PersistStatus from '@/store/PersistStatus'
 import { isSameMediaItem } from '@/utils/mediaItem'
+import { getListeningRecordingIndex, listeningTrackKey } from './listeningIdentity'
 
 export type ListeningStatsRecord = {
 	key: string
@@ -40,6 +41,34 @@ export const setListeningStatsEnabled = (enabled: boolean) => {
 }
 
 export const getListeningStats = () => PersistStatus.get('music.listeningStats') ?? []
+
+export const aggregateListeningStats = (
+	records: ListeningStatsRecord[],
+	favorites: readonly Track[] = PersistStatus.get('music.favorites') ?? [],
+) => {
+	const index = getListeningRecordingIndex(
+		records.map((record) => record.track),
+		favorites,
+	)
+	const grouped = new Map<string, ListeningStatsRecord>()
+	for (const record of records) {
+		const track = (index.find(record.track) ?? record.track) as IMusic.IMusicItem
+		const key = listeningTrackKey(track)
+		const old = grouped.get(key)
+		grouped.set(key, {
+			...record,
+			key,
+			track,
+			playCount: (old?.playCount ?? 0) + record.playCount,
+			completedCount: (old?.completedCount ?? 0) + record.completedCount,
+			skippedCount: (old?.skippedCount ?? 0) + record.skippedCount,
+			totalSeconds: (old?.totalSeconds ?? 0) + record.totalSeconds,
+			firstPlayedAt: Math.min(old?.firstPlayedAt ?? record.firstPlayedAt, record.firstPlayedAt),
+			lastPlayedAt: Math.max(old?.lastPlayedAt ?? record.lastPlayedAt, record.lastPlayedAt),
+		})
+	}
+	return [...grouped.values()]
+}
 
 const trackKey = (track: IMusic.IMusicItem) =>
 	JSON.stringify([String(track.platform ?? ''), String(track.id)])
@@ -92,9 +121,20 @@ const flushSessionSeconds = () => {
 	session.unflushedSeconds = 0
 }
 
-export const beginListeningSession = (track: IMusic.IMusicItem) => {
+export const beginListeningSession = (track: IMusic.IMusicItem, continueRecording = false) => {
 	if (!isListeningStatsEnabled()) return
-	if (session && isSameMediaItem(session.track, track)) {
+	const recordingIndex =
+		session &&
+		continueRecording &&
+		getListeningRecordingIndex([session.track, track], PersistStatus.get('music.favorites') ?? [])
+	if (
+		session &&
+		(isSameMediaItem(session.track, track) ||
+			(recordingIndex && recordingIndex.find(session.track) === recordingIndex.find(track)))
+	) {
+		// A platform fallback continues one effective play. Credit unflushed time
+		// to the previous platform before switching the raw per-platform record.
+		flushSessionSeconds()
 		session.track = track
 		session.lastPosition = null
 		return
@@ -164,9 +204,12 @@ export const clearListeningStats = () => {
 export const getSmartPlaylistTracks = (
 	kind: SmartPlaylistKind,
 	records = getListeningStats(),
+	favorites: readonly Track[] = PersistStatus.get('music.favorites') ?? [],
 ): Track[] => {
 	const now = Date.now()
-	const scored = records.filter((record) => record.playCount > 0)
+	const scored = aggregateListeningStats(records, favorites).filter(
+		(record) => record.playCount > 0,
+	)
 	switch (kind) {
 		case 'mostPlayed':
 			return [...scored]

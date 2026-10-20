@@ -6,6 +6,8 @@ import { assert, checks, loadModule, root } from './native-services-fixture.mjs'
 const plays = []
 const events = []
 let activeQueueId
+let currentMusic = null
+const navigations = []
 const react = {
 	memo: (component) => component,
 	useMemo: (compute) => compute(),
@@ -20,7 +22,7 @@ const { TracksList } = loadModule('src/components/TracksList.tsx', {
 	'@/components/TracksListItem': 'TrackRow',
 	'@/constants/images': { unknownTrackImageUri: 'fallback' },
 	'@/helpers/trackPlayerIndex': {
-		useCurrentMusic: () => null,
+		useCurrentMusic: () => currentMusic,
 		playWithReplacePlayList: async (track, list) => {
 			events.push('play')
 			plays.push({ track, list })
@@ -35,9 +37,11 @@ const { TracksList } = loadModule('src/components/TracksList.tsx', {
 		}),
 	},
 	'@/styles': { useUtilsStyles: () => ({ itemSeparator: { height: 1 } }) },
-	'@/utils/mediaItem': { isSameMediaItem: () => false },
+	'@/helpers/favoritePlayback': loadModule('src/helpers/favoritePlayback.ts', {
+		'./favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+	}),
 	'@shopify/flash-list': { FlashList: 'FlashList' },
-	'expo-router': { router: { navigate() {} } },
+	'expo-router': { router: { navigate: (route) => navigations.push(route) } },
 	'react-native': { View: 'View', Text: 'Text' },
 	'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 34 }) },
 	'expo-image': { Image: 'Image' },
@@ -110,6 +114,26 @@ await suite.check(
 		assert.equal(plays[0].list, visible)
 		assert.equal(activeQueueId, 'filtered')
 		assert.equal(events.join(','), 'cancel,play')
+	},
+)
+await suite.check(
+	'an automatic platform fallback keeps the original row active and opens the player without replacing its queue',
+	async () => {
+		currentMusic = {
+			id: 'alternate',
+			platform: 'kg',
+			playbackQueueOrigin: { id: tracks[0].id, platform: tracks[0].platform },
+		}
+		const tree = TracksList({ id: 'favorites', tracks })
+		const active = tree.props.renderItem({ item: tracks[0], index: 0 })
+		const otherPlatform = tree.props.renderItem({ item: tracks[1], index: 1 })
+		assert.equal(active.props.isActiveTrack, true)
+		assert.equal(otherPlatform.props.isActiveTrack, false)
+		const oldPlays = plays.length
+		await active.props.onTrackSelect(tracks[0])
+		assert.equal(plays.length, oldPlays)
+		assert.equal(navigations[0], '/player')
+		currentMusic = null
 	},
 )
 await suite.check('standalone scrolling lists still use virtualization', () => {
