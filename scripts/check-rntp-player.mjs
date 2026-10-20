@@ -219,6 +219,7 @@ function settingsRuntime() {
 		Object.assign(
 			h.persistence,
 			loadModule('src/store/PersistStatus.ts', {
+				'@/helpers/librarySnapshots': loadModule('src/helpers/librarySnapshots.ts', {}),
 				react: h.react,
 				'@/store/getOrCreateMMKV': (name) => {
 					assert.equal(name, 'appPersistStatus')

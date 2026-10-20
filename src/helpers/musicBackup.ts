@@ -5,6 +5,7 @@ import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 
 const settingValidators = {
 	'music.downloadWifiOnly': (value: unknown) => typeof value === 'boolean',
+	'music.allowDuplicateDownloads': (value: unknown) => typeof value === 'boolean',
 	'library.autoRefresh': (value: unknown) => typeof value === 'number' && [0, 1, 7].includes(value),
 	'music.downloadFilenameTemplate': isValidDownloadTemplate,
 	'music.quality': (value: unknown) =>

@@ -689,6 +689,9 @@ function downloadFixture(now) {
 	const api = loadModule(
 		'src/player/DownloadManager.ts',
 		{
+			'@/helpers/downloadDedup': loadModule('src/helpers/downloadDedup.ts', {
+				'./favoriteGroups': favoriteGroups,
+			}),
 			'expo-network': {
 				NetworkStateType: { WIFI: 'wifi', ETHERNET: 'ethernet', CELLULAR: 'cellular' },
 				getNetworkStateAsync: async () => networkState,

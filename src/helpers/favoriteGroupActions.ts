@@ -153,3 +153,17 @@ export const splitFavoriteGroup = (track: Track) => {
 		current.flatMap((item, i) => (i === index ? variants : [item])) as IMusic.IMusicItem[],
 	)
 }
+
+export const removeFavoriteVariant = (track: Track, source: Track) => {
+	const current = useLibraryStore.getState().favorites as Track[]
+	const index = current.findIndex((item) => isFavoriteTrack(item, track))
+	if (index < 0) return false
+	const variants = getFavoriteVariants(current[index])
+	const next = variants.filter((item) => item.id !== source.id || item.platform !== source.platform)
+	if (!next.length || next.length === variants.length) return false
+	const replacement = next.length === 1 ? next[0] : mergeFavoriteGroup(next)
+	replaceFavorites(
+		current.map((item, i) => (i === index ? replacement : item)) as IMusic.IMusicItem[],
+	)
+	return true
+}

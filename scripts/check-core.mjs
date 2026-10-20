@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 const checks = [
 	'check-settings-storage.mjs',
+	'check-library-tools.mjs',
 	'check-favorite-groups.mjs',
 	'check-batch-source-import.mjs',
 	'check-download-naming.mjs',

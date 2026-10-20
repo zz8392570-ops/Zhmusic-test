@@ -591,6 +591,10 @@ const SettingModal = () => {
 				{ id: 'sync-manager', title: i18n.t('sync.title'), type: 'link' },
 				{ id: 'backup-manager', title: i18n.t('backup.title'), type: 'link' },
 				{ id: 'recycle-bin', title: i18n.t('recycleBin.title'), type: 'link' },
+				{ id: 'library-repair', title: i18n.t('maintenance.title'), type: 'link' },
+				{ id: 'favorite-versions', title: i18n.t('versions.title'), type: 'link' },
+				{ id: 'library-history', title: i18n.t('history.title'), type: 'link' },
+				{ id: 'source-diagnostics', title: i18n.t('diagnostics.title'), type: 'link' },
 				{ id: 'listening-report', title: i18n.t('listeningReport.title'), type: 'link' },
 				{ id: 'playlist-refresh', title: i18n.t('playlistAutoRefresh.title'), type: 'link' },
 				{ id: '13', title: i18n.t('settings.items.viewLogs'), type: 'link' },
@@ -877,6 +881,10 @@ const SettingModal = () => {
 						if (item.id === 'sound-effects') router.push('/(modals)/soundEffects')
 						if (item.id === 'sync-manager') router.push('/(modals)/syncManager')
 						if (item.id === 'backup-manager') router.push('/(modals)/backupManager')
+						if (item.id === 'library-repair') router.push('/(modals)/libraryRepair')
+						if (item.id === 'favorite-versions') router.push('/(modals)/favoriteVersions')
+						if (item.id === 'library-history') router.push('/(modals)/libraryHistory')
+						if (item.id === 'source-diagnostics') router.push('/(modals)/sourceDiagnostics')
 						if (item.id === 'recycle-bin') router.push('/(modals)/recycleBin')
 						if (item.id === 'listening-report') router.push('/(modals)/listeningReport')
 						if (item.id === 'playlist-refresh') router.push('/(modals)/playlistRefresh')

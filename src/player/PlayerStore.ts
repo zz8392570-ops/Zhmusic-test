@@ -34,6 +34,7 @@ export type CacheDownloadTask = {
 	quality: AudioQuality
 	/** Explicit download choices must not silently reuse or fall back to another quality. */
 	strictQuality?: boolean
+	allowDuplicate?: boolean
 	bytesWritten?: number
 	contentLength?: number
 	bytesPerSecond?: number

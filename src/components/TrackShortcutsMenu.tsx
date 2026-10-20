@@ -187,6 +187,12 @@ export const TrackShortcutsMenu = ({
 					Alert.alert(i18n.t('favoriteGroups.failed'))
 				}
 			})
+			.with('manage-platforms', () =>
+				router.push({
+					pathname: '/(modals)/favoriteVersions',
+					params: { id: track.id, platform: track.platform },
+				}),
+			)
 			.with('replace-source', async () => {
 				onReplaceSource?.(track)
 			})
@@ -255,6 +261,15 @@ export const TrackShortcutsMenu = ({
 						]
 					: []),
 				...sourceActions,
+				...(isFavorite && sourceOptions.length > 1
+					? [
+							{
+								id: 'manage-platforms',
+								title: i18n.t('versions.title'),
+								image: 'slider.horizontal.3',
+							},
+						]
+					: []),
 				...(isFavorite && sourceOptions.length > 1
 					? [
 							{

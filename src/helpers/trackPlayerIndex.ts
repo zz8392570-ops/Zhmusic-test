@@ -546,16 +546,7 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 		)
 			return
 		const selected = musicApiSelectedStore.getValue()
-		if (failedMusic && selected?.id) {
-			const failureKey = getMusicFailureKey(failedMusic)
-			const retryKey = `${failureKey}:${selected.id}`
-			const failureError = new Error(failure?.message || failure?.code || '音频加载失败')
-			recordMusicApiAttempt(selected.id, {
-				success: false,
-				durationMs: 0,
-				quality: qualityStore.getValue(),
-				error: failureError,
-			})
+		if (failedMusic) {
 			appendSourceDiagnostic({
 				requestKey: nativeQueue?.token ?? `playback_${Date.now().toString(36)}`,
 				requestType: 'current',
@@ -565,14 +556,27 @@ async function failToPlay(failure?: { code?: string; message?: string }) {
 					artist: failedMusic.artist,
 					platform: failedMusic.platform,
 				},
-				sourceId: selected.id,
-				sourceName: selected.name,
+				sourceId: selected?.id,
+				sourceName: selected?.name,
 				requestedQuality: qualityStore.getValue(),
 				actualQuality: playbackQualityStore.getValue(),
 				step: 'native-playback',
 				result: 'failure',
-				category: classifySourceError(failureError),
-				message: failureError.message,
+				category: classifySourceError(
+					new Error(failure?.message || failure?.code || '音频加载失败'),
+				),
+				message: failure?.message || failure?.code || '音频加载失败',
+			})
+		}
+		if (failedMusic && selected?.id) {
+			const failureKey = getMusicFailureKey(failedMusic)
+			const retryKey = `${failureKey}:${selected.id}`
+			const failureError = new Error(failure?.message || failure?.code || '音频加载失败')
+			recordMusicApiAttempt(selected.id, {
+				success: false,
+				durationMs: 0,
+				quality: qualityStore.getValue(),
+				error: failureError,
 			})
 			const retryCount = playbackRetryCounts.get(retryKey) ?? 0
 			if (retryCount < 1) {

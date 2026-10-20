@@ -33,6 +33,7 @@ import {
 	CacheDownloadTask,
 } from './PlayerStore'
 import type { AudioQuality } from '@/helpers/audioQuality'
+import { sameDownloadRecording, reusableDownloadQuality } from '@/helpers/downloadDedup'
 
 type DownloadOptions = {
 	quality?: AudioQuality
@@ -179,11 +180,27 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				throw new Error(i18n.t('cacheCenter.errors.wifiRequired'))
 		}
 		await withCacheMaintenance(migrateCacheRetention)
-		const existing = await getCachedAudioInfo(
+		let existing = await getCachedAudioInfo(
 			task.track,
 			!task.strictQuality,
 			task.strictQuality ? (task.quality as IMusic.IQualityKey) : undefined,
 		)
+		if (!existing && !task.allowDuplicate) {
+			const favorites = PersistStatus.get('music.favorites') ?? []
+			for (const candidate of importedLocalMusicStore.getValue() ?? []) {
+				if (!sameDownloadRecording(task.track, candidate, favorites)) continue
+				const cached = await getCachedAudioInfo(
+					candidate,
+					true,
+					task.strictQuality ? (task.quality as IMusic.IQualityKey) : undefined,
+				)
+				if (cached && reusableDownloadQuality(cached.quality, task.quality, !!task.strictQuality)) {
+					existing = cached
+					if (!task.silent) showToast(i18n.t('downloadDedup.reused'), candidate.title, 'info')
+					break
+				}
+			}
+		}
 		let localPath = existing?.localPath
 		let quality = existing?.quality ?? task.quality
 		if (!localPath) {
@@ -287,14 +304,20 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 				for (let suffix = 2; tracks.some((track) => track.id === id); suffix++)
 					id = `${baseId}:${suffix}`
 			}
-			const record = {
-				...task.track,
-				id,
-				originalId: task.track.id,
-				url: localPath,
-				cachedQuality: quality,
-				cacheKind: kind,
-			}
+			const record =
+				index >= 0 && mediaKey(tracks[index]) !== mediaKey(task.track)
+					? {
+							...tracks[index],
+							cacheKind: kind === 'saved' ? 'saved' : tracks[index].cacheKind,
+						}
+					: {
+							...task.track,
+							id,
+							originalId: task.track.id,
+							url: localPath,
+							cachedQuality: quality,
+							cacheKind: kind,
+						}
 			const updated = [...tracks]
 			if (index >= 0) updated[index] = record
 			else updated.push(record)
@@ -334,6 +357,7 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 
 const pump = () => {
 	if (clearing) return
+	const favorites = PersistStatus.get('music.favorites') ?? []
 	while (active.size < 2) {
 		const queued = cacheDownloadTasksStore
 			.getValue()
@@ -341,7 +365,15 @@ const pump = () => {
 				(task) =>
 					task.status === 'queued' &&
 					!active.has(task.id) &&
-					![...activeMedia.values()].includes(mediaKey(task.track)),
+					![...activeMedia.values()].includes(mediaKey(task.track)) &&
+					(task.allowDuplicate ||
+						!cacheDownloadTasksStore
+							.getValue()
+							.some(
+								(running) =>
+									active.has(running.id) &&
+									sameDownloadRecording(task.track, running.track, favorites),
+							)),
 			)
 		if (!queued) break
 		const task: CacheDownloadTask = {
@@ -389,6 +421,7 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 		silent: options.silent === true,
 		quality,
 		strictQuality: options.strictQuality === true,
+		allowDuplicate: kind === 'saved' && PersistStatus.get('music.allowDuplicateDownloads') === true,
 		progress: 0,
 		status: 'queued',
 		updatedAt: Date.now(),

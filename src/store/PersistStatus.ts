@@ -1,12 +1,14 @@
 import getOrCreateMMKV from '@/store/getOrCreateMMKV'
 import safeParse from '@/utils/safeParse'
 import { useEffect, useState } from 'react'
+import { captureLibrarySnapshots } from '@/helpers/librarySnapshots'
 
 const PersistConfig = {
 	PersistStatus: 'appPersistStatus',
 }
 
 export interface IPersistConfig {
+	'library.snapshots': import('@/helpers/librarySnapshots').LibrarySnapshot[]
 	'music.favoriteMergeUndo': {
 		before: IMusic.IMusicItem[]
 		after: IMusic.IMusicItem[]
@@ -23,6 +25,7 @@ export interface IPersistConfig {
 		{ checkedAt: number; added?: number; removed?: number; error?: boolean }
 	>
 	'music.downloadWifiOnly': boolean
+	'music.allowDuplicateDownloads': boolean
 	'music.listeningDaily': import('@/helpers/listeningReport').ListeningDay[]
 	'music.listeningDailySince': number
 	'app.onboardingCompleted': boolean
@@ -97,10 +100,33 @@ export interface IPersistConfig {
 
 function set<K extends keyof IPersistConfig>(key: K, value: IPersistConfig[K] | undefined) {
 	const store = getOrCreateMMKV(PersistConfig.PersistStatus)
-	if (value === undefined) {
-		store.remove(key)
-	} else {
-		store.set(key, JSON.stringify(value))
+	const serialized = value === undefined ? undefined : JSON.stringify(value)
+	const libraryKey = ['music.favorites', 'music.playLists'].includes(key)
+	const previousHistory = libraryKey ? store.getString('library.snapshots') : undefined
+	let captured = false
+	if (libraryKey) {
+		const raw = store.getString(key)
+		const history = previousHistory ? safeParse(previousHistory) : []
+		const nextHistory = captureLibrarySnapshots(
+			key,
+			raw ? safeParse(raw) : null,
+			value,
+			Array.isArray(history) ? history : [],
+		)
+		if (nextHistory !== history && nextHistory.length) {
+			store.set('library.snapshots', JSON.stringify(nextHistory))
+			captured = true
+		}
+	}
+	try {
+		if (serialized === undefined) store.remove(key)
+		else store.set(key, serialized)
+	} catch (error) {
+		if (captured) {
+			if (previousHistory === undefined) store.remove('library.snapshots')
+			else store.set('library.snapshots', previousHistory)
+		}
+		throw error
 	}
 }
 

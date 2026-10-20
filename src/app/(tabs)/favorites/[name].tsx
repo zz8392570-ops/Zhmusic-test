@@ -16,16 +16,15 @@ import {
 	getImportedPlaylistSource,
 	mergeConcurrentImportedPlaylistRefresh,
 } from '@/helpers/importPlaylist'
-import { copyLibraryTracks, getLibraryTrackKey, mergePlaylistRepairs } from '@/helpers/libraryEdits'
+import { getLibraryTrackKey } from '@/helpers/libraryEdits'
 import { useDefaultStyles } from '@/styles'
-import { Redirect, useLocalSearchParams } from 'expo-router'
+import { Redirect, useLocalSearchParams, router } from 'expo-router'
 import { File, Paths } from 'expo-file-system'
 import React, { useCallback, useMemo, useState } from 'react'
 import { Alert, View } from 'react-native'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import i18n from '@/utils/i18n'
-import { repairUnavailableTracks } from '@/helpers/libraryRepair'
 import { shareLocalFiles } from '../../../../modules/cymusic-native/sharing'
 import shuffle from 'lodash.shuffle'
 
@@ -36,7 +35,6 @@ const PlaylistScreen = () => {
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 	const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set())
 	const [isRefreshing, setIsRefreshing] = useState(false)
-	const [isRepairing, setIsRepairing] = useState(false)
 	const [isExporting, setIsExporting] = useState(false)
 
 	const playlist = useMemo(() => {
@@ -306,9 +304,8 @@ const PlaylistScreen = () => {
 			},
 			{
 				id: 'repair',
-				title: i18n.t(isRepairing ? 'playlistTools.repairing' : 'playlistTools.repairUnavailable'),
+				title: i18n.t('playlistTools.repairUnavailable'),
 				image: 'wrench.and.screwdriver',
-				attributes: { disabled: isRepairing },
 			},
 			{ id: 'select', title: i18n.t('playlistTools.selectSongs'), image: 'checkmark.circle' },
 			{
@@ -324,40 +321,12 @@ const PlaylistScreen = () => {
 				attributes: { destructive: true },
 			},
 		],
-		[importedSource, isExporting, isRefreshing, isRepairing],
+		[importedSource, isExporting, isRefreshing],
 	)
 
-	const repairUnavailableSongs = useCallback(async () => {
-		if (isRepairing || !songs.length) return
-		setIsRepairing(true)
-		try {
-			const latest = (playListsStore.getValue() ?? []).find((item) => item.id === playlistID)
-			if (!latest) throw new Error('playlist removed')
-			const baseline = copyLibraryTracks(latest.songs)
-			const result = await repairUnavailableTracks(copyLibraryTracks(baseline))
-			let repaired = 0
-			if (result.repaired) {
-				const status = myTrackPlayer.updateStoredPlaylist(playlistID, (current) => {
-					const merged = mergePlaylistRepairs(current, baseline, result.replacements)
-					repaired = merged.repaired
-					return { songs: merged.songs, sourceOverrides: merged.sourceOverrides }
-				})
-				if (status !== 'success') throw new Error(status)
-			}
-			Alert.alert(
-				i18n.t('playlistTools.repairComplete'),
-				i18n.t('playlistTools.repairSummary', {
-					unavailable: result.unavailable,
-					repaired,
-					review: result.review.length,
-				}),
-			)
-		} catch {
-			Alert.alert(i18n.t('playlistTools.repairFailed'))
-		} finally {
-			setIsRepairing(false)
-		}
-	}, [isRepairing, playlistID, songs])
+	const repairUnavailableSongs = useCallback(() => {
+		router.push({ pathname: '/(modals)/libraryRepair', params: { target: playlistID } })
+	}, [playlistID])
 
 	const onManagementAction = useCallback(
 		(actionId: string) => {

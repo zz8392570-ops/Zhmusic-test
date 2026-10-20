@@ -67,11 +67,12 @@ export const formatSourceDiagnostics = () =>
 				new Date(item.timestamp).toISOString(),
 				item.result.toUpperCase(),
 				item.category ?? '-',
-				`${item.track.title} - ${item.track.artist}`,
+				`${item.track.title} - ${item.track.artist} [${item.track.platform ?? '-'}]`,
 				item.sourceName ?? '-',
 				`${item.requestedQuality ?? '-'} -> ${item.actualQuality ?? '-'}`,
 				`${item.durationMs ?? '-'}ms`,
 				item.step,
+				item.requestKey,
 				item.message ?? '',
 			].join(' | '),
 		)

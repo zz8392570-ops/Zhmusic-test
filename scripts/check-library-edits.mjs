@@ -94,11 +94,12 @@ try {
 		},
 	)
 	await suite.check(
-		'playlist page rebases delayed refresh and repair through the real storage updater',
+		'playlist refresh rebases delayed results and repair opens a review screen',
 		async () => {
 			for (const action of ['refresh', 'repair']) {
 				const pending = deferred()
 				const alerts = []
+				const routes = []
 				const react = {
 					useState: (initial) => [initial, () => {}],
 					useMemo: (fn) => fn(),
@@ -118,6 +119,7 @@ try {
 						'@/helpers/playlistFile': { serializePlaylistFile() {} },
 						'expo-router': {
 							Redirect: 'Redirect',
+							router: { push: (route) => routes.push(route) },
 							useLocalSearchParams: () => ({ name: 'kw__123' }),
 						},
 						'expo-file-system': { File: class {}, Paths: {} },
@@ -144,6 +146,11 @@ try {
 					node?.type === 'Playlist' ? node : node?.props?.children?.map(find).find(Boolean)
 				const props = find(Screen()).props
 				props.onManagementAction(action)
+				if (action === 'repair') {
+					assert.equal(routes[0].pathname, '/(modals)/libraryRepair')
+					assert.equal(routes[0].params.target, 'kw__123')
+					continue
+				}
 				await flush()
 				assert.equal(
 					facade.updateStoredPlaylist('kw__123', {

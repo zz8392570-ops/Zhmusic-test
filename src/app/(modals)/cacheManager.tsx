@@ -43,6 +43,7 @@ const CacheManagerScreen = () => {
 	const revision = cacheRevisionStore.useValue()
 	const [cacheUsage, setCacheUsage] = useState({ automatic: 0, saved: 0, total: 0 })
 	const wifiOnly = PersistStatus.useValue('music.downloadWifiOnly', false) ?? false
+	const allowDuplicates = PersistStatus.useValue('music.allowDuplicateDownloads', false) ?? false
 	const cacheLimitMB = PersistStatus.useValue('music.cacheLimitMB', 1024) ?? 1024
 	const cachedTracks = useMemo(
 		() => importedTracks.filter((track) => String(track.url || '').includes('/musicCache/')),
@@ -348,6 +349,25 @@ const CacheManagerScreen = () => {
 									PersistStatus.set('music.downloadWifiOnly', value)
 								} catch {
 									Alert.alert(i18n.t('settings.actions.cache.error'))
+								}
+							}}
+						/>
+					</View>
+					<View
+						style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 }}
+					>
+						<View style={{ flex: 1 }}>
+							<Text style={styles.title}>{i18n.t('downloadDedup.allow')}</Text>
+							<Text style={styles.summaryLabel}>{i18n.t('downloadDedup.description')}</Text>
+						</View>
+						<Switch
+							accessibilityLabel={i18n.t('downloadDedup.allow')}
+							value={allowDuplicates}
+							onValueChange={(value) => {
+								try {
+									PersistStatus.set('music.allowDuplicateDownloads', value)
+								} catch {
+									Alert.alert(i18n.t('common.error'))
 								}
 							}}
 						/>

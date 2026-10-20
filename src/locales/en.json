@@ -930,7 +930,7 @@
 	},
 	"listeningReport": {
 		"title": "Listening report",
-		"description": "Effective plays and listening time for the last 7 days and the previous 7 days, using local dates. Keeps 90 recorded dates. Equivalent platform versions are combined; live recordings, covers and split favorites remain separate. Older reports without version metadata use known favorite groups only. Legacy lifetime totals are excluded.",
+		"description": "Weekly, monthly and annual reports use local dates and effective listening time. Starting with this version, 400 recorded dates are retained. Equivalent platforms are combined; live recordings, covers and split favorites remain separate. Older reports use known favorite groups when version metadata is missing.",
 		"disabled": "Listening statistics are disabled. Enable them in settings.",
 		"since": "Recording since %{date}",
 		"current": "Last 7 days",
@@ -940,6 +940,65 @@
 		"empty": "No listening records for this period",
 		"topSongs": "Top songs",
 		"topArtists": "Top artists",
-		"trackSummary": "%{plays} plays · %{minutes} min"
+		"trackSummary": "%{plays} plays · %{minutes} min",
+		"periods": {
+			"week": "Weekly report",
+			"month": "Monthly report",
+			"year": "Annual report"
+		},
+		"currentPeriod": "Current period",
+		"previousPeriod": "Previous period",
+		"streaks": "%{activeDays} active days · Longest streak %{longestStreak} · Ending streak %{currentStreak}",
+		"shareCard": "Share listening card",
+		"shareFailed": "Could not create or share the card. Try again with the updated iOS app.",
+		"coverage": "Uses records available on this device only; missing or expired history is not estimated."
+	},
+	"maintenance": {
+		"title": "Repair unavailable songs",
+		"description": "Scan favorites or a playlist, then review and select replacements before applying. Uncertain or unverified matches stay unchanged. Songs edited during the scan are skipped; use library history to undo.",
+		"scan": "Scan and find replacements",
+		"progress": "Checked %{checked} / %{total}",
+		"apply": "Apply selected replacements",
+		"confirm": "Replace %{count} selected songs? Original platform records are retained and the current playlist is saved to history.",
+		"applied": "Replaced %{count} songs. Changed, deleted or duplicate destinations were skipped.",
+		"toggleAll": "Select all / Clear selection",
+		"unresolved": "Needs manual review:"
+	},
+	"versions": {
+		"title": "Manage platform versions",
+		"description": "Set a default platform or remove an incorrect match. Removing a version changes favorites only and keeps cached audio. Restore records from library history.",
+		"remove": "Remove this platform version",
+		"confirmRemove": "Remove this platform version of “%{title}” from favorites? Other versions are kept.",
+		"default": "✓ Default playback source",
+		"setDefault": "Set default playback source",
+		"unknown": "Other platform"
+	},
+	"history": {
+		"title": "Library history and recovery",
+		"description": "Saves favorites and playlists before edits, sync, refresh and organization, including order. Keeps up to 20 snapshots for 30 days on this device, with a history size limit. Restores records, not audio files.",
+		"restore": "Restore this snapshot",
+		"confirm": "Restore the target favorites or playlist to the preview. Other playlists stay unchanged. The current version is also saved to history.",
+		"diff": "Add %{added} · Remove %{removed} · Change %{changed}",
+		"orderChanged": "Track order or membership differs. The first 20 restored songs are shown below.",
+		"restored": "Restored; the previous version is retained in history",
+		"conflict": "The library changed after preview, or the snapshot expired. Preview it again.",
+		"failed": "Recovery failed; the original library is retained",
+		"empty": "No snapshots yet. Editing favorites or playlists creates history automatically."
+	},
+	"diagnostics": {
+		"title": "Playback diagnostics",
+		"description": "The latest 120 source requests and playback events. Filter by song, artist, platform or source. Includes native playback errors; request IDs connect attempts within one request.",
+		"search": "Search song, platform, source or error category",
+		"showAll": "Show all events",
+		"showFailures": "Show failures only",
+		"copy": "Copy diagnostics summary",
+		"share": "Share diagnostics summary",
+		"clear": "Clear diagnostics",
+		"confirmClear": "Clear playback diagnostics on this device?"
+	},
+	"downloadDedup": {
+		"allow": "Allow other platform copies",
+		"description": "Off by default: reuse cached copies of the same recording. Explicit quality choices reuse the same quality only. Enable to download additional platform copies manually; automatic caching still avoids duplicates.",
+		"reused": "Reused a cached copy of this recording"
 	}
 }
