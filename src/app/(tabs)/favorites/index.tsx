@@ -1,3 +1,4 @@
+import ContinueListening from '@/components/ContinueListening'
 import localImage from '@/assets/local.png'
 import { PlaylistsList } from '@/components/PlaylistsList'
 import TracksListItem from '@/components/TracksListItem'
@@ -250,6 +251,7 @@ const FavoritesScreen = () => {
 				contentInsetAdjustmentBehavior="never"
 				contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 150 }}
 			>
+				<ContinueListening />
 				<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
 					{shortcuts.map(({ playlist, title, icon, tint }) => (
 						<Pressable

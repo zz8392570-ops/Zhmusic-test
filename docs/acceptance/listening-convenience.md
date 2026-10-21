@@ -1,0 +1,22 @@
+# Sharing, offline availability and continuing a session
+
+## Implemented behavior
+
+- Player sharing offers song information, copying song/artist text, and a separate file action when the record references a local file. Detail links are generated only from validated provider IDs; the signed/temporary audio URL is not used. A cached record's `originalId` retains its provider identity. Missing identifiers still share metadata. File sharing verifies owned media through the existing resolver and native share owner.
+- Song rows and cache management verify local file availability when focused and after cache changes. Available local imports, saved downloads and automatic cache entries have different labels. Missing files differ from unreadable/unsafe/unverifiable paths. Lookups share only pending requests, run at most four probes concurrently and retire results from recycled rows or old cache revisions. Remote rows with download tasks display their task state; a completed task does not itself prove the file still exists.
+- Batch download quality selection opens a confirmation before creating any tasks. It captures exact-provider unique candidates and the selected quality, reports the estimated bytes and available device space, and identifies unknown or partially known sizes. Source size metadata is preferred; 128/320 kbps can be estimated from duration, while unknown FLAC size is left unknown. Estimates may include reusable downloads and are not a reservation; the existing downloader still checks space and protects saved files. Native space-reading failure remains unknown rather than zero.
+- My Music has a Continue listening card. Rendering it never starts playback. An existing session resumes without replacing the live queue or restarting an already playing track. A retained session can be restored explicitly even with startup restoration disabled, loading paused, seeking to the bounded saved position, then starting playback. Pause, Stop or another selection during resolution retires that completion. Authorized provider fallback keeps the position and queue. A recovered play-later entry remains independent of the base queue and is not enqueued twice. When startup restoration was disabled, its former anchor has been discarded by that existing setting; the recovered temporary entry returns to the beginning of the restored base queue.
+- View play queue restores an otherwise unloaded retained base queue without starting audio. The card shows the retained queue and song, without guessing a source playlist from overlapping collection membership.
+
+Controlled checks execute the real sharing/menu, confirmation, file-status and card owners. The RNTP façade checks cover explicit continuation, already-playing/paused sessions, retained position, platform fallback, recovered temporary entries and interrupted resolutions. These results do not establish physical-device playback or provider-page availability.
+
+## Device acceptance
+
+- [ ] Share known songs from all five platforms, including cached records and a pending source. Confirm recipients get a detail page or metadata, never the playback URL; test copy, cancellation, retry and iPad presentation.
+- [ ] Share a local file explicitly. Remove or move it and verify the missing-file message; metadata sharing remains available.
+- [ ] Open local music/cache management. Verify available, missing, automatic-cache and imported-file labels. Delete a file, return to the page, and confirm the status refreshes. Rapid scrolling must not transfer a prior row's status.
+- [ ] Batch-save at each quality. Inspect estimates, unknown sizes and free space; cancel and confirm no task is created. Confirm once and inspect the chosen quality and waiting/downloading/failed states.
+- [ ] Test low storage, unavailable storage information, Wi-Fi-only downloads and files already saved at another quality. Existing saved files must remain intact.
+- [ ] Play to a known position, pause, and resume from My Music. While already playing, the card should open Now Playing without resetting position or order.
+- [ ] Disable startup restore, restart, inspect the retained queue without playing, then explicitly continue. Verify position and order, including completed-song restart from zero and play-later recovery.
+- [ ] During a slow continuation request, Pause, Stop or select another song. The old request must not seek or restart it. Repeat with source failure and platform fallback.

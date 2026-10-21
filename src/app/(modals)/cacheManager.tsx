@@ -1,3 +1,4 @@
+import OfflineAvailabilityLabel from '@/components/OfflineAvailabilityLabel'
 import { ThemeColors } from '@/constants/tokens'
 import myTrackPlayer, {
 	cacheDownloadTasksStore,
@@ -275,6 +276,7 @@ const CacheManagerScreen = () => {
 					{track.artist} · {(track.cachedQuality || track.format || 'unknown').toUpperCase()} ·{' '}
 					{i18n.t(track.cacheKind === 'automatic' ? 'cacheCenter.automatic' : 'cacheCenter.saved')}
 				</Text>
+				<OfflineAvailabilityLabel track={track} />
 			</View>
 			{track.cacheKind === 'automatic' ? (
 				<Pressable

@@ -652,11 +652,12 @@ const changePlayLater = (action: () => unknown) => {
 	return result
 }
 
-const switchPlaybackPlatform = (failed: IMusic.IMusicItem) => {
+const switchPlaybackPlatform = (failed: IMusic.IMusicItem, allowPaused = false) => {
 	if (
 		!favoritePlayback ||
 		!containsPlaybackVariant(favoritePlayback, failed) ||
-		playbackIntentStore.getValue() !== 'play'
+		(playbackIntentStore.getValue() !== 'play' &&
+			!(allowPaused && playbackIntentStore.getValue() === 'pause'))
 	)
 		return undefined
 	const next = nextPlaybackVariant(favoritePlayback, failed)
@@ -1533,6 +1534,7 @@ const play = async (
 			}
 		}
 		setPlaybackIntent(startPaused ? 'pause' : 'play')
+		const sourceIntentRevision = controlRevision
 
 		// 1. If already playing this track
 		if (isCurrentMusic(musicItem)) {
@@ -1617,7 +1619,10 @@ const play = async (
 					(error as Error)?.message === PlayFailReason.FORBID_CELLUAR_NETWORK_PLAY
 				)
 					throw error
-				const platform = switchPlaybackPlatform(musicItem)
+				const platform = switchPlaybackPlatform(
+					musicItem,
+					startPaused && controlRevision === sourceIntentRevision,
+				)
 				if (!platform) throw error
 				musicItem = platform
 				setCurrentMusic(musicItem)
@@ -1836,6 +1841,52 @@ const playWithReplacePlayList = async (
 	}
 }
 
+/** Explicitly resume the retained session; opening the library never starts audio. */
+const continueLastSession = async (): Promise<boolean> => {
+	const current = currentMusicStore.getValue()
+	if (current) {
+		if (ReactNativeTrackPlayer.isPlaying()) return true
+		const pending = play()
+		const revision = controlRevision
+		await pending
+		return revision === controlRevision && !sourceLoadingErrorStore.getValue()
+	}
+	const saved = PersistStatus.get('music.musicItem') ?? recentlyPlayedStore.getValue()[0]
+	if (!saved?.id || !saved.platform) return false
+	const position = PersistStatus.get('music.musicItem')
+		? PersistStatus.get('music.progress') ?? 0
+		: 0
+	let target = saved.playLaterEntryId ? cleanQueueTrack(saved) : saved
+	if (!getPlayList().length) {
+		const savedQueue = PersistStatus.get('music.play-list') ?? []
+		addAll(savedQueue.length ? savedQueue : [target])
+	}
+	if (
+		saved.playLaterEntryId &&
+		getPlayLaterState().pending.some((entry) => entry.id === saved.playLaterEntryId)
+	) {
+		target = activatePlayLater(saved.playLaterEntryId, null, -1) ?? target
+	}
+	const pending = play(target, false, undefined, false, true)
+	const revision = controlRevision
+	await pending
+	// Pause, Stop, another selection or an unsuccessful resolver retires this resume.
+	if (
+		revision !== controlRevision ||
+		!nativeQueue ||
+		!isSameMediaItem(nativeQueue.track as IMusic.IMusicItem, currentMusicStore.getValue()) ||
+		sourceLoadingErrorStore.getValue() ||
+		trackSourceLoadingStore.getValue()
+	)
+		return false
+	const restoredPosition = normalizedRestorePosition(position, Number(nativeQueue.track.duration))
+	seekTo(restoredPosition)
+	setPlaybackIntent('play')
+	markPlaybackStarted(nativeQueue.track as IMusic.IMusicItem)
+	ReactNativeTrackPlayer.play()
+	return true
+}
+
 const runWithTrackSkipLoading = async (
 	direction: 'next' | 'previous',
 	action: (operation: symbol) => Promise<void>,
@@ -2050,6 +2101,7 @@ const myTrackPlayer = {
 	cancelSourceLoading,
 	retryWithNextSource,
 	playWithReplacePlayList,
+	continueLastSession,
 	pause,
 	stop,
 	observeNativeTransport,

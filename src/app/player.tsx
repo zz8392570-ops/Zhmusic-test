@@ -1,5 +1,5 @@
 import { searchSongByTitle } from '@/helpers/songSearchNavigation'
-import { shareSong } from '@/helpers/shareSong'
+import { shareSong, shareSongFile, copySongInfo, getSongShareActions } from '@/helpers/shareSong'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
 import Lyric from '@/components/lyric'
 import AudioQualityBadge from '@/components/AudioQualityBadge'
@@ -356,7 +356,12 @@ const PlayerScreenContent = () => {
 				: []),
 			{ id: 'lyrics', title: i18n.t('player.showLyrics'), image: 'text.quote' },
 			{ id: 'playlist', title: i18n.t('player.addToPlaylist'), image: 'plus.circle' },
-			{ id: 'share', title: i18n.t('player.share'), image: 'square.and.arrow.up' },
+			{
+				id: 'share-menu',
+				title: i18n.t('player.share'),
+				image: 'square.and.arrow.up',
+				subactions: getSongShareActions(trackToDisplay),
+			},
 			{ id: 'sound-effects', title: i18n.t('soundEffects.title'), image: 'slider.horizontal.3' },
 			{
 				id: 'timing',
@@ -385,7 +390,7 @@ const PlayerScreenContent = () => {
 			})
 		}
 		return actions
-	}, [canNavigateCatalog, colors.primary, isFavorite, sleepTimerLabel, trackToDisplay?.platform])
+	}, [canNavigateCatalog, colors.primary, isFavorite, sleepTimerLabel, trackToDisplay])
 	useEffect(() => {
 		if (showLyrics) {
 			activateKeepAwakeAsync()
@@ -731,6 +736,12 @@ const PlayerScreenContent = () => {
 														break
 													case 'share':
 														void handleShare()
+														break
+													case 'copy-song':
+														void copySongInfo(trackToDisplay)
+														break
+													case 'share-file':
+														void shareSongFile(trackToDisplay)
 														break
 													case 'timing_10':
 														handleTimingClose(10)

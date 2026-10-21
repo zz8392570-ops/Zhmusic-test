@@ -1,3 +1,4 @@
+import OfflineAvailabilityLabel from '@/components/OfflineAvailabilityLabel'
 import { useFavorites } from '@/store/library'
 import { getFavoriteIndex } from '@/helpers/favoriteGroups'
 import { TrackShortcutsMenu } from '@/components/TrackShortcutsMenu'
@@ -270,6 +271,7 @@ const TracksListItem = ({
 								</View>
 							</View>
 						) : null}
+						<OfflineAvailabilityLabel track={track} />
 					</View>
 				</View>
 			</TouchableHighlight>

@@ -302,6 +302,7 @@ try {
 			await write(filePath, 'Audio bytes')
 			await lookup.get(track)
 			const { default: TrackRow } = loadModule('src/components/TracksListItem.tsx', {
+				'@/components/OfflineAvailabilityLabel': 'OfflineLabel',
 				react: { ...react, useEffect() {} },
 				'@/store/library': { useFavorites: () => ({ favorites: [], toggleTrackFavorite() {} }) },
 				'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),

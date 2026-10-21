@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const checks = [
+	'check-listening-convenience.mjs',
 	'check-product-flow.mjs',
 	'check-song-sharing.mjs',
 	'check-playback-preferences.mjs',

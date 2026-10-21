@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { match, P } from 'ts-pattern'
 import ts from 'typescript'
-import { assert, checks, loadModule } from './native-services-fixture.mjs'
+import { assert, checks, flush, loadModule } from './native-services-fixture.mjs'
 import { createFixture, item as localItem, pathFromUri, write } from './file-system-fixture.mjs'
 
 const { check, finish } = checks()
@@ -269,7 +269,17 @@ try {
 		useCallback: (callback) => callback,
 	}
 	const calls = []
+	const confirmations = []
+	const confirmationOwner = loadModule('src/helpers/confirmPlaylistDownload.ts', {
+		'react-native': { Alert: { alert: (...args) => confirmations.push(args) } },
+		'expo-file-system/legacy': { getFreeDiskStorageAsync: async () => 1024 ** 3 },
+		'@/utils/i18n': { t: (key) => key },
+		'./downloadPreview': loadModule('src/helpers/downloadPreview.ts', {
+			'./songSharing': loadModule('src/helpers/songSharing.ts', {}),
+		}),
+	})
 	const common = {
+		'@/helpers/confirmPlaylistDownload': confirmationOwner,
 		react,
 		'@/helpers/downloadQuality': qualityMenu,
 		'@/helpers/trackPlayerIndex': {
@@ -403,6 +413,10 @@ try {
 			await menu.props.onPressAction({ nativeEvent: { event: 'cancel' } })
 			assert.equal(calls.length, before)
 			await menu.props.onPressAction({ nativeEvent: { event: 'download-quality-320k' } })
+			await flush()
+			assert.equal(calls.length, before)
+			confirmations.at(-1)[2][1].onPress()
+			await flush()
 			assert.deepEqual(
 				Array.from(calls.at(-1)[0], (track) => track.id),
 				['menu-batch'],

@@ -243,6 +243,7 @@ await check(
 		const { QueueControls } = loadModule(
 			'src/components/QueueControls.tsx',
 			{
+				'@/helpers/confirmPlaylistDownload': {},
 				react,
 				'@/helpers/trackPlayerIndex': {
 					MusicRepeatMode: { QUEUE: 'QUEUE', SHUFFLE: 'SHUFFLE' },

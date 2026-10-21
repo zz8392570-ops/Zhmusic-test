@@ -17,7 +17,10 @@ const translations = {
 function shareFixture(platform = 'ios') {
 	const calls = [],
 		alerts = [],
-		errors = []
+		errors = [],
+		fileCalls = [],
+		copied = [],
+		toasts = []
 	let implementation = async () => ({ action: 'dismissedAction' })
 	let localResolver = async () => ({ status: 'nonlocal' })
 	const sharing = loadModule(
@@ -32,8 +35,17 @@ function shareFixture(platform = 'ios') {
 					},
 				},
 				Alert: { alert: (...args) => alerts.push(args) },
+				Clipboard: { setString: (value) => copied.push(value) },
 			},
 			'@/utils/i18n': translations,
+			'@/utils/utils': { showToast: (...args) => toasts.push(args) },
+			'./songSharing': loadModule('src/helpers/songSharing.ts', {}),
+			'../../modules/cymusic-native/sharing': {
+				shareLocalFiles: async (paths) => {
+					fileCalls.push(paths)
+					return true
+				},
+			},
 			'./logger': { logError: (...args) => errors.push(args) },
 			'./localFile': { resolveLocalFile: (uri) => localResolver(uri) },
 		},
@@ -42,6 +54,9 @@ function shareFixture(platform = 'ios') {
 	return {
 		...sharing,
 		calls,
+		fileCalls,
+		copied,
+		toasts,
 		alerts,
 		errors,
 		setImplementation: (next) => {
@@ -260,7 +275,7 @@ await check('Android menu actions do not depend on the iOS-only dismissal event'
 	assert.equal(calls.length, 2)
 })
 await check(
-	'song sharing keeps valid network URLs but shares metadata for pending, malformed and local sources',
+	'song sharing sends provider detail pages and excludes transient playback URLs',
 	async () => {
 		const h = shareFixture()
 		for (const url of [
@@ -276,31 +291,44 @@ await check(
 			assert.equal(h.calls.at(-1).url, undefined)
 			assert.equal(h.calls.at(-1).message, '歌曲 A · 歌手')
 		}
-		await h.shareSong(song())
-		assert.equal(h.calls.at(-1).url, song().url)
+		await h.shareSong({ ...song(), songmid: '004IArbh3ytHgR' })
+		assert.equal(h.calls.at(-1).url, 'https://y.qq.com/n/ryqq/songDetail/004IArbh3ytHgR')
 		assert.equal(h.alerts.length, 0)
 		const android = shareFixture('android')
-		await android.shareSong(song())
-		assert.ok(android.calls[0].message.includes(song().url))
+		await android.shareSong({ ...song(), platform: 'wy', id: '123' })
+		assert.ok(android.calls[0].message.includes('https://music.163.com/#/song?id=123'))
 	},
 )
 await check(
-	'iOS file sharing uses a verified current local URI and missing files still share song information',
+	'file sharing is explicit, verifies the owned current file, and rejects missing files',
 	async () => {
-		const h = shareFixture()
-		const oldUri = 'file:///old-container/song.mp3',
-			currentUri = 'file:///current-container/song.mp3'
+		const h = shareFixture(),
+			oldUri = 'file:///old-container/song.mp3',
+			currentPath = '/current-container/song.mp3'
 		h.setLocalResolver(async (uri) => {
 			assert.equal(uri, oldUri)
-			return { status: 'resolved', fileUri: currentUri }
+			return { status: 'resolved', filePath: currentPath }
 		})
 		await h.shareSong(song(oldUri))
-		assert.equal(h.calls[0].url, currentUri)
-		assert.equal(h.calls[0].message, '歌曲 A · 歌手')
-		h.setLocalResolver(async () => ({ status: 'missing' }))
-		await h.shareSong(song(oldUri))
-		assert.equal(h.calls[1].url, undefined)
-		assert.equal(h.alerts.length, 0)
+		assert.equal(h.calls[0].url, undefined)
+		assert.equal(h.fileCalls.length, 0)
+		await h.shareSongFile(song(oldUri))
+		assert.deepEqual(Array.from(h.fileCalls[0]), [currentPath])
+		h.setLocalResolver(async () => ({ status: 'unresolved', reason: 'missing' }))
+		await h.shareSongFile(song(oldUri))
+		assert.equal(h.fileCalls.length, 1)
+		assert.equal(h.alerts.at(-1)[0], 'player.shareFileMissing')
+		await h.copySongInfo(song())
+		assert.deepEqual(h.copied, ['歌曲 A - 歌手'])
+		assert.equal(h.toasts[0][0], 'player.songCopied')
+		assert.deepEqual(
+			Array.from(h.getSongShareActions(song()), (action) => action.id),
+			['share', 'copy-song'],
+		)
+		assert.deepEqual(
+			Array.from(h.getSongShareActions(song(oldUri)), (action) => action.id),
+			['share', 'copy-song', 'share-file'],
+		)
 	},
 )
 await check(

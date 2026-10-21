@@ -2392,6 +2392,111 @@ await check(
 	},
 )
 
+await check(
+	'explicit continue restores a disabled-startup session and retains the queue and seek position',
+	async () => {
+		const h = runtime(),
+			a = song('continue-a', { duration: 180 }),
+			b = song('continue-b', { duration: 180 })
+		h.persistence.set('music.restorePlaybackOnStartup', false)
+		h.persistence.set('music.musicItem', b)
+		h.persistence.set('music.progress', 47)
+		h.persistence.set('music.play-list', [a, b])
+		await h.setup()
+		assert.equal(h.count('play'), 0)
+		assert.equal(await h.facade.continueLastSession(), true)
+		assert.equal(h.facade.getCurrentMusic().id, b.id)
+		assert.deepEqual(
+			Array.from(h.facade.getPlayList(), (track) => track.id),
+			[a.id, b.id],
+		)
+		assert.equal(h.player.progress.position, 47)
+		assert.equal(h.player.isPlaying(), true)
+		const plays = h.count('play'),
+			queue = h.facade.getPlayList()
+		assert.equal(await h.facade.continueLastSession(), true)
+		assert.equal(h.count('play'), plays)
+		assert.equal(h.facade.getPlayList(), queue)
+		h.facade.pause()
+		await h.facade.continueLastSession()
+		assert.equal(h.player.progress.position, 47)
+	},
+)
+await check(
+	'pending continue cannot seek or play after Pause, Stop or selecting another song',
+	async () => {
+		for (const action of ['pause', 'stop', 'select']) {
+			const h = runtime(),
+				old = song('retained', { duration: 180 }),
+				other = song('newer'),
+				gate = deferred()
+			h.persistence.set('music.restorePlaybackOnStartup', false)
+			h.persistence.set('music.musicItem', old)
+			h.persistence.set('music.progress', 75)
+			h.persistence.set('music.play-list', [old, other])
+			await h.setup()
+			h.setResolver(async (track) => {
+				if (track.id === old.id) await gate.promise
+				return { url: track.url, wasCached: false }
+			})
+			const pending = h.facade.continueLastSession()
+			await flush()
+			if (action === 'select') await h.facade.play(other)
+			else h.facade[action]()
+			const plays = h.count('play'),
+				seeks = h.count('seek')
+			gate.resolve()
+			assert.equal(await pending, false)
+			assert.equal(h.count('play'), plays)
+			assert.equal(h.count('seek'), seeks)
+			if (action === 'select') assert.equal(h.facade.getCurrentMusic().id, other.id)
+		}
+	},
+)
+
+await check(
+	'explicit continue accepts an authorized platform fallback and retains temporary queue identities',
+	async () => {
+		const h = runtime(),
+			{ group, tracks } = favoritePlatforms(h)
+		h.persistence.set('music.restorePlaybackOnStartup', false)
+		h.persistence.set('music.play-list', [group, song('next')])
+		h.persistence.set('music.musicItem', group)
+		h.persistence.set('music.progress', 47)
+		await h.setup()
+		h.setResolver(async (track) => {
+			if (track.platform === 'tx') throw Error('unavailable')
+			return { url: `https://media.example/${track.id}.mp3`, wasCached: false }
+		})
+		assert.equal(await h.facade.continueLastSession(), true)
+		assert.equal(h.facade.getCurrentMusic().id, tracks[1].id)
+		assert.equal(h.facade.getPlayList().length, 2)
+		assert.equal(h.player.progress.position, 47)
+		assert.equal(h.player.isPlaying(), true)
+		const later = runtime(),
+			temporary = song('temporary', { duration: 180 }),
+			base = song('base')
+		later.persistence.set('music.restorePlaybackOnStartup', false)
+		later.persistence.set('music.play-list', [base])
+		later.persistence.set('music.musicItem', { ...temporary, playLaterEntryId: 'retained-later' })
+		later.persistence.set('music.progress', 31)
+		later.persistence.set('music.playLater', {
+			pending: [{ id: 'retained-later', track: temporary }],
+		})
+		await later.setup()
+		assert.equal(await later.facade.continueLastSession(), true)
+		assert.equal(later.facade.getCurrentMusic().playLaterEntryId, 'retained-later')
+		assert.equal(later.facade.getPlayLaterState().pending.length, 0)
+		assert.deepEqual(
+			Array.from(later.facade.getPlayList(), (track) => track.id),
+			[base.id],
+		)
+		assert.equal(later.player.progress.position, 31)
+		await later.facade.skipToNext()
+		assert.equal(later.facade.getCurrentMusic().id, base.id)
+	},
+)
+
 await fixture.dispose()
 const failed = results.filter((result) => !result.passed)
 console.log(

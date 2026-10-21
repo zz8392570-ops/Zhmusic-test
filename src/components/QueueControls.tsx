@@ -1,3 +1,4 @@
+import { confirmPlaylistDownload } from '@/helpers/confirmPlaylistDownload'
 import { ThemeColors } from '@/constants/tokens'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import myTrackPlayer, { MusicRepeatMode } from '@/helpers/trackPlayerIndex'
@@ -6,7 +7,7 @@ import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
 import shuffle from 'lodash.shuffle'
 import { useMemo } from 'react'
-import { Alert, StyleSheet, Text, View, ViewProps, TouchableOpacity } from 'react-native'
+import { StyleSheet, Text, View, ViewProps, TouchableOpacity } from 'react-native'
 import type { Track } from '@/player/types'
 import type { MenuAction } from '@react-native-menu/menu'
 import { MenuView } from '@/components/ActionMenu'
@@ -168,12 +169,7 @@ export const QueueControls = ({
 					onPressAction={({ nativeEvent: { event } }) => {
 						const quality = getDownloadQuality(event)
 						if (quality)
-							void myTrackPlayer
-								.downloadPlaylist(downloadable as IMusic.IMusicItem[], {
-									quality,
-									strictQuality: true,
-								})
-								.catch(() => Alert.alert(i18n.t('cacheCenter.downloadFailed')))
+							void confirmPlaylistDownload(downloadable, quality, myTrackPlayer.downloadPlaylist)
 					}}
 				>
 					<TouchableOpacity
