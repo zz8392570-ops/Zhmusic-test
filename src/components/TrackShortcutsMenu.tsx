@@ -247,99 +247,114 @@ export const TrackShortcutsMenu = ({
 			})
 	}
 
+	const allActions: MenuAction[] = [
+		{ id: 'play-later', title: i18n.t('playLater.add'), image: 'text.badge.plus' },
+		...(dislikeArtists.length
+			? [
+					{
+						id: 'dislike',
+						title: i18n.t('dislikes.menu'),
+						image: 'hand.thumbsdown',
+						subactions: [
+							...(track.title
+								? [{ id: 'dislike-song', title: i18n.t('dislikes.song'), image: 'music.note' }]
+								: []),
+							...dislikeArtists.map((artist, index) => ({
+								id: `dislike-artist-${index}`,
+								title: i18n.t('dislikes.artist', { artist }),
+								image: 'person',
+							})),
+						],
+					},
+				]
+			: []),
+		{
+			id: isInPlaylist ? 'remove-from-playlist' : 'add-to-playlist',
+			title: isInPlaylist ? i18n.t('menu.removeFromPlayingList') : i18n.t('menu.addToPlayingList'),
+			image: isInPlaylist ? 'minus' : 'plus',
+		},
+		{
+			id: isFavorite ? 'remove-from-favorites' : 'add-to-favorites',
+			title: isFavorite ? i18n.t('menu.removeFromFavorites') : i18n.t('menu.addToFavorites'),
+			image: isFavorite ? 'heart.fill' : 'heart',
+		},
+		{
+			id: 'add-to-storedPlayList',
+			title: i18n.t('menu.addToPlaylist'),
+			image: 'text.badge.plus',
+		},
+		...(track.platform !== 'local'
+			? [
+					{
+						id: 'download',
+						title: i18n.t('player.download'),
+						image: 'arrow.down.circle',
+						subactions: getDownloadQualityActions(),
+					},
+				]
+			: []),
+		...(onReplaceSource && track.platform !== 'local'
+			? [
+					{
+						id: 'replace-source',
+						title: i18n.t('playlistTools.replaceSource'),
+						image: 'arrow.triangle.2.circlepath',
+					},
+				]
+			: []),
+		...sourceActions,
+		...(isFavorite && sourceOptions.length > 1
+			? [
+					{
+						id: 'manage-platforms',
+						title: i18n.t('versions.title'),
+						image: 'slider.horizontal.3',
+					},
+				]
+			: []),
+		...(isFavorite && sourceOptions.length > 1
+			? [
+					{
+						id: 'split-favorite',
+						title: i18n.t('favoriteGroups.split'),
+						image: 'arrow.triangle.branch',
+					},
+				]
+			: []),
+		...(isSinger || !canNavigateCatalog ? [] : (artistActions as MenuAction[])),
+		...(allowDelete
+			? [
+					{
+						id: 'delete-track',
+						title: i18n.t('menu.delete'),
+						image: 'trash',
+						attributes: {
+							destructive: true,
+						},
+					},
+				]
+			: []),
+	]
+	const secondaryIds = new Set([
+		'dislike',
+		'replace-source',
+		'manage-platforms',
+		'split-favorite',
+		'add-to-playlist',
+		'remove-from-playlist',
+	])
+	const secondary = allActions.filter((action) => secondaryIds.has(action.id))
+	const actions = [
+		...allActions.filter((action) => !secondaryIds.has(action.id) && action.id !== 'delete-track'),
+		...(secondary.length
+			? [{ id: 'more', title: i18n.t('menu.moreActions'), subactions: secondary }]
+			: []),
+		...allActions.filter((action) => action.id === 'delete-track'),
+	]
 	return (
 		<MenuView
 			onPressAction={({ nativeEvent: { event } }) => handlePressAction(event)}
-			actions={[
-				{ id: 'play-later', title: i18n.t('playLater.add'), image: 'text.badge.plus' },
-				...(dislikeArtists.length
-					? [
-							{
-								id: 'dislike',
-								title: i18n.t('dislikes.menu'),
-								image: 'hand.thumbsdown',
-								subactions: [
-									...(track.title
-										? [{ id: 'dislike-song', title: i18n.t('dislikes.song'), image: 'music.note' }]
-										: []),
-									...dislikeArtists.map((artist, index) => ({
-										id: `dislike-artist-${index}`,
-										title: i18n.t('dislikes.artist', { artist }),
-										image: 'person',
-									})),
-								],
-							},
-						]
-					: []),
-				{
-					id: isInPlaylist ? 'remove-from-playlist' : 'add-to-playlist',
-					title: isInPlaylist
-						? i18n.t('menu.removeFromPlayingList')
-						: i18n.t('menu.addToPlayingList'),
-					image: isInPlaylist ? 'minus' : 'plus',
-				},
-				{
-					id: isFavorite ? 'remove-from-favorites' : 'add-to-favorites',
-					title: isFavorite ? i18n.t('menu.removeFromFavorites') : i18n.t('menu.addToFavorites'),
-					image: isFavorite ? 'heart.fill' : 'heart',
-				},
-				{
-					id: 'add-to-storedPlayList',
-					title: i18n.t('menu.addToPlaylist'),
-					image: 'text.badge.plus',
-				},
-				...(track.platform !== 'local'
-					? [
-							{
-								id: 'download',
-								title: i18n.t('player.download'),
-								image: 'arrow.down.circle',
-								subactions: getDownloadQualityActions(),
-							},
-						]
-					: []),
-				...(onReplaceSource && track.platform !== 'local'
-					? [
-							{
-								id: 'replace-source',
-								title: i18n.t('playlistTools.replaceSource'),
-								image: 'arrow.triangle.2.circlepath',
-							},
-						]
-					: []),
-				...sourceActions,
-				...(isFavorite && sourceOptions.length > 1
-					? [
-							{
-								id: 'manage-platforms',
-								title: i18n.t('versions.title'),
-								image: 'slider.horizontal.3',
-							},
-						]
-					: []),
-				...(isFavorite && sourceOptions.length > 1
-					? [
-							{
-								id: 'split-favorite',
-								title: i18n.t('favoriteGroups.split'),
-								image: 'arrow.triangle.branch',
-							},
-						]
-					: []),
-				...(isSinger || !canNavigateCatalog ? [] : (artistActions as MenuAction[])),
-				...(allowDelete
-					? [
-							{
-								id: 'delete-track',
-								title: i18n.t('menu.delete'),
-								image: 'trash',
-								attributes: {
-									destructive: true,
-								},
-							},
-						]
-					: []),
-			]}
+			actions={actions}
 		>
 			{children}
 		</MenuView>

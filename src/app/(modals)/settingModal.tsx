@@ -1,3 +1,8 @@
+import {
+	importMusicSourceFromFile,
+	importMusicSourceFromUrl,
+	sourceFileImportProgress,
+} from '@/helpers/userApi/sourceImportActions'
 // src/app/modals/settingModal.tsx
 import appIcon from '@/assets/144.png'
 import { ThemeColors } from '@/constants/tokens'
@@ -12,9 +17,6 @@ import myTrackPlayer, {
 	useCurrentQuality,
 } from '@/helpers/trackPlayerIndex'
 import { useThemeColors, useThemeMode } from '@/hooks/useAppTheme'
-import { createMusicApiFromScript, fetchScriptFromUrl } from '@/helpers/userApi/importMusicSource'
-import { restoreSelectedRuntime } from '@/helpers/userApi/musicApiControl'
-import { importMusicSourceFiles } from '@/helpers/userApi/batchMusicSourceImport'
 import PersistStatus from '@/store/PersistStatus'
 import {
 	DEFAULT_HOME_BOARD_ID,
@@ -29,8 +31,6 @@ import { showToast } from '@/utils/utils'
 import MusicSourceHealthList from '@/components/MusicSourceHealthList'
 import { MenuView } from '@/components/ActionMenu'
 import Constants from 'expo-constants'
-import * as DocumentPicker from 'expo-document-picker'
-import { File } from 'expo-file-system'
 import { useRouter } from 'expo-router'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
@@ -51,8 +51,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 const QUALITY_OPTIONS = ['128k', '320k', 'flac']
 const CURRENT_VERSION = Constants.expoConfig?.version ?? '未知版本'
 const IOS_MODAL_DISMISS_DELAY_MS = 350
-let isMusicSourceFilePickerOpen = false
-const sourceFileImportProgress = new GlobalState<{ completed: number; total: number } | null>(null)
 
 type SettingItemBase = {
 	id: string
@@ -340,124 +338,6 @@ const MusicSourceMenu = ({ isDelete, onSelectSource }) => {
 	)
 }
 
-const importMusicSourceFromUrl = async () => {
-	if (isMusicSourceFilePickerOpen) {
-		Alert.alert(i18n.t('common.notice'), i18n.t('sourceImport.pickerBusy'))
-		return
-	}
-	Alert.prompt(
-		i18n.t('sourceImport.title'),
-		i18n.t('sourceImport.urlPrompt'),
-		[
-			{
-				text: i18n.t('find.cancel'),
-				onPress: () => logInfo('取消导入'),
-				style: 'cancel',
-			},
-			{
-				text: i18n.t('common.confirm'),
-				onPress: async (url) => {
-					if (!url) {
-						Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.urlEmpty'))
-						return
-					}
-
-					try {
-						const sourceCode = await fetchScriptFromUrl(url)
-						logInfo('获取到的源代码:', sourceCode)
-						const musicApi = await createMusicApiFromScript(sourceCode)
-						myTrackPlayer.addMusicApi(musicApi)
-						return
-					} catch (error) {
-						const errMsg = error instanceof Error ? error.message : String(error)
-						logError('导入音源失败:', errMsg)
-						Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'))
-					}
-				},
-			},
-		],
-		'plain-text',
-	)
-}
-const importMusicSourceFromFile = async () => {
-	if (isMusicSourceFilePickerOpen) {
-		Alert.alert(i18n.t('common.notice'), i18n.t('sourceImport.pickerBusy'))
-		return
-	}
-	isMusicSourceFilePickerOpen = true
-	sourceFileImportProgress.setValue({ completed: 0, total: 0 })
-	try {
-		const result = await DocumentPicker.getDocumentAsync({
-			type: ['text/javascript', 'application/javascript', 'text/plain'],
-			copyToCacheDirectory: true,
-			multiple: true,
-		})
-
-		if (result.canceled === true) {
-			logInfo('User canceled document picker')
-			return
-		}
-
-		sourceFileImportProgress.setValue({ completed: 0, total: result.assets.length })
-		const summary = await importMusicSourceFiles(
-			result.assets.map((asset) => ({ name: asset.name, read: () => new File(asset.uri).text() })),
-			(completed, total) => sourceFileImportProgress.setValue({ completed, total }),
-		)
-		const message = [
-			i18n.t('sourceImport.batchSummary', {
-				imported: summary.imported,
-				skipped: summary.skipped,
-				failed: summary.failures.length,
-			}),
-			...(summary.failures.length
-				? [
-						i18n.t('sourceImport.batchFailedFiles', {
-							names: summary.failures
-								.slice(0, 5)
-								.map((file) => file.name)
-								.join('、'),
-						}),
-						i18n.t('sourceImport.batchFailureHint'),
-					]
-				: []),
-			...(summary.restoreFailed ? [i18n.t('sourceImport.batchRestoreFailed')] : []),
-			i18n.t('sourceImport.batchTestHint'),
-		].join('\n\n')
-		const retryRestore = async () => {
-			try {
-				const restored = await restoreSelectedRuntime()
-				Alert.alert(
-					i18n.t('common.success'),
-					i18n.t(restored ? 'sourceImport.restoreSuccess' : 'sourceImport.noSource'),
-				)
-			} catch (error) {
-				logError('重试恢复音源失败:', error)
-				Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.batchRestoreFailed'), [
-					{ text: i18n.t('common.confirm') },
-					{ text: i18n.t('sourceImport.retryRestore'), onPress: () => void retryRestore() },
-				])
-			}
-		}
-		Alert.alert(
-			i18n.t('sourceImport.batchTitle'),
-			message,
-			summary.restoreFailed
-				? [
-						{ text: i18n.t('common.confirm') },
-						{ text: i18n.t('sourceImport.retryRestore'), onPress: () => void retryRestore() },
-					]
-				: undefined,
-		)
-	} catch (err) {
-		const errMsg = err instanceof Error ? (err as Error).message : String(err)
-		logError('Error importing music source:', errMsg)
-		Alert.alert(i18n.t('common.error'), i18n.t('sourceImport.failed'))
-		logError('导入音源失败: ' + errMsg)
-	} finally {
-		isMusicSourceFilePickerOpen = false
-		sourceFileImportProgress.setValue(null)
-	}
-}
 const SettingModal = () => {
 	const fileImportProgress = sourceFileImportProgress.useValue()
 	const colors = useThemeColors()
@@ -580,6 +460,7 @@ const SettingModal = () => {
 		{
 			title: i18n.t('settings.sections.sources'),
 			data: [
+				{ id: 'source-setup', title: i18n.t('sourceSetup.title'), type: 'link' },
 				{ id: 'source-health', title: i18n.t('settings.items.sourceList'), type: 'sources' },
 				{ id: '8', title: i18n.t('settings.items.importSource'), type: 'value' },
 				{ id: '12', title: i18n.t('settings.items.deleteSource'), type: 'value', value: '' },
@@ -592,12 +473,9 @@ const SettingModal = () => {
 				{ id: 'backup-manager', title: i18n.t('backup.title'), type: 'link' },
 				{ id: 'recycle-bin', title: i18n.t('recycleBin.title'), type: 'link' },
 				{ id: 'library-repair', title: i18n.t('maintenance.title'), type: 'link' },
-				{ id: 'favorite-versions', title: i18n.t('versions.title'), type: 'link' },
 				{ id: 'library-history', title: i18n.t('history.title'), type: 'link' },
 				{ id: 'dislikes', title: i18n.t('dislikes.title'), type: 'link' },
-				{ id: 'play-later', title: i18n.t('playLater.title'), type: 'link' },
 				{ id: 'source-diagnostics', title: i18n.t('diagnostics.title'), type: 'link' },
-				{ id: 'listening-report', title: i18n.t('listeningReport.title'), type: 'link' },
 				{ id: 'playlist-refresh', title: i18n.t('playlistAutoRefresh.title'), type: 'link' },
 				{ id: '13', title: i18n.t('settings.items.viewLogs'), type: 'link' },
 			],
@@ -880,17 +758,15 @@ const SettingModal = () => {
 					key={item.id}
 					style={itemStyle}
 					onPress={() => {
+						if (item.id === 'source-setup') router.push('/(modals)/sourceSetup')
 						if (item.id === 'sound-effects') router.push('/(modals)/soundEffects')
 						if (item.id === 'sync-manager') router.push('/(modals)/syncManager')
 						if (item.id === 'backup-manager') router.push('/(modals)/backupManager')
 						if (item.id === 'library-repair') router.push('/(modals)/libraryRepair')
-						if (item.id === 'favorite-versions') router.push('/(modals)/favoriteVersions')
 						if (item.id === 'library-history') router.push('/(modals)/libraryHistory')
 						if (item.id === 'dislikes') router.push('/(modals)/dislikes')
-						if (item.id === 'play-later') router.push('/(modals)/playLater')
 						if (item.id === 'source-diagnostics') router.push('/(modals)/sourceDiagnostics')
 						if (item.id === 'recycle-bin') router.push('/(modals)/recycleBin')
-						if (item.id === 'listening-report') router.push('/(modals)/listeningReport')
 						if (item.id === 'playlist-refresh') router.push('/(modals)/playlistRefresh')
 						if (item.id === 'release-notes') router.push('/(modals)/releaseNotes')
 						if (item.id === 'cache-manager') {

@@ -245,6 +245,7 @@ const RootNavigation = () => {
 			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 			{(
 				[
+					['(modals)/sourceSetup', 'sourceSetup.title'],
 					['(modals)/releaseNotes', 'releaseNotes.title'],
 					['(modals)/recycleBin', 'recycleBin.title'],
 					['(modals)/favoriteDuplicates', 'favoriteGroups.title'],

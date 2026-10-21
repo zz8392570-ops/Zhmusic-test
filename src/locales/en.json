@@ -44,7 +44,7 @@
 		"batchFailedFiles": "Failed files (up to 5 shown): %{names}",
 		"batchFailureHint": "Check the files or view the logs for details. Other imported sources have been kept.",
 		"batchRestoreFailed": "Could not restore the current source. Please select it again.",
-		"batchTestHint": "Use “Test all sources” in the source list to check availability.",
+		"batchTestHint": "Choose and test a source to continue. You can also test all sources in Settings.",
 		"batchProgress": "Importing %{completed}/%{total}",
 		"title": "Import music source",
 		"urlPrompt": "Enter the source URL",
@@ -88,10 +88,22 @@
 		"probeNetwork": "Network error; source status is uncertain",
 		"probeCatalog": "Sample tracks unavailable; other tracks may still play"
 	},
+	"sourceSetup": {
+		"title": "Set up a music source",
+		"description": "Import your own source, test and select it, then find music. You can also import local music directly.",
+		"importStep": "1. Import a source",
+		"testStep": "2. Choose and test a source",
+		"testAndUse": "Test and use this source",
+		"failed": "Could not enable this source. Check your connection, retry, or choose another source.",
+		"ready": "“%{source}” is selected. You can start searching.",
+		"searchStep": "3. Start listening",
+		"search": "Find music",
+		"local": "Import local music"
+	},
 	"onboarding": {
 		"title": "Start listening",
 		"description": "Choose a source, test it, then search for a song. You can also import local audio in My Music.",
-		"configure": "1. Configure source · %{source}",
+		"configure": "Set up a source · %{source}",
 		"noSource": "None selected",
 		"test": "2. Test current source",
 		"ready": "Source is available. Search for a song to play.",
@@ -646,6 +658,7 @@
 		"selectHint": "Select or deselect this song"
 	},
 	"player": {
+		"longPressSearch": "Long press the title to search for this song",
 		"searchSong": "Search song: %{title}",
 		"songOptions": "Song Options",
 		"closeAfter": "Close After",
@@ -739,14 +752,15 @@
 		"shareUnavailable": "There is no song to share right now."
 	},
 	"menu": {
-		"addToPlayingList": "Add to PlayingList",
+		"moreActions": "More actions",
+		"addToPlayingList": "Add to current queue",
 		"addToFavorites": "Add to Favorites",
 		"showArtist": "Show Artist",
 		"selectSource": "Choose Playback Source",
 		"preferSource": "Set Default Source and Play",
 		"addToPlaylist": "Add to Playlist",
 		"removeFromFavorites": "Remove from Favorites",
-		"removeFromPlayingList": "Remove from PlayingList",
+		"removeFromPlayingList": "Remove from current queue",
 		"delete": "Delete"
 	},
 	"sync": {

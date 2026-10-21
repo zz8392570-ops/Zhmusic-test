@@ -44,7 +44,7 @@
 		"batchFailedFiles": "导入失败的文件（最多显示 5 个）：%{names}",
 		"batchFailureHint": "请检查文件内容或在日志中查看失败原因；其他文件已保留。",
 		"batchRestoreFailed": "当前音源恢复失败，请重新选择音源。",
-		"batchTestHint": "可在音源列表中点击“测试所有音源”检查可用性。",
+		"batchTestHint": "请选择音源并测试可用性，也可在设置中测试所有音源。",
 		"batchProgress": "导入中 %{completed}/%{total}",
 		"title": "导入音源",
 		"urlPrompt": "请输入音源 URL",
@@ -88,10 +88,22 @@
 		"probeNetwork": "网络异常，暂不能判断音源状态",
 		"probeCatalog": "样本歌曲不可用，仍可尝试播放其他歌曲"
 	},
+	"sourceSetup": {
+		"title": "配置音源",
+		"description": "导入你已有的音源，选一个测试并启用，然后开始搜歌。也可以直接导入本地音乐。",
+		"importStep": "1. 导入音源",
+		"testStep": "2. 选择音源并测试",
+		"testAndUse": "测试并选用这个音源",
+		"failed": "暂未能启用这个音源。请检查网络、重新测试，或选择其他音源。",
+		"ready": "已选用“%{source}”，可以开始搜歌。",
+		"searchStep": "3. 开始听音乐",
+		"search": "去搜索歌曲",
+		"local": "导入本地音乐"
+	},
 	"onboarding": {
 		"title": "开始听音乐",
 		"description": "选择音源、测试可用性，然后搜索你想听的歌曲。也可以直接在“我的音乐”导入本地音乐。",
-		"configure": "1. 配置音源 · %{source}",
+		"configure": "配置音源 · %{source}",
 		"noSource": "尚未选择",
 		"test": "2. 测试当前音源",
 		"ready": "音源可用，可以开始搜索播放。",
@@ -647,6 +659,7 @@
 		"selectHint": "选择或取消选择这首歌曲"
 	},
 	"player": {
+		"longPressSearch": "长按歌名搜索同名歌曲",
 		"searchSong": "搜索歌曲：%{title}",
 		"songOptions": "歌曲选项",
 		"closeAfter": "定时关闭",
@@ -740,10 +753,11 @@
 		"shareUnavailable": "当前没有可分享的歌曲"
 	},
 	"menu": {
-		"addToPlayingList": "添加到播放列表",
+		"moreActions": "更多操作",
+		"addToPlayingList": "加入当前队列",
 		"addToFavorites": "添加到喜欢",
 		"removeFromFavorites": "从喜欢移除",
-		"removeFromPlayingList": "从播放列表移除",
+		"removeFromPlayingList": "移出当前队列",
 		"showArtist": "查看歌手",
 		"selectSource": "选择播放来源",
 		"preferSource": "设为默认来源并播放",

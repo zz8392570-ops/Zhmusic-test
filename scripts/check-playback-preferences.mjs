@@ -152,7 +152,12 @@ await check(
 			{ React: react },
 		)
 		const menu = TrackShortcutsMenu({ track: artists })
-		assert.equal(menu.props.actions.find((action) => action.id === 'dislike').subactions.length, 3)
+		assert.equal(
+			menu.props.actions
+				.find((action) => action.id === 'more')
+				.subactions.find((action) => action.id === 'dislike').subactions.length,
+			3,
+		)
 		for (const event of ['play-later', 'dislike-song', 'dislike-artist-1'])
 			await menu.props.onPressAction({ nativeEvent: { event } })
 		assert.deepEqual(calls, [

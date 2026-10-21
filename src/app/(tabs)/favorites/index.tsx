@@ -300,6 +300,28 @@ const FavoritesScreen = () => {
 						</Pressable>
 					))}
 				</View>
+				<Pressable
+					accessibilityRole="button"
+					onPress={() => router.push('/(modals)/listeningReport')}
+					style={({ pressed }) => ({
+						minHeight: 56,
+						marginTop: 12,
+						padding: 14,
+						borderRadius: 14,
+						backgroundColor: colors.surfaceElevated,
+						flexDirection: 'row',
+						alignItems: 'center',
+						gap: 10,
+						opacity: pressed ? 0.7 : 1,
+					})}
+				>
+					<Ionicons name="stats-chart-outline" size={23} color={colors.primary} />
+					<Text style={{ flex: 1, color: colors.text, fontSize: 16 }}>
+						{i18n.t('listeningReport.title')}
+					</Text>
+					<Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+				</Pressable>
+
 				<View
 					style={{
 						flexDirection: 'row',

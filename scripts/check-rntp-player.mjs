@@ -250,7 +250,7 @@ function settingsRuntime() {
 			useThemeColors: () => ({ text: 'white', textMuted: 'gray' }),
 			useThemeMode: () => ({ themeMode: 'system', setThemeMode() {} }),
 		},
-		'@/helpers/userApi/importMusicSource': {},
+		'@/helpers/userApi/sourceImportActions': { sourceFileImportProgress: { useValue: () => null } },
 		'@/helpers/userApi/batchMusicSourceImport': {},
 		'@/helpers/userApi/musicApiControl': {},
 		'@/helpers/leaderboard': {
@@ -933,6 +933,24 @@ await check(
 		assert.ok(queueButton)
 		queueButton.props.onPress()
 		assert.deepEqual(navigations, ['/(modals)/playList'])
+		const artwork = findElement(
+			floatingPlayer,
+			'TouchableOpacity',
+			(node) =>
+				node.props.accessibilityLabel === 'player.openNowPlaying' && !node.props.onLongPress,
+		)
+		const title = findElement(
+			floatingPlayer,
+			'TouchableOpacity',
+			(node) =>
+				node.props.accessibilityLabel === 'player.openNowPlaying' && !!node.props.onLongPress,
+		)
+		assert.ok(artwork)
+		assert.ok(title)
+		artwork.props.onPress()
+		title.props.onPress()
+		assert.deepEqual(navigations, ['/(modals)/playList', '/player', '/player'])
+
 		assert.ok(
 			findElement(floatingPlayer, 'Text', (node) => node.props.children.includes(seekTrack.artist)),
 		)

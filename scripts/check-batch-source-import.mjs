@@ -222,7 +222,7 @@ await check(
 await check(
 	'actual file picker supports multi-select, handles cancellation and prevents concurrent imports',
 	async () => {
-		const owner = 'src/app/(modals)/settingModal.tsx'
+		const owner = 'src/helpers/userApi/sourceImportActions.ts'
 		const source = ts.createSourceFile(
 			owner,
 			fs.readFileSync(path.join(root, owner), 'utf8'),
@@ -236,7 +236,7 @@ await check(
 					(decl) => decl.name.getText(source) === 'importMusicSourceFromFile',
 				),
 		)
-		const compiled = ts.transpileModule(statement.getText(source), {
+		const compiled = ts.transpileModule(statement.getText(source).replace(/^export /, ''), {
 			compilerOptions: { target: ts.ScriptTarget.ES2022 },
 		}).outputText
 		const h = fixture(),

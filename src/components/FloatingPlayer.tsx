@@ -99,9 +99,11 @@ export const FloatingPlayer = React.memo(({ style }: ViewProps) => {
 
 					<TouchableOpacity
 						style={styles.trackTitleContainer}
-						onPress={() => searchSongByTitle(displayedTrack.title)}
+						onPress={handlePress}
+						onLongPress={() => searchSongByTitle(displayedTrack.title)}
 						accessibilityRole="button"
-						accessibilityLabel={i18n.t('player.searchSong', { title: displayedTrack.title })}
+						accessibilityLabel={i18n.t('player.openNowPlaying')}
+						accessibilityHint={i18n.t('player.longPressSearch')}
 					>
 						<MovingText
 							style={styles.trackTitle}

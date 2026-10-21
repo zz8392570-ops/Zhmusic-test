@@ -35,6 +35,7 @@ const FavoriteMusicScreen = () => {
 		router.push({ pathname: '/(modals)/libraryRepair', params: { target: 'favorites' } })
 	const managementActions = useMemo<MenuAction[]>(
 		() => [
+			{ id: 'versions', title: i18n.t('versions.title'), image: 'slider.horizontal.3' },
 			{ id: 'duplicates', title: i18n.t('favoriteGroups.title'), image: 'square.stack.3d.up' },
 			{
 				id: 'repair',
@@ -52,11 +53,11 @@ const FavoriteMusicScreen = () => {
 				playlist={playListItem as Playlist}
 				tracks={filteredFavoritesTracks}
 				managementActions={managementActions}
-				onManagementAction={(action) =>
-					action === 'duplicates'
-						? router.push('/(modals)/favoriteDuplicates')
-						: void repairFavorites()
-				}
+				onManagementAction={(action) => {
+					if (action === 'versions') router.push('/(modals)/favoriteVersions')
+					else if (action === 'duplicates') router.push('/(modals)/favoriteDuplicates')
+					else repairFavorites()
+				}}
 			/>
 		</View>
 	)

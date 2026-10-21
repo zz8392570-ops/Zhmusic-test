@@ -26,7 +26,8 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 	const colors = useThemeColors()
 	const { bottom } = useSafeAreaInsets()
 	const [visible, setVisible] = useState(false)
-	const [submenu, setSubmenu] = useState<MenuAction | null>(null)
+	const [menuPath, setMenuPath] = useState<MenuAction[]>([])
+	const submenu = menuPath.at(-1)
 	const pendingAction = useRef<(() => void) | null>(null)
 	const closing = useRef(false)
 	useEffect(
@@ -39,7 +40,7 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 		pendingAction.current = null
 		closing.current = Platform.OS === 'ios'
 		setVisible(false)
-		setSubmenu(null)
+		setMenuPath([])
 	}
 	const onDismiss = () => {
 		const action = pendingAction.current
@@ -50,7 +51,7 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 	const select = (action: MenuAction) => {
 		if (closing.current || action.attributes?.disabled) return
 		if (action.subactions?.length) {
-			setSubmenu(action)
+			setMenuPath((path) => [...path, action])
 			return
 		}
 		// UIKit cannot present a share sheet, alert or route from a dismissing
@@ -65,7 +66,7 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 		? cloneElement(child as ReactElement<{ onPress?: () => void }>, {
 				onPress: () => {
 					if (closing.current) return
-					setSubmenu(null)
+					setMenuPath([])
 					setVisible(true)
 				},
 			})
@@ -152,9 +153,13 @@ export const MenuView = ({ children, title, actions, onPressAction }: Props) => 
 								))}
 						</ScrollView>
 						{submenu ? (
-							<Pressable onPress={() => setSubmenu(null)} style={{ padding: 14 }}>
+							<Pressable
+								accessibilityRole="button"
+								onPress={() => setMenuPath((path) => path.slice(0, -1))}
+								style={{ padding: 14 }}
+							>
 								<Text style={{ color: colors.primary, textAlign: 'center' }}>
-									‹ {title || i18n.t('player.songOptions')}
+									‹ {menuPath.at(-2)?.title || title || i18n.t('player.songOptions')}
 								</Text>
 							</Pressable>
 						) : null}

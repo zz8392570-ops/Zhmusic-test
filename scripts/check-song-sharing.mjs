@@ -78,7 +78,7 @@ function menuFixture({
 			return [
 				slots[index],
 				(value) => {
-					slots[index] = value
+					slots[index] = typeof value === 'function' ? value(slots[index]) : value
 				},
 			]
 		},
@@ -134,6 +134,18 @@ function menuFixture({
 			const node = nodes(tree).find((node) => node.type === 'Pressable' && node.props.key === id)
 			assert.ok(node, `Missing action ${id}`)
 			node.props.onPress()
+		},
+		back() {
+			const node = nodes(tree).find(
+				(node) =>
+					node.type === 'Pressable' &&
+					node.props.children.some(
+						(child) => child.type === 'Text' && child.props.children.includes('‹ '),
+					),
+			)
+			assert.ok(node, 'A submenu must expose a back button')
+			node.props.onPress()
+			render()
 		},
 		modal: () => nodes(tree).find((node) => node.type === 'Modal'),
 		unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
@@ -194,6 +206,44 @@ await check(
 		assert.equal(calls.length, 0)
 	},
 )
+await check('nested more menus return one level at a time and defer only the leaf action', () => {
+	const calls = []
+	const h = menuFixture({
+		actions: [
+			{
+				id: 'more',
+				title: 'More',
+				subactions: [
+					{ id: 'dislike', title: 'Dislike', subactions: [{ id: 'song', title: 'Song' }] },
+				],
+			},
+		],
+		onPressAction: ({ nativeEvent }) => calls.push(nativeEvent.event),
+	})
+	h.open()
+	h.select('more')
+	h.render()
+	h.select('dislike')
+	h.render()
+	h.back()
+	h.select('dislike')
+	h.render()
+	h.back()
+	h.back()
+	h.select('more')
+	h.render()
+	h.select('dislike')
+	h.render()
+	h.select('song')
+	h.render()
+	assert.deepEqual(calls, [])
+	assert.equal(h.modal().props.visible, false)
+	h.modal().props.onDismiss()
+	assert.deepEqual(calls, ['song'])
+	h.open()
+	h.select('more')
+	h.render()
+})
 await check('Android menu actions do not depend on the iOS-only dismissal event', () => {
 	const calls = []
 	const h = menuFixture({

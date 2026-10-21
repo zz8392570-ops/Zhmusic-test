@@ -351,10 +351,10 @@ async function main() {
 		await assertClean(h)
 	})
 
-	// Execute the existing unexported picker handler itself, not a copied implementation.
+	// Execute the shared production picker handler itself, not a copied implementation.
 	const source = ts.createSourceFile(
-		'settingModal.tsx',
-		await fsp.readFile(`${projectRoot}/src/app/(modals)/settingModal.tsx`, 'utf8'),
+		'sourceImportActions.ts',
+		await fsp.readFile(`${projectRoot}/src/helpers/userApi/sourceImportActions.ts`, 'utf8'),
 		ts.ScriptTarget.Latest,
 		true,
 		ts.ScriptKind.TSX,
@@ -376,7 +376,7 @@ async function main() {
 	assert(pickerStateStatement, 'The source picker concurrency guard must remain present')
 	assert(statement, 'The existing picker handler must remain present')
 	const code = ts.transpileModule(
-		`${pickerStateStatement.getText(source)}\n${statement.getText(source)}`,
+		`${pickerStateStatement.getText(source)}\n${statement.getText(source).replace(/^export /, '')}`,
 		{
 			compilerOptions: { target: ts.ScriptTarget.ES2022 },
 		},
