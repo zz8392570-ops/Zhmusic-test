@@ -17,6 +17,7 @@ const track = (id, platform = 'tx', extra = {}) => ({
 	...extra,
 })
 const fixture = (initial, migrate = false) => {
+	const alerts = []
 	const disk = new Map([
 		['music.favorites', initial],
 		...(!migrate ? [['music.favoriteGroupingVersion', 1]] : []),
@@ -47,6 +48,9 @@ const fixture = (initial, migrate = false) => {
 		'@/store/PersistStatus': persist,
 		'@/helpers/favoriteGroups': groups,
 		'@/helpers/initializeFavorites': initialization,
+		'@/helpers/libraryEdits': edits,
+		'@/helpers/musicPlatform': loadModule('src/helpers/musicPlatform.ts', {}),
+		'react-native': { Alert: { alert: (...args) => alerts.push(args) } },
 	})
 	const actions = loadModule('src/helpers/favoriteGroupActions.ts', {
 		'@/store/PersistStatus': persist,
@@ -59,6 +63,7 @@ const fixture = (initial, migrate = false) => {
 		...actions,
 		...library,
 		disk,
+		alerts,
 		fail: (key) => {
 			failKey = key
 		},
@@ -448,7 +453,8 @@ await check(
 	async () => {
 		const h = fixture([groups.mergeFavoriteGroup([track('one'), track('two', 'wy')])]),
 			played = [],
-			alerts = []
+			alerts = [],
+			routes = []
 		const { TrackShortcutsMenu } = loadModule(
 			'src/components/TrackShortcutsMenu.tsx',
 			{
@@ -466,7 +472,10 @@ await check(
 				'@/store/queue': { useQueue: () => ({}) },
 				'@/utils/i18n': { t: (key) => key },
 				'@/components/ActionMenu': { MenuView: 'MenuView' },
-				'expo-router': { useFocusEffect() {}, useRouter: () => ({}) },
+				'expo-router': {
+					useFocusEffect() {},
+					useRouter: () => ({ push: (route) => routes.push(route) }),
+				},
 				'react-native': { Alert: { alert: (...args) => alerts.push(args) } },
 				'@/helpers/favoriteGroups': groups,
 				'@/helpers/favoriteGroupActions': h,
@@ -512,6 +521,19 @@ await check(
 		await searchMenu.props.onPressAction({ nativeEvent: { event: 'play-source-1' } })
 		assert.equal(played[1].id, 'external-wy')
 		assert.equal(h.current(), saved)
+		const cached = track('cache:source:flac', 'tx', {
+			title: 'Song & reprise #1',
+			artist: 'A & B',
+			originalId: 'source',
+			url: 'file:///Documents/musicCache/a & b.flac',
+			favoriteKeepSeparate: true,
+		})
+		const cachedMenu = TrackShortcutsMenu({ track: cached })
+		await cachedMenu.props.onPressAction({ nativeEvent: { event: 'add-to-storedPlayList' } })
+		assert.equal(routes[0].pathname, '/(modals)/addToPlaylist')
+		for (const key of ['title', 'artist', 'originalId', 'url'])
+			assert.equal(routes[0].params[key], cached[key])
+		assert.equal(routes[0].params.favoriteKeepSeparate, 'true')
 	},
 )
 await check(
@@ -591,7 +613,10 @@ await check(
 			cachedQuality: 'flac',
 			cacheKind: 'saved',
 		}
-		for (const original of [[source, cached], [cached, source]]) {
+		for (const original of [
+			[source, cached],
+			[cached, source],
+		]) {
 			const h = fixture(original, true)
 			assert.equal(h.current().length, 1)
 			assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 2)
@@ -698,6 +723,180 @@ await check(
 		]) {
 			assert.equal(groups.getFavoriteMergeCandidates([track('base'), second]).length, 0)
 		}
+	},
+)
+await check(
+	'new same-platform and missing-duration favorites wait for review instead of silently duplicating',
+	() => {
+		for (const incoming of [track('new-id'), track('unknown-duration', 'wy', { duration: 0 })]) {
+			const h = fixture([])
+			let completed = 0
+			h.useLibraryStore.getState().toggleTrackFavorite(track('first'))
+			const before = h.current()
+			h.useLibraryStore.getState().toggleTrackFavorite(incoming, () => completed++)
+			assert.equal(h.current(), before)
+			assert.equal(h.disk.get('music.favorites').length, 1)
+			assert.equal(h.alerts[0][0], 'favoriteGroups.addReviewTitle')
+			assert.equal(completed, 0)
+			h.useLibraryStore.getState().toggleTrackFavorite(incoming)
+			assert.equal(h.alerts.length, 1)
+			const confirm = h.alerts[0][2][2].onPress
+			confirm()
+			assert.equal(h.current().length, 1)
+			assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 2)
+			assert.equal(groups.getFavoriteIndex(h.current()).has(incoming), true)
+			assert.equal(completed, 1)
+			confirm()
+			assert.equal(h.current().length, 1)
+			assert.equal(completed, 1)
+		}
+	},
+)
+await check(
+	'new favorite review cancellation does not write and explicit separate versions survive normalization',
+	() => {
+		const h = fixture([track('first')]),
+			incoming = track('second')
+		h.useLibraryStore.getState().toggleTrackFavorite(incoming)
+		h.alerts[0][2][0].onPress()
+		h.alerts[0][2][2].onPress()
+		assert.equal(h.current().length, 1)
+		assert.equal(h.disk.has('music.favoriteMergeUndo'), false)
+		h.useLibraryStore.getState().toggleTrackFavorite(incoming)
+		h.alerts[1][3].onDismiss()
+		assert.equal(h.current().length, 1)
+		h.useLibraryStore.getState().toggleTrackFavorite(incoming)
+		h.alerts[2][2][1].onPress()
+		assert.equal(h.current().length, 2)
+		assert.equal(h.current()[1].favoriteKeepSeparate, true)
+		assert.equal(groups.normalizeFavoriteGroups(h.current()).length, 2)
+		assert.equal(groups.getFavoriteMergeCandidates(h.current()).length, 0)
+	},
+)
+await check(
+	'new favorite confirmation preserves unrelated edits and rejects stale targets and failed writes',
+	() => {
+		const first = track('first'),
+			incoming = track('second')
+		const h = fixture([first])
+		h.useLibraryStore.getState().toggleTrackFavorite(incoming)
+		h.useLibraryStore.getState().toggleTrackFavorite(track('other', 'wy', { title: 'Other' }))
+		h.alerts[0][2][2].onPress()
+		assert.deepEqual(
+			Array.from(h.current(), (item) => item.id),
+			['first', 'other'],
+		)
+		for (const changed of [[], [{ ...first, album: 'Live' }], [first, incoming]]) {
+			const stale = fixture([first])
+			stale.useLibraryStore.getState().toggleTrackFavorite(incoming)
+			stale.replaceFavorites(changed)
+			stale.alerts[0][2][2].onPress()
+			assert.equal(stale.current(), changed)
+			assert.equal(stale.alerts[1][0], 'favoriteGroups.reviewChanged')
+		}
+		const failed = fixture([first])
+		let completed = false
+		failed.useLibraryStore.getState().toggleTrackFavorite(incoming, () => {
+			completed = true
+		})
+		failed.fail('music.favorites')
+		failed.alerts[0][2][2].onPress()
+		assert.equal(failed.current().length, 1)
+		assert.equal(failed.disk.get('music.favorites').length, 1)
+		assert.equal(completed, false)
+		assert.equal(failed.alerts[1][0], 'favoriteGroups.failed')
+		failed.useLibraryStore.getState().toggleTrackFavorite(incoming)
+		failed.alerts[2][2][2].onPress()
+		assert.equal(groups.getFavoriteVariants(failed.current()[0]).length, 2)
+	},
+)
+await check('new favorite review preserves automatic safe grouping and version exclusions', () => {
+	const safe = fixture([track('first')])
+	safe.useLibraryStore.getState().toggleTrackFavorite(track('second', 'wy'))
+	assert.equal(safe.current().length, 1)
+	assert.equal(safe.alerts.length, 0)
+	for (const separate of [
+		track('live', 'wy', { album: 'Live' }),
+		track('local', 'local'),
+		track('longer', 'wy', { duration: 200 }),
+		track('split', 'wy', { favoriteKeepSeparate: true }),
+	]) {
+		const h = fixture([track('first')])
+		h.useLibraryStore.getState().toggleTrackFavorite(separate)
+		assert.equal(h.current().length, 2)
+		assert.equal(h.alerts.length, 0)
+	}
+})
+await check(
+	'reported song title groups fresh cross-platform favorites and reviews an unknown duration',
+	() => {
+		// Controlled metadata, not a capture from the user's device.
+		const first = track('qq-song', 'tx', { title: '难得有情人', artist: '关淑怡', duration: 245 })
+		for (const duration of [247, 0]) {
+			const h = fixture([])
+			h.useLibraryStore.getState().toggleTrackFavorite(first)
+			const second = { ...first, id: 'netease-song', platform: 'wy', duration }
+			h.useLibraryStore.getState().toggleTrackFavorite(second)
+			if (!duration) {
+				assert.equal(h.alerts.length, 1)
+				assert.equal(h.current().length, 1)
+				h.alerts[0][2][2].onPress()
+			} else {
+				assert.equal(h.alerts.length, 0)
+			}
+			assert.equal(h.current().length, 1)
+			assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 2)
+			assert.equal(groups.getFavoriteIndex(h.current()).has(second), true)
+		}
+	},
+)
+await check(
+	'playlist favorite picker waits for review completion and retains original download identities',
+	async () => {
+		const h = fixture([track('first')]),
+			toasts = []
+		let dismissed = 0
+		const params = { ...track('second'), duration: '180' }
+		const Screen = loadModule(
+			'src/app/(modals)/addToPlaylist.tsx',
+			{
+				react,
+				'@/components/PlaylistsListModal': { PlaylistsListModal: 'PlaylistsListModal' },
+				'@/constants/tokens': { screenPadding: { horizontal: 20 } },
+				'@/constants/images': {},
+				'@/helpers/trackPlayerIndex': {},
+				'@/store/library': { useFavorites: () => h.useLibraryStore.getState() },
+				'@/styles': { useDefaultStyles: () => ({ container: {} }) },
+				'@/hooks/useAppTheme': { useThemeColors: () => ({}) },
+				'@/utils/i18n': { t: (key) => key },
+				'@/utils/utils': { showToast: (...args) => toasts.push(args) },
+				'expo-router/react-navigation': { useHeaderHeight: () => 0 },
+				'expo-router': {
+					useLocalSearchParams: () => params,
+					useRouter: () => ({ dismiss: () => dismissed++ }),
+				},
+				'react-native': { Alert: {}, StyleSheet: { create: (styles) => styles } },
+				'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
+				'@/helpers/favoriteGroups': groups,
+			},
+			{ React: react },
+		).default
+		const choose = () => Screen().props.children[0].props.onPlaylistPress({ id: 'favorites' })
+		await choose()
+		assert.equal(dismissed, 0)
+		assert.equal(toasts.length, 0)
+		h.alerts[0][2][0].onPress()
+		assert.equal(dismissed, 0)
+		await choose()
+		h.alerts[1][2][2].onPress()
+		assert.equal(dismissed, 1)
+		assert.equal(toasts[0][0], 'addToPlaylist.added')
+		params.id = 'cache:first:flac'
+		params.originalId = 'first'
+		await choose()
+		assert.equal(dismissed, 1)
+		assert.equal(toasts[1][0], 'addToPlaylist.duplicate')
+		assert.equal(h.current().length, 1)
 	},
 )
 await check(

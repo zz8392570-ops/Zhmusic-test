@@ -3,7 +3,10 @@ import type { Track } from '@/player/types'
 const recordKey = (track: Track) => JSON.stringify([track.platform, track.id])
 // Downloaded records can have a collision-safe local ID while retaining their source ID.
 const key = (track: Track) =>
-	JSON.stringify([track.platform, track.platform !== 'local' ? track.originalId || track.id : track.id])
+	JSON.stringify([
+		track.platform,
+		track.platform !== 'local' ? track.originalId || track.id : track.id,
+	])
 const text = (value: unknown) =>
 	String(value ?? '')
 		.normalize('NFKC')
@@ -185,6 +188,14 @@ const canReviewMerge = (left: Track, right: Track) =>
 					(!duration(a) || !duration(b) || Math.abs(duration(a) - duration(b)) <= 4)),
 		),
 	)
+/** New favorites use the same conservative review rules as the duplicate manager. */
+export const getFavoriteReviewTarget = (favorites: Track[], track: Track): Track | undefined => {
+	const name = metadataKey(track)
+	if (!name) return undefined
+	return favorites.find(
+		(item) => metadataKey(item) === name && !canMerge(item, track) && canReviewMerge(item, track),
+	)
+}
 export const getFavoriteMergeCandidates = (favorites: Track[]): FavoriteMergeCandidate[] => {
 	const buckets = new Map<string, Track[][]>()
 	for (const track of favorites) {

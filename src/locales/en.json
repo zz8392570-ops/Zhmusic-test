@@ -1,5 +1,11 @@
 {
 	"favoriteGroups": {
+		"addReviewTitle": "A similar favorite already exists",
+		"addReviewMessage": "Existing favorite:\n%{existing}\n\nAdding:\n%{incoming}\n\nCheck the recording versions. Add to the existing favorite to retain both source records, or keep a different version separate.",
+		"addToExisting": "Add to existing",
+		"addedToExisting": "Added to existing favorite",
+		"keepSeparate": "Keep separate",
+		"reviewChanged": "Favorites have changed. Please try again.",
 		"reviewNotice": "Review %{count} possible duplicate groups",
 		"confirmReview": "Merge %{count} selected groups? Some recordings are unverified. Confirm the title, artists and version match. Original records are retained and this action can be undone.",
 		"title": "Organize duplicate favorites",

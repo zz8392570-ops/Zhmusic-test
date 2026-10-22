@@ -28,6 +28,8 @@ const AddToPlaylistModal = () => {
 		artwork: params.artwork as string,
 		artist: params.artist as string,
 		id: params.id as string,
+		originalId: typeof params.originalId === 'string' ? params.originalId || undefined : undefined,
+		favoriteKeepSeparate: params.favoriteKeepSeparate === 'true',
 		url: (params.url as string) || 'Unknown',
 		platform: (params.platform as string) || 'tx',
 		duration: typeof params.duration === 'string' ? parseInt(params.duration, 10) : 0,
@@ -46,7 +48,11 @@ const AddToPlaylistModal = () => {
 			if (getFavoriteIndex(favorites).has(track)) {
 				result = 'duplicate'
 			} else {
-				toggleTrackFavorite(track as Track)
+				toggleTrackFavorite(track as Track, () => {
+					router.dismiss()
+					showToast(i18n.t('addToPlaylist.added'), playlist.title || playlist.name)
+				})
+				return
 			}
 		} else {
 			result = myTrackPlayer.addSongToStoredPlayList(playlist, track)

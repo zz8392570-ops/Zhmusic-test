@@ -91,9 +91,21 @@ export const TrackShortcutsMenu = ({
 		})
 	}
 	const handleAddToStoredPlayList = (track: IMusic.IMusicItem) => {
-		router.push(
-			`/(modals)/addToPlaylist?title=${track.title}&album=${track.album}&artwork=${track.artwork}&artist=${track.artist}&id=${track.id}&url=${track.url}&platform=${track.platform}&duration=${track.duration}`,
-		)
+		router.push({
+			pathname: '/(modals)/addToPlaylist',
+			params: {
+				title: track.title ?? '',
+				album: track.album ?? '',
+				artwork: track.artwork ?? '',
+				artist: track.artist ?? '',
+				id: track.id,
+				originalId: track.originalId ?? '',
+				url: track.url || 'Unknown',
+				platform: track.platform ?? 'tx',
+				duration: track.duration ?? 0,
+				favoriteKeepSeparate: track.favoriteKeepSeparate ? 'true' : 'false',
+			},
+		})
 	}
 	const artists = useMemo(() => {
 		if (typeof track.artist === 'string') {

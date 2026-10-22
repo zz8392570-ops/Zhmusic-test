@@ -15,10 +15,18 @@ import {
 import { useEffect, useRef } from 'react'
 import type { Track } from '@/player/types'
 import { create } from 'zustand'
+import { Alert } from 'react-native'
+import { copyLibraryTracks, isUneditedLibraryTrack } from '@/helpers/libraryEdits'
+import { getMusicPlatformLabelKey } from '@/helpers/musicPlatform'
 
 import { getTopLists } from '@/helpers/userApi/getMusicSource'
 import PersistStatus from '@/store/PersistStatus'
-import { isFavoriteTrack, toggleFavoriteTrack } from '@/helpers/favoriteGroups'
+import {
+	getFavoriteReviewTarget,
+	isFavoriteTrack,
+	mergeFavoriteGroup,
+	toggleFavoriteTrack,
+} from '@/helpers/favoriteGroups'
 import { showToast } from '@/utils/utils'
 import i18n from '@/utils/i18n'
 
@@ -47,7 +55,7 @@ interface LibraryState {
 	isLoading: boolean
 	isRefreshing: boolean
 	error: string | null
-	toggleTrackFavorite: (track: Track) => void
+	toggleTrackFavorite: (track: Track, onComplete?: () => void) => void
 	addToPlaylist: (track: Track, playlistName: string) => void
 	fetchTracks: (refresh?: boolean, homeBoardId?: string | number) => Promise<void>
 	setNowLyric: (lyric: string) => void
@@ -61,6 +69,7 @@ interface LibraryState {
 }
 
 let homeBoardRequestId = 0
+let pendingFavoriteReview: object | undefined
 export const useLibraryStore = create<LibraryState>((set, get) => ({
 	allTracks: [],
 	tracks: [],
@@ -72,20 +81,76 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 	favorites: initializeFavorites(),
 	nowLyric: '当前无歌词',
 	playlists: [],
-	toggleTrackFavorite: (track: Track) => {
-		let linked = false
-		set((state) => {
-			const favorites = toggleFavoriteTrack(state.favorites, track) as IMusic.IMusicItem[]
-			linked =
-				favorites.length === state.favorites.length &&
-				!state.favorites.some((item) => isFavoriteTrack(item, track))
-			// 更新持久化存储中的favorites
+	toggleTrackFavorite: (track: Track, onComplete) => {
+		const current = get().favorites
+		const next = toggleFavoriteTrack(current, track) as IMusic.IMusicItem[]
+		const target =
+			next.length > current.length ? getFavoriteReviewTarget(current, track) : undefined
+		const commit = (favorites: IMusic.IMusicItem[], message?: string) => {
 			PersistStatus.set('music.favorites', favorites)
-
-			// 返回新的状态
-			return { favorites }
-		})
-		if (linked) showToast(i18n.t('favoriteGroups.linked'), '', 'success')
+			set({ favorites })
+			if (message) showToast(i18n.t(message), '', 'success')
+			onComplete?.()
+		}
+		if (!target) {
+			const linked =
+				next.length === current.length && !current.some((item) => isFavoriteTrack(item, track))
+			commit(next, linked ? 'favoriteGroups.linked' : undefined)
+			return
+		}
+		if (pendingFavoriteReview) return
+		const [baseline, incoming] = copyLibraryTracks([target, track])
+		const token = {}
+		pendingFavoriteReview = token
+		const finish = (action?: () => void) => () => {
+			if (pendingFavoriteReview !== token) return
+			pendingFavoriteReview = undefined
+			try {
+				action?.()
+			} catch {
+				Alert.alert(i18n.t('favoriteGroups.failed'))
+			}
+		}
+		const apply = (merge: boolean) => {
+			const latest = get().favorites
+			const index = latest.findIndex((item) => isUneditedLibraryTrack(item, baseline))
+			if (index < 0 || latest.some((item) => isFavoriteTrack(item, incoming))) {
+				Alert.alert(i18n.t('favoriteGroups.reviewChanged'))
+				return
+			}
+			if (merge) {
+				commit(
+					latest.map((item, i) =>
+						i === index ? (mergeFavoriteGroup([item, incoming]) as IMusic.IMusicItem) : item,
+					),
+					'favoriteGroups.addedToExisting',
+				)
+			} else {
+				commit([...latest, { ...incoming, favoriteKeepSeparate: true } as IMusic.IMusicItem])
+			}
+		}
+		const describe = (item: Track) => {
+			const label = getMusicPlatformLabelKey(item.platform)
+			return `${item.title} · ${item.artist}\n${label ? i18n.t(label) : item.platform} · ${item.duration ? `${item.duration}s` : i18n.t('favoriteGroups.unknownDuration')}${item.album ? ` · ${item.album}` : ''}`
+		}
+		try {
+			Alert.alert(
+				i18n.t('favoriteGroups.addReviewTitle'),
+				i18n.t('favoriteGroups.addReviewMessage', {
+					existing: describe(baseline),
+					incoming: describe(incoming),
+				}),
+				[
+					{ text: i18n.t('find.cancel'), style: 'cancel', onPress: finish() },
+					{ text: i18n.t('favoriteGroups.keepSeparate'), onPress: finish(() => apply(false)) },
+					{ text: i18n.t('favoriteGroups.addToExisting'), onPress: finish(() => apply(true)) },
+				],
+				{ cancelable: true, onDismiss: finish() },
+			)
+		} catch (error) {
+			pendingFavoriteReview = undefined
+			throw error
+		}
 	},
 	addToPlaylist: (track, playlistName) =>
 		set((state) => ({

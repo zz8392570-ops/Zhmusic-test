@@ -1,5 +1,11 @@
 {
 	"favoriteGroups": {
+		"addReviewTitle": "已有疑似相同的收藏",
+		"addReviewMessage": "已收藏：\n%{existing}\n\n本次添加：\n%{incoming}\n\n请核对录音版本。若为同一首，可加入已有收藏，保留来源记录；若是不同版本，可单独收藏。",
+		"addToExisting": "加入已有收藏",
+		"addedToExisting": "已加入已有收藏",
+		"keepSeparate": "单独收藏",
+		"reviewChanged": "收藏已发生变化，请重新操作。",
 		"reviewNotice": "发现 %{count} 组疑似重复，点此核对整理",
 		"confirmReview": "合并选中的 %{count} 组？其中包含尚未核实的歌曲，请确认歌名、歌手和版本相同。各平台记录会保留，整理后可撤销。",
 		"title": "整理重复收藏",
