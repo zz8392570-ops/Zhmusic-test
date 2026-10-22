@@ -563,7 +563,10 @@ function resolverFixture(getUrl, extraGlobals = {}) {
 				showAutomaticSourceSwitchNotice: (...args) => notices.push(args),
 			},
 			'@/utils/utils': { showToast: (...args) => notices.push(args) },
-			'./CacheManager': { getCachedAudioInfo: async () => null },
+			'./CacheManager': {
+				getCachedAudioInfo: async () => null,
+				getPlaybackCachedAudioInfo: async () => null,
+			},
 			'./PlayerStore': stores,
 			'@/player/PlayerStore': stores,
 			'@/store/PersistStatus': store,
@@ -1106,6 +1109,9 @@ function retentionFixture({ beforeInfo = async () => {}, beforeResolve = async (
 		},
 	}
 	const cache = loadModule('src/player/CacheManager.ts', {
+		'@/helpers/offlineCacheCandidates': loadModule('src/helpers/offlineCacheCandidates.ts', {
+			'./favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+		}),
 		'@/utils/i18n': {
 			t: (key) => (key === 'cacheCenter.errors.diskSpace' ? '设备剩余空间不足' : key),
 		},

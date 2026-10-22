@@ -319,6 +319,9 @@ const LocalMusicScreen = () => {
 				contentContainerStyle={{ paddingHorizontal: 18 }}
 				headerContent={
 					<View style={styles.libraryControls}>
+						<Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18 }}>
+							{i18n.t('offline.retentionHint')}
+						</Text>
 						<View style={styles.controlsRow}>
 							{(['all', 'imported', 'saved', 'automatic'] as const).map((item) => (
 								<Pressable

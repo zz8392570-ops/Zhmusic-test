@@ -658,6 +658,7 @@
 		"selectHint": "Select or deselect this song"
 	},
 	"offline": {
+		"retentionHint": "Both cached and saved files play offline while the file exists. Automatic cache may be removed by cache cleanup or storage management. Offline saves are retained during automatic cleanup, but deleting them or uninstalling the app removes them.",
 		"saved": "Saved for offline listening",
 		"cached": "Cached and available offline",
 		"local": "Local file available",

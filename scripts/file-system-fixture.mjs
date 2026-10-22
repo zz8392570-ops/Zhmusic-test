@@ -398,6 +398,7 @@ export function createFixture() {
 			},
 		}
 		const cache = {
+			getPlaybackCachedAudioInfo: async () => null,
 			isCached: async (track) => {
 				calls.cache.push(track.id)
 				return false

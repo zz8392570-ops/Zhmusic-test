@@ -27,7 +27,7 @@ import {
 	normalizeAudioQuality,
 	type AudioQuality,
 } from '@/helpers/audioQuality'
-import { getCachedAudioInfo, getCacheLocalPath } from './CacheManager'
+import { getCachedAudioInfo, getCacheLocalPath, getPlaybackCachedAudioInfo } from './CacheManager'
 import { musicApiSelectedStore, musicApiStore, nowApiState, qualityStore } from './PlayerStore'
 import {
 	appendSourceDiagnostic,
@@ -184,6 +184,15 @@ const resolveSourceInternal = async (
 	throwIfRequestAborted(options.signal)
 	if (localFile.status !== 'nonlocal') {
 		if (localFile.status !== 'resolved') {
+			// A favorite may retain an old local reference while another owned copy exists.
+			if (requestType !== 'download' && musicItem.platform !== 'local') {
+				const cached = await getPlaybackCachedAudioInfo(musicItem)
+				throwIfRequestAborted(options.signal)
+				if (cached) {
+					preloadCache.delete(preloadKey)
+					return { url: cached.localPath, wasCached: true, quality: cached.quality }
+				}
+			}
 			if (isCurrentSourceRequest(requestType)) {
 				logError('本地文件无法访问:', musicItem.url, localFile.reason)
 				showToast(i18n.t('common.error'), i18n.t('sourceErrors.localMissing'), 'error')
@@ -205,11 +214,14 @@ const resolveSourceInternal = async (
 		}
 	}
 
-	const cached = await getCachedAudioInfo(
-		musicItem,
-		false,
-		options.strictQuality ? preferredQuality : undefined,
-	)
+	const cached =
+		requestType === 'download'
+			? await getCachedAudioInfo(
+					musicItem,
+					false,
+					options.strictQuality ? preferredQuality : undefined,
+				)
+			: await getPlaybackCachedAudioInfo(musicItem)
 	throwIfRequestAborted(options.signal)
 	if (cached) {
 		preloadCache.delete(preloadKey)

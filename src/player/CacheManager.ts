@@ -1,3 +1,4 @@
+import { getOfflineCacheCandidates } from '@/helpers/offlineCacheCandidates'
 import type { DownloadProgress } from '@/helpers/fileDownload'
 import { logError, logInfo } from '@/helpers/logger'
 import { cacheRevisionStore, importedLocalMusicStore, qualityStore } from './PlayerStore'
@@ -184,7 +185,7 @@ export const getCachedAudioInfo = async (
 
 	for (const localPath of paths) {
 		const fileInfo = await FileSystem.getInfoAsync(getCacheFileUri(localPath))
-		if (!fileInfo.exists) continue
+		if (!fileInfo.exists || fileInfo.isDirectory) continue
 		const cacheKey = localPath.slice(cacheDir.length)
 		const quality =
 			normalizeAudioQuality(qualityMap[cacheKey]) ??
@@ -196,8 +197,28 @@ export const getCachedAudioInfo = async (
 	return null
 }
 
+const offlineCandidates = (track: IMusic.IMusicItem) =>
+	getOfflineCacheCandidates(
+		track,
+		PersistStatus.get('music.favorites') ?? [],
+		importedLocalMusicStore.getValue() ?? [],
+	)
+
+/** Playback may use any verified local quality before attempting an online provider. */
+export const getPlaybackCachedAudioInfo = async (
+	track: IMusic.IMusicItem,
+): Promise<CachedAudioInfo | null> => {
+	const direct = await getCachedAudioInfo(track, true)
+	if (direct) return direct
+	for (const candidate of offlineCandidates(track)) {
+		const cached = await getCachedAudioInfo(candidate as IMusic.IMusicItem, true)
+		if (cached) return cached
+	}
+	return null
+}
+
 export const getCachedQuality = async (musicItem: IMusic.IMusicItem) =>
-	(await getCachedAudioInfo(musicItem, true))?.quality ?? null
+	(await getPlaybackCachedAudioInfo(musicItem))?.quality ?? null
 
 /** Display-only query identity; playback still checks the actual files on every lookup. */
 export const getCacheDisplayProbeKey = (musicItem: IMusic.IMusicItem) => {
@@ -214,6 +235,17 @@ export const getCacheDisplayProbeKey = (musicItem: IMusic.IMusicItem) => {
 		musicItem.artist,
 		musicItem.url,
 		musicItem.cachedQuality,
+		musicItem.duration,
+		musicItem.originalId,
+		musicItem.favoriteKeepSeparate,
+		...offlineCandidates(musicItem).map((item) => [
+			item.platform,
+			item.id,
+			item.url,
+			item.cachedQuality,
+			item.duration,
+			item.favoriteKeepSeparate,
+		]),
 		preferredQuality,
 		...Array.from(
 			new Set(
@@ -227,7 +259,7 @@ export const getCacheDisplayProbeKey = (musicItem: IMusic.IMusicItem) => {
 }
 
 export const isCached = async (musicItem: IMusic.IMusicItem): Promise<boolean> =>
-	(await getCachedAudioInfo(musicItem)) !== null
+	(await getPlaybackCachedAudioInfo(musicItem)) !== null
 
 export const downloadToCache = async (
 	musicItem: IMusic.IMusicItem,

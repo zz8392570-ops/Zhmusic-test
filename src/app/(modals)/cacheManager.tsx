@@ -332,6 +332,7 @@ const CacheManagerScreen = () => {
 						<Text style={styles.summaryLabel}>
 							{i18n.t('cacheCenter.summary', { count: cachedTracks.length })}
 						</Text>
+						<Text style={styles.summaryLabel}>{i18n.t('offline.retentionHint')}</Text>
 					</View>
 					<View
 						style={{

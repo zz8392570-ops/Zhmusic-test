@@ -21,6 +21,8 @@ const metadataKey = (track: Track) => {
 		? JSON.stringify([title, artist])
 		: ''
 }
+export const getFavoriteRecordingKey = metadataKey
+
 const version = (track: Track) =>
 	[
 		...new Set(
