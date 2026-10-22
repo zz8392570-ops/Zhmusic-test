@@ -1,6 +1,9 @@
 import type { Track } from '@/player/types'
 
-const key = (track: Track) => JSON.stringify([track.platform, track.id])
+const recordKey = (track: Track) => JSON.stringify([track.platform, track.id])
+// Downloaded records can have a collision-safe local ID while retaining their source ID.
+const key = (track: Track) =>
+	JSON.stringify([track.platform, track.platform !== 'local' ? track.originalId || track.id : track.id])
 const text = (value: unknown) =>
 	String(value ?? '')
 		.normalize('NFKC')
@@ -59,7 +62,8 @@ export const getFavoriteVariants = (track: Track): Track[] => {
 			: []),
 	]
 	const unique = new Map<string, Track>()
-	for (const item of variants) if (!unique.has(key(item))) unique.set(key(item), standalone(item))
+	for (const item of variants)
+		if (!unique.has(recordKey(item))) unique.set(recordKey(item), standalone(item))
 	return [...unique.values()]
 }
 
@@ -89,7 +93,7 @@ export const mergeFavoriteGroup = (tracks: Track[]): Track => {
 	const variants = new Map<string, Track>()
 	for (const track of tracks)
 		for (const variant of getFavoriteVariants(track)) {
-			if (!variants.has(key(variant))) variants.set(key(variant), variant)
+			if (!variants.has(recordKey(variant))) variants.set(recordKey(variant), variant)
 		}
 	const [primary, ...sourceAlternatives] = variants.values()
 	return {
@@ -166,31 +170,38 @@ export const normalizeFavoriteGroups = (tracks: Track[]) => {
 }
 
 export type FavoriteMergeCandidate = { id: string; tracks: Track[]; review: boolean }
+const canReviewMerge = (left: Track, right: Track) =>
+	getFavoriteVariants(left).every((a) =>
+		getFavoriteVariants(right).every(
+			(b) =>
+				isSameFavoriteRecording(a, b) ||
+				(!a.favoriteKeepSeparate &&
+					!b.favoriteKeepSeparate &&
+					a.platform !== 'local' &&
+					b.platform !== 'local' &&
+					!!metadataKey(a) &&
+					metadataKey(a) === metadataKey(b) &&
+					version(a) === version(b) &&
+					(!duration(a) || !duration(b) || Math.abs(duration(a) - duration(b)) <= 4)),
+		),
+	)
 export const getFavoriteMergeCandidates = (favorites: Track[]): FavoriteMergeCandidate[] => {
-	const buckets = new Map<string, Track[]>()
+	const buckets = new Map<string, Track[][]>()
 	for (const track of favorites) {
 		const name = metadataKey(track)
 		if (!name || track.platform === 'local' || track.favoriteKeepSeparate) continue
-		const bucket = buckets.get(name) ?? []
-		bucket.push(track)
-		buckets.set(name, bucket)
+		const groups = buckets.get(name) ?? []
+		const group = groups.find((items) => items.every((item) => canReviewMerge(item, track)))
+		if (group) group.push(track)
+		else groups.push([track])
+		buckets.set(name, groups)
 	}
 	const result: FavoriteMergeCandidate[] = []
-	for (const tracks of buckets.values()) {
-		const groups: Track[][] = []
-		for (const track of tracks) {
-			const group = groups.find((items) => items.every((item) => canMerge(item, track)))
-			if (group) group.push(track)
-			else groups.push([track])
+	for (const groups of buckets.values())
+		for (const tracks of groups) {
+			if (tracks.length < 2) continue
+			const review = !tracks.every((a) => tracks.every((b) => canMerge(a, b)))
+			result.push({ id: `${review ? 'review:' : ''}${key(tracks[0])}`, tracks, review })
 		}
-		for (const group of groups)
-			if (group.length > 1) result.push({ id: key(group[0]), tracks: group, review: false })
-		if (
-			tracks.length > 1 &&
-			tracks.some((track) => !duration(track)) &&
-			new Set(tracks.map((track) => track.platform)).size > 1
-		)
-			result.push({ id: `review:${key(tracks[0])}`, tracks, review: true })
-	}
 	return result
 }

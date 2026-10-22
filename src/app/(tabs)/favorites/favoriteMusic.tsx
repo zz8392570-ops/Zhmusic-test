@@ -1,3 +1,5 @@
+import { getFavoriteMergeCandidates } from '@/helpers/favoriteGroups'
+import { LibraryToolButton } from '@/components/LibraryToolButton'
 import { PlaylistTracksList } from '@/components/PlaylistTracksList'
 import { Playlist } from '@/helpers/types'
 import { useFavorites } from '@/store/library'
@@ -18,6 +20,7 @@ const FavoriteMusicScreen = () => {
 	// })
 
 	const { favorites } = useFavorites()
+	const duplicateCount = useMemo(() => getFavoriteMergeCandidates(favorites).length, [favorites])
 	const playListItem = {
 		name: 'Favorites',
 		id: 'favorites',
@@ -52,6 +55,14 @@ const FavoriteMusicScreen = () => {
 				contentContainerStyle={{ paddingHorizontal: 18 }}
 				playlist={playListItem as Playlist}
 				tracks={filteredFavoritesTracks}
+				headerContent={
+					duplicateCount ? (
+						<LibraryToolButton
+							title={i18n.t('favoriteGroups.reviewNotice', { count: duplicateCount })}
+							onPress={() => router.push('/(modals)/favoriteDuplicates')}
+						/>
+					) : null
+				}
 				managementActions={managementActions}
 				onManagementAction={(action) => {
 					if (action === 'versions') router.push('/(modals)/favoriteVersions')

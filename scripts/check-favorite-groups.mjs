@@ -16,8 +16,11 @@ const track = (id, platform = 'tx', extra = {}) => ({
 	url: 'Unknown',
 	...extra,
 })
-const fixture = (initial) => {
-	const disk = new Map([['music.favorites', initial]])
+const fixture = (initial, migrate = false) => {
+	const disk = new Map([
+		['music.favorites', initial],
+		...(!migrate ? [['music.favoriteGroupingVersion', 1]] : []),
+	])
 	let failKey
 	const persist = {
 		get: (key) => disk.get(key) ?? null,
@@ -30,6 +33,10 @@ const fixture = (initial) => {
 			else disk.set(key, JSON.parse(JSON.stringify(value)))
 		},
 	}
+	const initialization = loadModule('src/helpers/initializeFavorites.ts', {
+		'@/store/PersistStatus': persist,
+		'./favoriteGroups': groups,
+	})
 	const library = loadModule('src/store/library.tsx', {
 		'@/helpers/leaderboard': {},
 		'@/utils/utils': { showToast() {} },
@@ -39,6 +46,7 @@ const fixture = (initial) => {
 		'@/helpers/userApi/getMusicSource': {},
 		'@/store/PersistStatus': persist,
 		'@/helpers/favoriteGroups': groups,
+		'@/helpers/initializeFavorites': initialization,
 	})
 	const actions = loadModule('src/helpers/favoriteGroupActions.ts', {
 		'@/store/PersistStatus': persist,
@@ -47,6 +55,7 @@ const fixture = (initial) => {
 		'./favoriteGroups': groups,
 	})
 	return {
+		...initialization,
 		...actions,
 		...library,
 		disk,
@@ -144,7 +153,7 @@ await check(
 		]
 		const h = fixture(songs)
 		const plan = groups.getFavoriteMergeCandidates(songs)
-		assert.equal(plan.filter((item) => !item.review).length, 2)
+		assert.equal(plan.filter((item) => !item.review).length, 1)
 		assert.equal(
 			plan.some((item) => item.review),
 			true,
@@ -154,10 +163,11 @@ await check(
 		assert.equal(h.current().length, 4)
 		assert.equal(h.undoFavoriteMerge(), true)
 		assert.equal(h.current().length, songs.length)
-		h.replaceFavorites(songs.filter((item) => item.id !== 'two'))
+		const removedId = chosen.tracks[1].id
+		h.replaceFavorites(songs.filter((item) => item.id !== removedId))
 		assert.equal(h.mergeSelectedFavorites(songs, new Set([chosen.id])), 0)
 		assert.equal(
-			h.current().some((item) => item.id === 'two'),
+			h.current().some((item) => item.id === removedId),
 			false,
 		)
 	},
@@ -562,6 +572,192 @@ await check(
 			),
 			false,
 		)
+	},
+)
+
+await check(
+	'downloaded copies share their source favorite identity, including renamed cache IDs and missing duration',
+	() => {
+		const source = track('song-source', 'tx', {
+			title: '如果累了就回故乡（少年版）',
+			artist: '酷酷里、面妹孔佳奇',
+		})
+		const cached = {
+			...source,
+			id: 'cache:tx:song-source:flac',
+			originalId: source.id,
+			duration: 0,
+			url: 'file:///Documents/musicCache/song.flac',
+			cachedQuality: 'flac',
+			cacheKind: 'saved',
+		}
+		for (const original of [[source, cached], [cached, source]]) {
+			const h = fixture(original, true)
+			assert.equal(h.current().length, 1)
+			assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 2)
+			assert.equal(groups.getFavoriteIndex(h.current()).has(source), true)
+			assert.equal(groups.getFavoriteIndex(h.current()).has(cached), true)
+			assert.equal(h.disk.get('music.favorites').length, 1)
+			const session = playback.createFavoritePlayback(cached, h.current())
+			assert.equal(playback.nextPlaybackVariant(session, cached).id, source.id)
+			h.useLibraryStore.getState().toggleTrackFavorite(cached)
+			assert.equal(h.current().length, 0)
+		}
+		const h = fixture([source])
+		h.useLibraryStore.getState().toggleTrackFavorite(cached)
+		assert.equal(h.current().length, 0)
+		h.useLibraryStore.getState().toggleTrackFavorite(cached)
+		assert.equal(h.current().length, 1)
+		assert.equal(groups.getFavoriteIndex(h.current()).has(source), true)
+		assert.equal(groups.isSameFavoriteRecording(source, { ...cached, platform: 'local' }), false)
+		assert.equal(
+			groups.isSameFavoriteRecording(source, { ...cached, originalId: 'another-song' }),
+			false,
+		)
+	},
+)
+await check(
+	'real library initialization groups historical complete duplicates once and preserves later undo',
+	() => {
+		const a = track('legacy-a'),
+			b = track('legacy-b', 'wy')
+		const original = [
+			a,
+			b,
+			track('live', 'kg', { title: 'Song Live' }),
+			track('unknown', 'wy', { title: 'Other', duration: 0 }),
+			track('split', 'kg', { favoriteKeepSeparate: true }),
+		]
+		const before = JSON.stringify(original),
+			h = fixture(original, true)
+		assert.equal(h.current().length, 4)
+		assert.deepEqual(
+			Array.from(groups.getFavoriteVariants(h.current()[0]), (item) => item.id),
+			[a.id, b.id],
+		)
+		assert.equal(h.disk.get('music.favoriteGroupingVersion'), 1)
+		assert.equal(h.disk.get('music.favorites').length, 4)
+		assert.equal(JSON.stringify(original), before)
+		h.replaceFavorites(original)
+		assert.equal(h.initializeFavorites().length, original.length)
+		assert.equal(h.disk.get('music.favorites').length, original.length)
+	},
+)
+await check(
+	'failed migration exposes durable favorites and retries the version flag without discarding data',
+	() => {
+		for (const failedKey of ['music.favorites', 'music.favoriteGroupingVersion']) {
+			const original = [track('old-a'), track('old-b', 'wy')],
+				values = new Map([['music.favorites', original]])
+			let fail = true
+			const owner = loadModule('src/helpers/initializeFavorites.ts', {
+				'./favoriteGroups': groups,
+				'@/store/PersistStatus': {
+					get: (key) => values.get(key) ?? null,
+					set: (key, value) => {
+						if (fail && key === failedKey) {
+							fail = false
+							throw Error('disk unavailable')
+						}
+						values.set(key, value)
+					},
+				},
+			})
+			const first = owner.initializeFavorites()
+			assert.equal(first, values.get('music.favorites'))
+			assert.equal(first.length, failedKey === 'music.favorites' ? 2 : 1)
+			assert.equal(owner.initializeFavorites().length, 1)
+			assert.equal(values.get('music.favoriteGroupingVersion'), 1)
+		}
+	},
+)
+await check(
+	'uncertain and same-platform duplicates require explicit review while different versions stay separate',
+	() => {
+		for (const second of [track('unknown', 'wy', { duration: 0 }), track('same-platform', 'tx')]) {
+			const original = [track('first'), second],
+				h = fixture(original)
+			const candidate = groups.getFavoriteMergeCandidates(original)[0]
+			assert.equal(candidate.review, true)
+			assert.equal(groups.normalizeFavoriteGroups(original).length, 2)
+			assert.equal(h.mergeSelectedFavorites(original, new Set([candidate.id])), 0)
+			assert.equal(
+				h.mergeSelectedFavorites(original, new Set([candidate.id]), { allowReview: true }),
+				1,
+			)
+			assert.equal(h.current().length, 1)
+			assert.equal(groups.getFavoriteVariants(h.current()[0]).length, 2)
+			assert.equal(h.undoFavoriteMerge(), true)
+			assert.equal(h.current().length, 2)
+		}
+		for (const second of [
+			track('live', 'wy', { album: 'Live', duration: 0 }),
+			track('long', 'wy', { duration: 240 }),
+			track('split', 'wy', { favoriteKeepSeparate: true }),
+			track('local', 'local', { duration: 0 }),
+		]) {
+			assert.equal(groups.getFavoriteMergeCandidates([track('base'), second]).length, 0)
+		}
+	},
+)
+await check(
+	'actual uncertain preview defaults unchecked and waits for both opt-in and confirmation',
+	() => {
+		const h = fixture([track('one'), track('unknown', 'wy', { duration: 0 })]),
+			alerts = [],
+			slots = []
+		let cursor = 0
+		const Screen = loadModule(
+			'src/app/(modals)/favoriteDuplicates.tsx',
+			{
+				react: {
+					...react,
+					useState: (initial) => {
+						const index = cursor++
+						slots[index] ??= initial
+						return [
+							slots[index],
+							(next) => {
+								slots[index] = typeof next === 'function' ? next(slots[index]) : next
+							},
+						]
+					},
+				},
+				'react-native': {
+					View: 'View',
+					Text: 'Text',
+					Pressable: 'Pressable',
+					Alert: { alert: (...args) => alerts.push(args) },
+				},
+				'@shopify/flash-list': { FlashList: 'FlashList' },
+				'@/store/library': { useFavorites: () => ({ favorites: h.current() }) },
+				'@/helpers/favoriteGroups': groups,
+				'@/helpers/favoriteGroupActions': h,
+				'@/helpers/libraryEdits': edits,
+				'@/helpers/musicPlatform': { getMusicPlatformLabelKey: (platform) => platform },
+				'@/hooks/useAppTheme': { useThemeColors: () => ({}) },
+				'@/utils/i18n': { t: (key) => key },
+			},
+			{ React: react },
+		).default
+		const render = () => {
+			cursor = 0
+			return Screen().props
+		}
+		let list = render()
+		const row = list.renderItem({ item: list.data[0] })
+		assert.equal(row.props.accessibilityState.checked, false)
+		const apply = (list) =>
+			list.ListHeaderComponent.props.children.find((node) => node.type === 'Pressable')
+		assert.equal(apply(list).props.disabled, true)
+		row.props.onPress()
+		list = render()
+		assert.equal(apply(list).props.disabled, false)
+		apply(list).props.onPress()
+		assert.equal(h.current().length, 2)
+		assert.equal(alerts[0][1], 'favoriteGroups.confirmReview')
+		alerts[0][2][1].onPress()
+		assert.equal(h.current().length, 1)
 	},
 )
 finish()

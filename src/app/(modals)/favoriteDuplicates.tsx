@@ -25,8 +25,11 @@ export default function FavoriteDuplicatesScreen() {
 	const colors = useThemeColors()
 	const { favorites } = useFavorites()
 	const [excluded, setExcluded] = useState<Set<string>>(new Set())
+	const [includedReviews, setIncludedReviews] = useState<Set<string>>(new Set())
 	const candidates = useMemo(() => getFavoriteMergeCandidates(favorites), [favorites])
-	const selected = candidates.filter((group) => !group.review && !excluded.has(group.id))
+	const selected = candidates.filter((group) =>
+		group.review ? includedReviews.has(group.id) : !excluded.has(group.id),
+	)
 	const rows: ReviewRow[] = [
 		...candidates.map((group) => ({ kind: 'candidate' as const, id: group.id, group })),
 		...favorites
@@ -47,14 +50,19 @@ export default function FavoriteDuplicatesScreen() {
 		const ids = new Set(selected.map((group) => group.id))
 		Alert.alert(
 			i18n.t('favoriteGroups.confirmTitle'),
-			i18n.t('favoriteGroups.confirm', { count: ids.size }),
+			i18n.t(
+				selected.some((group) => group.review)
+					? 'favoriteGroups.confirmReview'
+					: 'favoriteGroups.confirm',
+				{ count: ids.size },
+			),
 			[
 				{ text: i18n.t('find.cancel'), style: 'cancel' },
 				{
 					text: i18n.t('common.confirm'),
 					onPress: () => {
 						try {
-							const count = mergeSelectedFavorites(baseline, ids)
+							const count = mergeSelectedFavorites(baseline, ids, { allowReview: true })
 							Alert.alert(i18n.t('favoriteGroups.complete', { count }))
 						} catch {
 							failed()
@@ -132,20 +140,20 @@ export default function FavoriteDuplicatesScreen() {
 				const group = item.group
 				return (
 					<Pressable
-						accessibilityRole={group.review ? undefined : 'checkbox'}
+						accessibilityRole="checkbox"
 						accessibilityState={{
-							checked: !group.review && !excluded.has(group.id),
-							disabled: group.review,
+							checked: group.review ? includedReviews.has(group.id) : !excluded.has(group.id),
 						}}
-						disabled={group.review}
-						onPress={() =>
-							setExcluded((previous) => {
+						onPress={() => {
+							const toggle = (previous: Set<string>) => {
 								const next = new Set(previous)
 								if (next.has(group.id)) next.delete(group.id)
 								else next.add(group.id)
 								return next
-							})
-						}
+							}
+							if (group.review) setIncludedReviews(toggle)
+							else setExcluded(toggle)
+						}}
 						style={{
 							paddingVertical: 18,
 							borderTopWidth: 0.5,
@@ -154,14 +162,17 @@ export default function FavoriteDuplicatesScreen() {
 						}}
 					>
 						<Text style={{ color: colors.text, fontSize: 17 }}>
-							{group.review ? '?' : excluded.has(group.id) ? '☐' : '☑'} {group.tracks[0].title}
+							{(group.review ? includedReviews.has(group.id) : !excluded.has(group.id))
+								? '☑'
+								: '☐'}{' '}
+							{group.tracks[0].title}
 						</Text>
 						<Text style={{ color: colors.textMuted }}>{group.tracks[0].artist}</Text>
 						<Text style={{ color: colors.textMuted }}>
 							{group.tracks
 								.map(
 									(track) =>
-										`${platform(track)} · ${track.duration ? `${track.duration}s` : i18n.t('favoriteGroups.unknownDuration')}`,
+										`${platform(track)} · ${track.duration ? `${track.duration}s` : i18n.t('favoriteGroups.unknownDuration')}${track.album ? ` · ${track.album}` : ''}`,
 								)
 								.join('\n')}
 						</Text>

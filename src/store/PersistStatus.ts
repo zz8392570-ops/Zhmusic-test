@@ -8,6 +8,7 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
+	'music.favoriteGroupingVersion': number
 	'music.dislikeRules': import('@/helpers/dislikeRules').DislikeRule[]
 	'music.playLater': import('@/player/PlayLaterQueue').PlayLaterState
 	'library.snapshots': import('@/helpers/librarySnapshots').LibrarySnapshot[]

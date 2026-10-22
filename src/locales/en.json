@@ -1,5 +1,7 @@
 {
 	"favoriteGroups": {
+		"reviewNotice": "Review %{count} possible duplicate groups",
+		"confirmReview": "Merge %{count} selected groups? Some recordings are unverified. Confirm the title, artists and version match. Original records are retained and this action can be undone.",
 		"title": "Organize duplicate favorites",
 		"description": "Select recordings to merge. Original platform records are retained; use the song menu to set a default playback source or split them. If the default platform fails, other versions of the same recording are tried. Only matching titles, complete artists and similar durations are linked. Live recordings, covers and other versions remain separate.",
 		"confirmTitle": "Merge selected favorites",
@@ -12,7 +14,7 @@
 		"split": "Split platform versions",
 		"empty": "No duplicate favorites to merge",
 		"unknownDuration": "Unknown duration",
-		"review": "Possible duplicate: missing duration; automatic merging is disabled.",
+		"review": "Possible duplicates with missing durations or same-platform IDs. Check the recordings before selecting; these are never merged automatically.",
 		"failed": "Could not organize favorites. Please try again.",
 		"linked": "Added another platform version"
 	},

@@ -11,10 +11,14 @@ import type { Track } from '@/player/types'
 
 const identity = (track: Track) => JSON.stringify([track.platform, track.id])
 
-export const mergeSelectedFavorites = (baseline: Track[], selected: Set<string>) => {
+export const mergeSelectedFavorites = (
+	baseline: Track[],
+	selected: Set<string>,
+	options: { allowReview?: boolean } = {},
+) => {
 	const current = useLibraryStore.getState().favorites as Track[]
 	const candidates = getFavoriteMergeCandidates(baseline).filter(
-		(group) => !group.review && selected.has(group.id),
+		(group) => (!group.review || options.allowReview === true) && selected.has(group.id),
 	)
 	const byIdentity = new Map<string, number[]>()
 	current.forEach((track, index) => {

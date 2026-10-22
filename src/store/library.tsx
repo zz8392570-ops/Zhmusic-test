@@ -1,3 +1,4 @@
+import { initializeFavorites } from '@/helpers/initializeFavorites'
 import { Artist, Playlist, TrackWithPlaylist } from '@/helpers/types'
 import {
 	DEFAULT_HOME_BOARD_ID,
@@ -68,7 +69,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 	error: null,
 	page: 1,
 	hasMore: true,
-	favorites: PersistStatus.get('music.favorites') || [],
+	favorites: initializeFavorites(),
 	nowLyric: '当前无歌词',
 	playlists: [],
 	toggleTrackFavorite: (track: Track) => {
