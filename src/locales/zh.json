@@ -847,6 +847,11 @@
 		"clear": "清除"
 	},
 	"backup": {
+		"choosingFile": "请选择备份 JSON 文件",
+		"readingFile": "正在读取并校验备份…",
+		"fileReady": "备份已读取，请核对下方内容，再点击“恢复备份”完成导入。",
+		"pickerFailed": "无法打开文件选择器，请关闭其他弹窗后重试。",
+		"readFailed": "无法读取所选文件。若文件在 iCloud，请先下载到本机后重试。",
 		"cancelled": "已取消下载",
 		"snapshotHistory": "查看历史快照",
 		"historyDescription": "按备份日期选择快照，下载并校验后预览；不会自动恢复。",
@@ -895,7 +900,7 @@
 		"webdavSaved": "WebDAV 配置已保存",
 		"webdavConnectionSuccess": "WebDAV 连接成功",
 		"webdavUploadSuccess": "当前备份已上传",
-		"webdavDownloadSuccess": "远端备份已下载，请在下方确认恢复方式",
+		"webdavDownloadSuccess": "远端备份已下载，请核对备份预览并确认恢复方式",
 		"webdavErrorTitle": "WebDAV 操作失败",
 		"webdavInvalidConfig": "请填写有效的 HTTP 或 HTTPS WebDAV 目录地址和远端文件名",
 		"webdavUnauthorized": "认证失败，请检查用户名和密码",

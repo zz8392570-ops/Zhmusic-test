@@ -846,6 +846,11 @@
 		"clear": "Clear"
 	},
 	"backup": {
+		"choosingFile": "Select a backup JSON file",
+		"readingFile": "Reading and validating backup…",
+		"fileReady": "Backup loaded. Review the contents below, then tap Restore backup to finish importing.",
+		"pickerFailed": "Could not open the file picker. Close other dialogs and try again.",
+		"readFailed": "Could not read the selected file. If it is in iCloud, download it to this device and try again.",
 		"cancelled": "Download cancelled",
 		"snapshotHistory": "View snapshot history",
 		"historyDescription": "Choose a date to download, validate and preview a snapshot. This does not restore it automatically.",
@@ -894,7 +899,7 @@
 		"webdavSaved": "WebDAV configuration saved",
 		"webdavConnectionSuccess": "WebDAV connection successful",
 		"webdavUploadSuccess": "Current backup uploaded",
-		"webdavDownloadSuccess": "Remote backup downloaded. Choose a restore mode below.",
+		"webdavDownloadSuccess": "Remote backup downloaded. Review its contents and confirm the restore mode.",
 		"webdavErrorTitle": "WebDAV operation failed",
 		"webdavInvalidConfig": "Enter a valid HTTP or HTTPS WebDAV directory URL and remote file name",
 		"webdavUnauthorized": "Authentication failed. Check the username and password.",

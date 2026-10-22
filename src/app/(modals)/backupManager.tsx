@@ -50,6 +50,9 @@ export default function BackupManagerScreen() {
 	const [busy, setBusy] = useState(false)
 	const [canCancel, setCanCancel] = useState(false)
 	const activeRequest = useRef<AbortController | null>(null)
+	const filePickerActive = useRef(false)
+	const scrollRef = useRef<ScrollView>(null)
+	const [fileImportStatus, setFileImportStatus] = useState('')
 	const mounted = useRef(true)
 	useEffect(() => {
 		mounted.current = true
@@ -69,6 +72,13 @@ export default function BackupManagerScreen() {
 	const [snapshots, setSnapshots] = useState<WebDavSnapshot[] | null>(null)
 	const [previewSource, setPreviewSource] = useState('')
 	const backupStatus = PersistStatus.useValue('backup.webdavStatus')
+	const showBackupPreview = (value: MusicBackup, source: string) => {
+		if (!mounted.current) return
+		setBackup(value)
+		setPreviewSource(source)
+		setFileImportStatus('')
+		scrollRef.current?.scrollTo({ y: 0, animated: true })
+	}
 
 	useEffect(() => {
 		let mounted = true
@@ -118,7 +128,7 @@ export default function BackupManagerScreen() {
 		action: (config: WebDavBackupConfig, signal: AbortSignal) => Promise<void>,
 		cancellable = false,
 	) => {
-		if (activeRequest.current) return
+		if (activeRequest.current || filePickerActive.current) return
 		const controller = new AbortController()
 		activeRequest.current = controller
 		setCanCancel(cancellable)
@@ -171,10 +181,10 @@ export default function BackupManagerScreen() {
 	const downloadWebDav = () =>
 		void runWebDavAction(async (config, signal) => {
 			setBackup(null)
+			setFileImportStatus('')
 			const downloaded = await downloadWebDavBackup(config, undefined, signal)
 			if (signal.aborted) return
-			setBackup(downloaded)
-			setPreviewSource(i18n.t('backup.latestSnapshot'))
+			showBackupPreview(downloaded, i18n.t('backup.latestSnapshot'))
 			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
 		}, true)
 	const listSnapshots = () =>
@@ -186,10 +196,10 @@ export default function BackupManagerScreen() {
 	const selectSnapshot = (date: string) =>
 		void runWebDavAction(async (config, signal) => {
 			setBackup(null)
+			setFileImportStatus('')
 			const downloaded = await downloadWebDavBackup(config, date, signal)
 			if (signal.aborted) return
-			setBackup(downloaded)
-			setPreviewSource(date)
+			showBackupPreview(downloaded, date)
 			setWebDavStatus(i18n.t('backup.webdavDownloadSuccess'))
 		}, true)
 	useEffect(() => {
@@ -212,6 +222,7 @@ export default function BackupManagerScreen() {
 		</Pressable>
 	)
 	const exportBackup = async () => {
+		if (busy || filePickerActive.current || activeRequest.current) return
 		setBusy(true)
 		const file = new File(Paths.cache, `ZhMusic-backup-${Date.now()}.json`)
 		try {
@@ -232,26 +243,50 @@ export default function BackupManagerScreen() {
 		}
 	}
 	const selectBackup = async () => {
+		if (busy || filePickerActive.current || activeRequest.current) return
+		filePickerActive.current = true
+		setFileImportStatus('backup.choosingFile')
 		setBusy(true)
+		let failureMessage = 'backup.pickerFailed'
 		try {
 			const result = await DocumentPicker.getDocumentAsync({
-				type: ['application/json', 'text/plain'],
+				type: ['application/json', 'text/plain', 'application/octet-stream'],
 				copyToCacheDirectory: true,
+				multiple: false,
 			})
-			if (result.canceled) return
-			const file = new File(result.assets[0].uri)
-			if (file.size > MAX_BACKUP_BYTES) throw new Error('Backup exceeds size limit')
-			setBackup(parseMusicBackup(await file.text()))
-			setPreviewSource(result.assets[0].name)
+			if (!mounted.current) return
+			if (result.canceled) {
+				setFileImportStatus('')
+				return
+			}
+			failureMessage = 'backup.readFailed'
+			const asset = result.assets[0]
+			if (!asset?.uri) throw new Error('No selected backup file')
+			setFileImportStatus('backup.readingFile')
+			const file = new File(asset.uri)
+			if ((asset.size ?? 0) > MAX_BACKUP_BYTES || file.size > MAX_BACKUP_BYTES) {
+				failureMessage = 'backup.invalid'
+				throw new Error('Backup exceeds size limit')
+			}
+			const text = await file.text()
+			if (!mounted.current) return
+			failureMessage = 'backup.invalid'
+			const parsed = parseMusicBackup(text)
+			showBackupPreview(parsed, asset.name)
+			setFileImportStatus('backup.fileReady')
 		} catch {
+			if (!mounted.current) return
 			setBackup(null)
-			Alert.alert(i18n.t('backup.invalid'))
+			setPreviewSource('')
+			setFileImportStatus(failureMessage)
+			Alert.alert(i18n.t(failureMessage))
 		} finally {
-			setBusy(false)
+			filePickerActive.current = false
+			if (mounted.current) setBusy(false)
 		}
 	}
 	const restore = async () => {
-		if (!backup) return
+		if (!backup || busy || filePickerActive.current || activeRequest.current) return
 		setBusy(true)
 		try {
 			const library = restoreMusicBackup(backup, mode, restoreSettings)
@@ -274,6 +309,7 @@ export default function BackupManagerScreen() {
 				if (settings['app.language'] !== undefined) changeLanguage(settings['app.language'])
 			}
 			setBackup(null)
+			setFileImportStatus('')
 			Alert.alert(i18n.t('backup.restored'))
 		} catch {
 			Alert.alert(i18n.t('backup.restoreFailed'))
@@ -333,6 +369,7 @@ export default function BackupManagerScreen() {
 			behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 		>
 			<ScrollView
+				ref={scrollRef}
 				keyboardShouldPersistTaps="handled"
 				contentContainerStyle={{ padding: 20, paddingBottom: 48, gap: 16 }}
 			>
@@ -344,6 +381,53 @@ export default function BackupManagerScreen() {
 				</Text>
 				{button(i18n.t('backup.export'), () => void exportBackup())}
 				{button(i18n.t('backup.import'), () => void selectBackup())}
+				{fileImportStatus ? (
+					<View style={{ gap: 8 }}>
+						{filePickerActive.current ? <ActivityIndicator color={colors.primary} /> : null}
+						<Text accessibilityLiveRegion="polite" style={{ color: colors.textMuted }}>
+							{i18n.t(fileImportStatus)}
+						</Text>
+					</View>
+				) : null}
+				{backup ? (
+					<View style={{ gap: 14 }}>
+						<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
+							{i18n.t('backup.preview')}
+						</Text>
+						<Text style={{ color: colors.success }}>{i18n.t('backup.validationPassed')}</Text>
+						<Text style={{ color: colors.textMuted }}>{previewSource}</Text>
+						<Text style={{ color: colors.textMuted }}>{i18n.t('backup.restoreFilesNote')}</Text>
+						<Text style={{ color: colors.textMuted, lineHeight: 22 }}>
+							{i18n.t('backup.summary', {
+								favorites: backup.library.favorites.length,
+								playlists: backup.library.playlists.length,
+								recent: backup.library.recentlyPlayed.length,
+								settings: Object.keys(backup.settings).length,
+							})}
+						</Text>
+						<Text style={{ color: colors.textMuted, fontSize: 12 }}>
+							{backup.createdAt} · {backup.appVersion}
+						</Text>
+						{button(i18n.t('backup.merge'), () => setMode('merge'), mode === 'merge')}
+						{button(i18n.t('backup.replace'), () => setMode('replace'), mode === 'replace')}
+						<View
+							style={{
+								flexDirection: 'row',
+								justifyContent: 'space-between',
+								alignItems: 'center',
+							}}
+						>
+							<Text style={{ color: colors.text }}>{i18n.t('backup.restoreSettings')}</Text>
+							<Switch
+								disabled={busy}
+								value={restoreSettings}
+								onValueChange={setRestoreSettings}
+								accessibilityLabel={i18n.t('backup.restoreSettings')}
+							/>
+						</View>
+						{button(i18n.t('backup.restore'), confirmRestore)}
+					</View>
+				) : null}
 				<View style={{ height: 1, backgroundColor: colors.surfaceElevated, marginVertical: 4 }} />
 				<Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
 					{i18n.t('backup.webdavTitle')}
@@ -437,45 +521,6 @@ export default function BackupManagerScreen() {
 					<Text style={{ color: colors.text, textAlign: 'center', fontSize: 13 }}>
 						{webDavStatus}
 					</Text>
-				) : null}
-				{backup ? (
-					<View style={{ gap: 14 }}>
-						<Text style={{ color: colors.text, fontSize: 18, fontWeight: '600' }}>
-							{i18n.t('backup.preview')}
-						</Text>
-						<Text style={{ color: colors.success }}>{i18n.t('backup.validationPassed')}</Text>
-						<Text style={{ color: colors.textMuted }}>{previewSource}</Text>
-						<Text style={{ color: colors.textMuted }}>{i18n.t('backup.restoreFilesNote')}</Text>
-						<Text style={{ color: colors.textMuted, lineHeight: 22 }}>
-							{i18n.t('backup.summary', {
-								favorites: backup.library.favorites.length,
-								playlists: backup.library.playlists.length,
-								recent: backup.library.recentlyPlayed.length,
-								settings: Object.keys(backup.settings).length,
-							})}
-						</Text>
-						<Text style={{ color: colors.textMuted, fontSize: 12 }}>
-							{backup.createdAt} · {backup.appVersion}
-						</Text>
-						{button(i18n.t('backup.merge'), () => setMode('merge'), mode === 'merge')}
-						{button(i18n.t('backup.replace'), () => setMode('replace'), mode === 'replace')}
-						<View
-							style={{
-								flexDirection: 'row',
-								justifyContent: 'space-between',
-								alignItems: 'center',
-							}}
-						>
-							<Text style={{ color: colors.text }}>{i18n.t('backup.restoreSettings')}</Text>
-							<Switch
-								disabled={busy}
-								value={restoreSettings}
-								onValueChange={setRestoreSettings}
-								accessibilityLabel={i18n.t('backup.restoreSettings')}
-							/>
-						</View>
-						{button(i18n.t('backup.restore'), confirmRestore)}
-					</View>
 				) : null}
 			</ScrollView>
 		</KeyboardAvoidingView>
