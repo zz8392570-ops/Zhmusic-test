@@ -251,6 +251,19 @@ export const fetchRadioPlaylists = async (source: LeaderboardSource): Promise<Pl
 	return boardsToPlaylists(source)
 }
 
+/** The SDK exposes chart durations as mm:ss; some callers retain numeric seconds. */
+const parseLeaderboardDuration = (value: unknown): number => {
+	let seconds = 0
+	if (typeof value === 'number') seconds = value
+	else if (typeof value === 'string') {
+		const input = value.trim()
+		if (/^\d+:[0-5]\d(?::[0-5]\d)?$/.test(input))
+			seconds = input.split(':').reduce((total, part) => total * 60 + Number(part), 0)
+		else if (/^\d+(?:\.\d+)?$/.test(input)) seconds = Number(input)
+	}
+	return Number.isFinite(seconds) && seconds > 0 ? seconds : 0
+}
+
 export const mapLeaderboardTrack = (track: any, source: LeaderboardSource): Track => ({
 	id: String(track.songmid ?? ''),
 	platform: source,
@@ -268,7 +281,7 @@ export const mapLeaderboardTrack = (track: any, source: LeaderboardSource): Trac
 	genre: track.genre || 'Unknown Genre',
 	date: track.releaseDate || 'Unknown Release Date',
 	artwork: getEmbeddedTrackArtwork(track, source),
-	duration: 0,
+	duration: parseLeaderboardDuration(track.duration) || parseLeaderboardDuration(track.interval),
 	singerImg: track.singerImg || unknownTrackImageUri,
 })
 

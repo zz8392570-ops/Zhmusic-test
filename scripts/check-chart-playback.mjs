@@ -19,6 +19,71 @@ const leaderboard = loadModule('src/helpers/leaderboard.ts', {
 })
 const suite = checks()
 await suite.check(
+	'all chart sources retain SDK durations instead of replacing them with zero',
+	() => {
+		for (const source of ['tx', 'kw', 'kg', 'wy', 'mg']) {
+			for (const [fields, seconds] of [
+				[{ interval: '03:46' }, 226],
+				[{ interval: '1:02:03' }, 3723],
+				[{ interval: '61:02' }, 3662],
+				[{ interval: 226 }, 226],
+				[{ duration: 226.5 }, 226.5],
+				[{ duration: '226' }, 226],
+				[{ duration: 226, interval: '00:00' }, 226],
+				[{ duration: 0, interval: ' 03:46 ' }, 226],
+			]) {
+				const original = { songmid: 'song', name: 'Song', singer: 'Artist', ...fields }
+				const mapped = leaderboard.mapLeaderboardTrack(original, source)
+				assert.equal(mapped.duration, seconds, `${source}: ${JSON.stringify(fields)}`)
+				assert.equal(mapped.id, 'song')
+				assert.equal(mapped.platform, source)
+			}
+		}
+		for (const interval of [
+			undefined,
+			null,
+			'',
+			'00:00',
+			'--:--',
+			'--/--',
+			'NaN:NaN',
+			'03:60',
+			'1:99:30',
+			-1,
+			Infinity,
+			NaN,
+			true,
+			{},
+		])
+			assert.equal(
+				leaderboard.mapLeaderboardTrack({ songmid: 'unknown', interval }, 'kw').duration,
+				0,
+			)
+	},
+)
+await suite.check(
+	'a chart favorite and matching search favorite share one cross-platform recording',
+	() => {
+		const groups = loadModule('src/helpers/favoriteGroups.ts', {})
+		const chart = leaderboard.mapLeaderboardTrack(
+			{
+				songmid: 'kw-song',
+				name: '难得有情人',
+				singer: '关淑怡',
+				albumName: '难得有情人',
+				interval: '03:46',
+			},
+			'kw',
+		)
+		const search = { ...chart, id: 'qq-song', platform: 'tx', duration: 226 }
+		const favorites = groups.addFavoriteTrack([chart], search)
+		assert.equal(favorites.length, 1)
+		assert.equal(groups.getFavoriteVariants(favorites[0]).length, 2)
+		assert.equal(groups.getFavoriteIndex(favorites).has(search), true)
+		assert.equal(groups.getFavoriteReviewTarget([chart], search), undefined)
+	},
+)
+await suite.check(
 	'new boards from remote catalogs retain their ID; source defaults remain usable',
 	() => {
 		leaderboard.setHomeLeaderboard('tx', 'remote-new')

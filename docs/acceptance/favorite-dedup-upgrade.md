@@ -8,6 +8,8 @@ Missing-duration recordings and same-platform different IDs can now be manually 
 
 New favorites also check for these uncertain matches before writing. The shared favorite action offers Add to existing, Keep separate and Cancel. Safe automatic matches and exact-ID removal retain their immediate behavior. An explicit separate choice is persisted, while a canceled/dismissed prompt writes nothing. Confirmation rechecks the target and preserves unrelated collection changes; stale targets and failed persistence never report success. The playlist picker waits for this action's completion before closing. Its navigation parameters retain special characters, original download IDs and separation choices.
 
+Chart mapping previously assigned `duration: 0` even though the five chart SDKs supply `interval` values such as `03:46`. It now preserves valid numeric seconds or parses the SDK clock format. `scripts/check-chart-playback.mjs` reproduces the old failure, verifies all five sources, unknown/invalid durations, and a chart/search favorite pair that can now group automatically. Previously persisted zero durations still use explicit duplicate review because their original duration was discarded; this fix does not guess it from a different platform.
+
 `scripts/check-favorite-groups.mjs` exercises the actual library initializer, action owner and review screen: historical migration, failed data/flag writes and retries, original-ID download copies in either order, shared hearts, one-time migration, review opt-in and confirmation, version exclusions and undo. The complete core checks and iOS JavaScript/Hermes export are local validation; no device collection has been read or changed by these checks.
 
 ## Device acceptance
@@ -16,6 +18,7 @@ New favorites also check for these uncertain matches before writing. The shared 
 - [ ] Check a downloaded copy and its remote favorite, including a renamed cache ID. Confirm one favorite, consistent hearts and offline playback; downloaded files remain in Local Music.
 - [ ] For matching titles/artists with missing duration or different IDs on one platform, open the Favorites duplicate notice. Confirm they start unchecked, cancellation changes nothing, and selection plus confirmation merges them.
 - [ ] Favorite two new matching results with different IDs on one platform, and two cross-platform results with a missing duration. The second heart must prompt before adding: Cancel changes nothing, Add to existing retains one row, and Keep separate retains two rows across restart.
+- [ ] Load a fresh chart, favorite a known-duration track, then favorite the same recording from search on another platform. The chart's duration must survive saving and the compatible pair should group automatically. An actually unknown chart duration still requires review.
 - [ ] Repeat through the player, row heart, song menu and playlist picker. The picker must remain open after cancellation and close after a successful confirmation. Check artist/title values containing `&`/`#` and a downloaded copy with an `originalId`.
 - [ ] Undo a manual merge, restart, and confirm it stays undone. Inspect library history for the pre-migration collection.
 - [ ] Confirm Live, remix, materially different durations, imported local-only tracks and manually separated versions remain separate.
