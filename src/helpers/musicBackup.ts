@@ -5,6 +5,11 @@ import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 import { isValidDislikeRules } from '@/helpers/dislikeRules'
 
 const settingValidators = {
+	'app.startPage': (value: unknown) =>
+		typeof value === 'string' && ['charts', 'my', 'favorites', 'search'].includes(value),
+	'music.favoriteAutoSave': (value: unknown) => typeof value === 'boolean',
+	'music.favoriteOfflineQuality': (value: unknown) =>
+		typeof value === 'string' && ['128k', '320k', 'flac'].includes(value),
 	'music.dislikeRules': isValidDislikeRules,
 	'music.downloadWifiOnly': (value: unknown) => typeof value === 'boolean',
 	'music.allowDuplicateDownloads': (value: unknown) => typeof value === 'boolean',

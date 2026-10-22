@@ -47,6 +47,8 @@ const { TracksList } = loadModule('src/components/TracksList.tsx', {
 	'expo-image': { Image: 'Image' },
 	'@rntp/player': { useIsPlaying: () => false },
 	'./QueueControls': { QueueControls: 'QueueControls' },
+	'@/hooks/usePlaylistOffline': { usePlaylistOffline: () => null },
+	'./PlaylistOfflineSummary': { PlaylistOfflineSummary: 'OfflineSummary' },
 	'@/utils/i18n': { t: (key) => key },
 })
 const tracks = [
@@ -196,6 +198,8 @@ await suite.check(
 				'react-native': { View: 'View', Text: 'Text', StyleSheet: { create: (styles) => styles } },
 				'expo-image': { Image: 'Image' },
 				'./QueueControls': { QueueControls: 'QueueControls' },
+				'@/hooks/usePlaylistOffline': { usePlaylistOffline: () => null },
+				'./PlaylistOfflineSummary': { PlaylistOfflineSummary: 'OfflineSummary' },
 				'./TracksList': { TracksList },
 				'@/helpers/libraryEdits': { getLibraryTrackKey: keyOf },
 			},

@@ -339,6 +339,10 @@ const MusicSourceMenu = ({ isDelete, onSelectSource }) => {
 }
 
 const SettingModal = () => {
+	const startPage = PersistStatus.useValue('app.startPage', 'charts') ?? 'charts'
+	const favoriteAutoSave = PersistStatus.useValue('music.favoriteAutoSave', false) === true
+	const favoriteOfflineQuality =
+		PersistStatus.useValue('music.favoriteOfflineQuality', '320k') ?? '320k'
 	const fileImportProgress = sourceFileImportProgress.useValue()
 	const colors = useThemeColors()
 	const { themeMode, setThemeMode } = useThemeMode()
@@ -375,6 +379,7 @@ const SettingModal = () => {
 		{
 			title: i18n.t('settings.sections.general'),
 			data: [
+				{ id: 'start-page', title: i18n.t('startPage.title'), type: 'value' },
 				{
 					id: '15',
 					title: i18n.t('settings.items.changeLanguage'),
@@ -428,6 +433,15 @@ const SettingModal = () => {
 		{
 			title: i18n.t('settings.sections.downloadsCache'),
 			data: [
+				{
+					id: 'favorite-auto-save',
+					title: i18n.t('personalOffline.autoSave'),
+					description: i18n.t('personalOffline.autoSaveHint'),
+					type: 'switch',
+					value: favoriteAutoSave,
+					onValueChange: (value: boolean) => PersistStatus.set('music.favoriteAutoSave', value),
+				},
+				{ id: 'favorite-offline-quality', title: i18n.t('personalOffline.quality'), type: 'value' },
 				{ id: 'cache-manager', title: i18n.t('settings.items.manageCache'), type: 'link' },
 				{ id: 'download-naming', title: i18n.t('downloadNaming.title'), type: 'link' },
 				{
@@ -807,6 +821,41 @@ const SettingModal = () => {
 					<View style={styles.itemContent}>
 						<Text style={styles.itemText}>{item.title}</Text>
 						{item.type === 'value' && <Text style={styles.itemValue}>{item.value}</Text>}
+						{item.id === 'start-page' && (
+							<MenuView
+								title={i18n.t('startPage.title')}
+								actions={(['charts', 'my', 'favorites', 'search'] as const).map((id) => ({
+									id,
+									title: i18n.t(`startPage.${id}`),
+									state: startPage === id ? 'on' : 'off',
+								}))}
+								onPressAction={({ nativeEvent: { event } }) => {
+									if (['charts', 'my', 'favorites', 'search'].includes(event)) {
+										PersistStatus.set('app.startPage', event as typeof startPage)
+										showToast(i18n.t('startPage.nextLaunch'), '', 'success')
+									}
+								}}
+							>
+								<TouchableOpacity
+									accessibilityRole="button"
+									accessibilityLabel={i18n.t('startPage.title')}
+									style={{ padding: 10 }}
+								>
+									<Text style={styles.itemValue}>{i18n.t(`startPage.${startPage}`)}</Text>
+								</TouchableOpacity>
+							</MenuView>
+						)}
+						{item.id === 'favorite-offline-quality' && (
+							<MusicQualityMenu
+								currentQuality={favoriteOfflineQuality}
+								onSelectQuality={(value) =>
+									PersistStatus.set(
+										'music.favoriteOfflineQuality',
+										value as '128k' | '320k' | 'flac',
+									)
+								}
+							/>
+						)}
 						{item.id === '10' && (
 							<MusicQualityMenu
 								currentQuality={currentQuality}

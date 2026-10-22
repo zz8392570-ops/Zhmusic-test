@@ -52,6 +52,7 @@ const FavoriteMusicScreen = () => {
 	return (
 		<View style={defaultStyles.container}>
 			<PlaylistTracksList
+				showOfflineSummary
 				contentContainerStyle={{ paddingHorizontal: 18 }}
 				playlist={playListItem as Playlist}
 				tracks={filteredFavoritesTracks}

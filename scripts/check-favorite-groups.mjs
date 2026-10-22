@@ -18,6 +18,8 @@ const track = (id, platform = 'tx', extra = {}) => ({
 })
 const fixture = (initial, migrate = false) => {
 	const alerts = []
+	const offlineSaves = []
+	const toasts = []
 	const disk = new Map([
 		['music.favorites', initial],
 		...(!migrate ? [['music.favoriteGroupingVersion', 1]] : []),
@@ -40,7 +42,10 @@ const fixture = (initial, migrate = false) => {
 	})
 	const library = loadModule('src/store/library.tsx', {
 		'@/helpers/leaderboard': {},
-		'@/utils/utils': { showToast() {} },
+		'@/utils/utils': { showToast: (...args) => toasts.push(args) },
+		'@/helpers/favoriteOffline': {
+			saveNewFavoriteOffline: async (track) => offlineSaves.push(track),
+		},
 		'@/utils/i18n': { t: (key) => key },
 		react: {},
 		zustand: { create },
@@ -64,6 +69,8 @@ const fixture = (initial, migrate = false) => {
 		...library,
 		disk,
 		alerts,
+		offlineSaves,
+		toasts,
 		fail: (key) => {
 			failKey = key
 		},
@@ -340,10 +347,9 @@ await check(
 		assert.equal(h.current().length, 2)
 		assert.equal(h.disk.has('music.favoriteMergeUndo'), false)
 		h.fail('music.favorites')
-		assert.throws(
-			() => h.useLibraryStore.getState().toggleTrackFavorite(track('three', 'kg')),
-			/Storage failed/,
-		)
+		h.useLibraryStore.getState().toggleTrackFavorite(track('three', 'kg'))
+		assert.equal(h.alerts.at(-1)[0], 'favoriteGroups.failed')
+		assert.equal(h.offlineSaves.length, 0)
 		assert.equal(h.current().length, 2)
 	},
 )
@@ -890,12 +896,13 @@ await check(
 		await choose()
 		h.alerts[1][2][2].onPress()
 		assert.equal(dismissed, 1)
-		assert.equal(toasts[0][0], 'addToPlaylist.added')
+		assert.equal(toasts.length, 0)
+		assert.equal(h.toasts.at(-1)[0], 'favoriteGroups.addedToExisting')
 		params.id = 'cache:first:flac'
 		params.originalId = 'first'
 		await choose()
 		assert.equal(dismissed, 1)
-		assert.equal(toasts[1][0], 'addToPlaylist.duplicate')
+		assert.equal(toasts[0][0], 'addToPlaylist.duplicate')
 		assert.equal(h.current().length, 1)
 	},
 )
@@ -957,6 +964,31 @@ await check(
 		assert.equal(alerts[0][1], 'favoriteGroups.confirmReview')
 		alerts[0][2][1].onPress()
 		assert.equal(h.current().length, 1)
+	},
+)
+await check(
+	'favorite saves follow only successful explicit adds, including confirmed merges; removal and failures never queue',
+	() => {
+		const a = track('auto-a'),
+			b = track('auto-b', 'kw', { duration: 0 })
+		const h = fixture([])
+		assert.equal(h.offlineSaves.length, 0)
+		h.useLibraryStore.getState().toggleTrackFavorite(a)
+		assert.equal(h.offlineSaves.length, 1)
+		assert.equal(h.toasts.at(-1)[0], 'favoriteGroups.saved')
+		h.useLibraryStore.getState().toggleTrackFavorite(a)
+		assert.equal(h.offlineSaves.length, 1)
+		assert.equal(h.toasts.at(-1)[0], 'favoriteGroups.removed')
+		h.fail('music.favorites')
+		h.useLibraryStore.getState().toggleTrackFavorite(a)
+		assert.equal(h.offlineSaves.length, 1)
+		assert.equal(h.current().length, 0)
+		h.useLibraryStore.getState().toggleTrackFavorite(a)
+		h.useLibraryStore.getState().toggleTrackFavorite(b)
+		assert.equal(h.offlineSaves.length, 2)
+		h.alerts.at(-1)[2][2].onPress()
+		assert.equal(h.offlineSaves.length, 3)
+		assert.equal(groups.getFavoriteVariants(h.offlineSaves.at(-1)).length, 2)
 	},
 )
 finish()

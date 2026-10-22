@@ -50,7 +50,6 @@ const AddToPlaylistModal = () => {
 			} else {
 				toggleTrackFavorite(track as Track, () => {
 					router.dismiss()
-					showToast(i18n.t('addToPlaylist.added'), playlist.title || playlist.name)
 				})
 				return
 			}

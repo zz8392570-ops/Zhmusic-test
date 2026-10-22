@@ -40,6 +40,7 @@ type DownloadOptions = {
 	silent?: boolean
 	kind?: 'saved' | 'automatic'
 	strictQuality?: boolean
+	favoriteAutoSave?: boolean
 }
 const active = new Map<string, AbortController>()
 const activeMedia = new Map<string, string>()
@@ -147,6 +148,7 @@ export const restoreDownloadTasks = () => {
 		unique.set(task.id, {
 			...task,
 			strictQuality: task.strictQuality === true,
+			favoriteAutoSave: task.favoriteAutoSave === true,
 			kind: task.kind === 'automatic' ? 'automatic' : 'saved',
 			progress: Number.isFinite(task.progress) ? Math.max(0, Math.min(1, task.progress)) : 0,
 			status:
@@ -165,6 +167,10 @@ const run = async (task: CacheDownloadTask, controller: AbortController) => {
 		'bytesWritten' | 'contentLength' | 'bytesPerSecond' | 'remainingSeconds'
 	> = {}
 	try {
+		if (task.favoriteAutoSave && PersistStatus.get('music.favoriteAutoSave') !== true) {
+			update({ ...task, status: 'cancelled' })
+			return
+		}
 		if (task.kind !== 'automatic') {
 			const allowed = await allowedForDownload(task)
 			if (controller.signal.aborted || !isCurrent(task)) return
@@ -400,13 +406,31 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 	const id = JSON.stringify([track.platform || 'unknown', track.id, quality])
 	const existing = cacheDownloadTasksStore.getValue().find((task) => task.id === id)
 	const kind = options.kind ?? 'saved'
+	// A favorite must not restart a manual pause or replace an explicitly chosen download.
+	if (
+		options.favoriteAutoSave &&
+		existing?.kind === 'saved' &&
+		['waiting-network', 'paused', 'downloading', 'queued', 'interrupted'].includes(existing.status)
+	)
+		return
 	if (existing?.status === 'paused' && kind === 'automatic') return
 	if (existing && ['downloading', 'queued'].includes(existing.status)) {
-		if (options.strictQuality && !existing.strictQuality) {
+		if (
+			(options.strictQuality && !existing.strictQuality) ||
+			(existing.favoriteAutoSave && !options.favoriteAutoSave)
+		) {
 			await cancelCacheTask(existing.id)
 		} else {
 			if (kind === 'saved') {
-				update({ ...existing, kind, silent: options.silent === true && existing.silent !== false })
+				update({
+					...existing,
+					kind,
+					favoriteAutoSave:
+						existing.kind === 'saved'
+							? existing.favoriteAutoSave === true && options.favoriteAutoSave === true
+							: options.favoriteAutoSave === true,
+					silent: options.silent === true && existing.silent !== false,
+				})
 				if (!(await allowedForDownload({ ...existing, kind })))
 					await pauseCacheTask(existing.id, true)
 			}
@@ -421,6 +445,7 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 		silent: options.silent === true,
 		quality,
 		strictQuality: options.strictQuality === true,
+		favoriteAutoSave: options.favoriteAutoSave === true,
 		allowDuplicate: kind === 'saved' && PersistStatus.get('music.allowDuplicateDownloads') === true,
 		progress: 0,
 		status: 'queued',
@@ -528,6 +553,7 @@ const wifiNetwork = (state: Network.NetworkState) =>
 	state.isConnected !== false &&
 	[Network.NetworkStateType.WIFI, Network.NetworkStateType.ETHERNET].includes(state.type)
 const allowedForDownload = async (task: CacheDownloadTask, state?: Network.NetworkState) => {
+	if (task.favoriteAutoSave) return wifiNetwork(state ?? (await Network.getNetworkStateAsync()))
 	if (task.kind !== 'automatic' && !PersistStatus.get('music.downloadWifiOnly')) return true
 	if (task.kind === 'automatic' && !autoCacheWifiOnlyStore.getValue()) return true
 	return wifiNetwork(state ?? (await Network.getNetworkStateAsync()))
@@ -545,6 +571,7 @@ export const retryFailedCacheTasks = async () => {
 			quality: task.quality,
 			strictQuality: task.strictQuality,
 			kind: task.kind,
+			favoriteAutoSave: task.favoriteAutoSave,
 			silent: true,
 		})
 }
@@ -560,8 +587,13 @@ export const startDownloadNetworkPolicy = () => {
 			if (closed || owner !== revision) return
 			const task = cacheDownloadTasksStore.getValue().find((item) => item.id === snapshot.id)
 			if (!task) continue
-			const allowed =
-				task.kind === 'automatic'
+			if (task.favoriteAutoSave && PersistStatus.get('music.favoriteAutoSave') !== true) {
+				await cancelCacheTask(task.id)
+				continue
+			}
+			const allowed = task.favoriteAutoSave
+				? wifiNetwork(network)
+				: task.kind === 'automatic'
 					? !autoCacheWifiOnlyStore.getValue() || wifiNetwork(network)
 					: !PersistStatus.get('music.downloadWifiOnly') || wifiNetwork(network)
 			if (!allowed && ['queued', 'downloading'].includes(task.status))
@@ -574,7 +606,10 @@ export const startDownloadNetworkPolicy = () => {
 	}
 	const network = Network.addNetworkStateListener(invoke)
 	const unsubscribe = PersistStatus.subscribe((key) => {
-		if (['music.downloadWifiOnly', 'music.autoCacheWifiOnly'].includes(key)) invoke()
+		if (
+			['music.downloadWifiOnly', 'music.autoCacheWifiOnly', 'music.favoriteAutoSave'].includes(key)
+		)
+			invoke()
 	})
 	invoke()
 	return () => {

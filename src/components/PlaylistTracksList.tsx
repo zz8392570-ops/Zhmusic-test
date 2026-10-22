@@ -1,3 +1,5 @@
+import { usePlaylistOffline } from '@/hooks/usePlaylistOffline'
+import { PlaylistOfflineSummary } from './PlaylistOfflineSummary'
 import { unknownTrackImageUri } from '@/constants/images'
 import { fontSize, ThemeColors } from '@/constants/tokens'
 import { generateTracksListId } from '@/helpers/miscellaneous'
@@ -36,6 +38,7 @@ type PlaylistTracksListProps = TracksListScrollProps & {
 	showMetadata?: boolean
 	metadata?: string
 	compactHeader?: boolean
+	showOfflineSummary?: boolean
 	headerContent?: ReactNode
 	footerContent?: ReactNode
 }
@@ -62,10 +65,22 @@ export const PlaylistTracksList = ({
 	showMetadata = false,
 	metadata,
 	compactHeader = false,
+	showOfflineSummary = false,
 	headerContent,
 	footerContent,
 	...listProps
 }: PlaylistTracksListProps) => {
+	const [onlyOffline, setOnlyOffline] = useState(false)
+	const offlineEntries = usePlaylistOffline(tracks, showOfflineSummary)
+	const displayTracks = useMemo(
+		() =>
+			onlyOffline && showOfflineSummary && !isMultiSelectMode
+				? offlineEntries
+						?.filter((entry) => entry.state === 'available')
+						.map((entry) => entry.track) ?? []
+				: tracks,
+		[onlyOffline, showOfflineSummary, isMultiSelectMode, offlineEntries, tracks],
+	)
 	const colors = useThemeColors()
 	const defaultStyles = useDefaultStyles()
 	const styles = useMemo(() => createStyles(colors, defaultStyles), [colors, defaultStyles])
@@ -119,9 +134,17 @@ export const PlaylistTracksList = ({
 						</View>
 					</View>
 
+					{showOfflineSummary && !isMultiSelectMode && (
+						<PlaylistOfflineSummary
+							tracks={tracks}
+							entries={offlineEntries}
+							onlyOffline={onlyOffline}
+							onToggle={() => setOnlyOffline((value) => !value)}
+						/>
+					)}
 					<QueueControls
 						style={{ paddingTop: compactHeader ? 14 : 18 }}
-						tracks={tracks}
+						tracks={displayTracks}
 						showImportMenu={showImportMenu}
 						onImportTrack={onImportTrack}
 						importLabel={importLabel}
@@ -141,7 +164,7 @@ export const PlaylistTracksList = ({
 				</View>
 			}
 			ListFooterComponent={footerContent}
-			tracks={tracks}
+			tracks={displayTracks}
 			allowDelete={allowDelete}
 			onDeleteTrack={onDeleteTrack}
 			onReplaceSource={onReplaceSource}

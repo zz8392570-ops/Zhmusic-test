@@ -451,6 +451,7 @@ const PlaylistScreen = () => {
 	return (
 		<View style={defaultStyles.container}>
 			<PlaylistTracksList
+				showOfflineSummary
 				contentContainerStyle={{ paddingHorizontal: 18 }}
 				playlist={playlist as Playlist}
 				tracks={songs as Track[]}

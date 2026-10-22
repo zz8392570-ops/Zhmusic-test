@@ -452,11 +452,58 @@ await check('Settings defaults off for missing, malformed and non-Boolean persis
 		if (raw === undefined) h.disk.delete('music.preciseSeeking')
 		else h.disk.set('music.preciseSeeking', raw)
 		assert.equal(findElement(h.render(), 'Switch').props.value, expected, String(raw))
-		assert.equal(h.listeners.size, 4)
+		assert.equal(h.listeners.size, 7)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 	}
 	assert.deepEqual(h.storageWrites, [])
+})
+
+await check('personal start page and favorite-save controls persist only their own choices', () => {
+	const h = settingsRuntime()
+	let tree = h.render()
+	const toggle = findElement(
+		tree,
+		'Switch',
+		(node) => node.props.testID === 'settings.favorite-auto-save',
+	)
+	assert.equal(toggle.props.value, false)
+	toggle.props.onValueChange(true)
+	tree = h.render()
+	assert.equal(
+		findElement(tree, 'Switch', (node) => node.props.testID === 'settings.favorite-auto-save').props
+			.value,
+		true,
+	)
+	const menu = findElement(
+		tree,
+		'MenuView',
+		(node) => node.props.title === h.i18n.t('startPage.title'),
+	)
+	assert.ok(menu)
+	menu.props.onPressAction({ nativeEvent: { event: 'favorites' } })
+	menu.props.onPressAction({ nativeEvent: { event: 'unexpected' } })
+	assert.deepEqual(h.storageWrites, [
+		['music.favoriteAutoSave', 'true'],
+		['app.startPage', '"favorites"'],
+	])
+	h.unmount()
+	tree = h.render()
+	assert.equal(
+		findElement(
+			tree,
+			'MenuView',
+			(node) => node.props.title === h.i18n.t('startPage.title'),
+		).props.actions.find((action) => action.id === 'favorites').state,
+		'on',
+	)
+	assert.equal(
+		findElement(tree, 'Switch', (node) => node.props.testID === 'settings.favorite-auto-save').props
+			.value,
+		true,
+	)
+	h.unmount()
+	assert.equal(h.listeners.size, 0)
 })
 
 await check(
@@ -469,7 +516,7 @@ await check(
 		control.props.onValueChange(true)
 		assert.deepEqual(h.storageWrites, [['music.preciseSeeking', 'true']])
 		assert.equal(findElement(h.render(), 'Switch').props.value, true)
-		assert.equal(h.listeners.size, 4)
+		assert.equal(h.listeners.size, 7)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 		assert.equal(findElement(h.render(), 'Switch').props.value, true)

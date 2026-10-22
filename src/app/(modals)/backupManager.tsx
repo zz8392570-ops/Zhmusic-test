@@ -310,7 +310,14 @@ export default function BackupManagerScreen() {
 			}
 			setBackup(null)
 			setFileImportStatus('')
-			Alert.alert(i18n.t('backup.restored'))
+			Alert.alert(
+				i18n.t('backup.restored'),
+				i18n.t('backup.restoredCounts', {
+					favorites: library.favorites.length,
+					playlists: library.playlists.length,
+					recent: library.recentlyPlayed.length,
+				}),
+			)
 		} catch {
 			Alert.alert(i18n.t('backup.restoreFailed'))
 		} finally {

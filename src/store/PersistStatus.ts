@@ -8,6 +8,9 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
+	'app.startPage': 'charts' | 'my' | 'favorites' | 'search'
+	'music.favoriteAutoSave': boolean
+	'music.favoriteOfflineQuality': '128k' | '320k' | 'flac'
 	'music.favoriteGroupingVersion': number
 	'music.dislikeRules': import('@/helpers/dislikeRules').DislikeRule[]
 	'music.playLater': import('@/player/PlayLaterQueue').PlayLaterState

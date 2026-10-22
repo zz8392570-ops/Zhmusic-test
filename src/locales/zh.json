@@ -22,7 +22,9 @@
 		"unknownDuration": "时长未知",
 		"review": "疑似重复：时长不全或来自同一平台，请核对版本后勾选合并；不会自动合并。",
 		"failed": "收藏整理失败，请重试。",
-		"linked": "已添加其他平台版本"
+		"linked": "已添加其他平台版本",
+		"saved": "已收藏",
+		"removed": "已取消收藏，离线文件仍保留"
 	},
 	"downloadNaming": {
 		"title": "下载歌曲命名",
@@ -912,7 +914,8 @@
 		"webdavRequestFailedStatus": "WebDAV 服务器拒绝了请求（HTTP %{status}）",
 		"retention": "历史备份保留期限",
 		"keepForever": "永久保留",
-		"keepDays": "%{days} 天"
+		"keepDays": "%{days} 天",
+		"restoredCounts": "恢复后：收藏 %{favorites} 首，歌单 %{playlists} 个，最近播放 %{recent} 条。"
 	},
 	"downloadQuality": {
 		"batchTitle": "选择下载音质 · %{count} 首歌曲",
@@ -1094,5 +1097,30 @@
 		"clear": "清空稍后待播",
 		"confirmClear": "仅清空这里的待播歌曲，正在播放的歌曲和原歌单会保留。",
 		"disliked": "已匹配不喜欢规则，自动播放会跳过；点击仍可播放"
+	},
+	"personalOffline": {
+		"autoSave": "收藏后自动保留离线",
+		"autoSaveHint": "仅对开启后新收藏的歌曲生效。已有缓存直接保留；缺少音频时仅通过 Wi-Fi 下载所选音质。关闭后取消待处理的自动保存任务，已保存文件保留。",
+		"quality": "收藏自动保存音质",
+		"retained": "已收藏，现有缓存已保留离线",
+		"queued": "已收藏，离线任务将在 Wi-Fi 下下载",
+		"failed": "收藏已保留，离线保存失败，请在下载管理中重试",
+		"coverage": "共 %{total} 首 · %{available} 首可离线",
+		"unknown": "%{count} 首暂无法确认，请稍后重新进入检查",
+		"filter": "仅看可离线",
+		"showAll": "显示全部歌曲",
+		"fill": "补齐离线歌曲",
+		"fillCount": "补齐离线（%{count} 首）",
+		"complete": "所选歌曲已可离线播放",
+		"empty": "当前没有已确认可离线的歌曲",
+		"recheck": "部分文件状态已变化，请重新检查歌单离线状态"
+	},
+	"startPage": {
+		"title": "启动页面",
+		"charts": "榜单",
+		"my": "我的",
+		"favorites": "我喜欢",
+		"search": "搜索",
+		"nextLaunch": "已保存，下次启动时生效"
 	}
 }

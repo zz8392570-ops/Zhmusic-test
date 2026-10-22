@@ -22,7 +22,9 @@
 		"unknownDuration": "Unknown duration",
 		"review": "Possible duplicates with missing durations or same-platform IDs. Check the recordings before selecting; these are never merged automatically.",
 		"failed": "Could not organize favorites. Please try again.",
-		"linked": "Added another platform version"
+		"linked": "Added another platform version",
+		"saved": "Added to favorites",
+		"removed": "Removed from favorites. Offline files kept."
 	},
 	"downloadNaming": {
 		"title": "Download file naming",
@@ -911,7 +913,8 @@
 		"webdavRequestFailedStatus": "The WebDAV server rejected the request (HTTP %{status}).",
 		"retention": "Keep backup history",
 		"keepForever": "Forever",
-		"keepDays": "%{days} days"
+		"keepDays": "%{days} days",
+		"restoredCounts": "After restore: %{favorites} favorites, %{playlists} playlists and %{recent} recent tracks."
 	},
 	"downloadQuality": {
 		"batchTitle": "Download quality · %{count} songs",
@@ -1093,5 +1096,30 @@
 		"clear": "Clear waiting songs",
 		"confirmClear": "Remove waiting songs here and keep the current song and original playlist.",
 		"disliked": "Matches a dislike rule and will be skipped automatically. Tap to play anyway."
+	},
+	"personalOffline": {
+		"autoSave": "Save new favorites offline",
+		"autoSaveHint": "Applies only to new favorites. Keeps existing cached audio; downloads missing audio at the selected quality over Wi-Fi only. Turning this off cancels pending automatic saves and keeps saved files.",
+		"quality": "Favorite download quality",
+		"retained": "Favorited; cached audio kept offline",
+		"queued": "Favorited; offline task will download on Wi-Fi",
+		"failed": "Favorite kept. Offline save failed; retry in Downloads.",
+		"coverage": "%{total} songs · %{available} available offline",
+		"unknown": "%{count} could not be verified. Reopen this screen to check again.",
+		"filter": "Show offline only",
+		"showAll": "Show all songs",
+		"fill": "Save missing songs offline",
+		"fillCount": "Save missing (%{count})",
+		"complete": "Selected songs are available offline",
+		"empty": "No songs are verified available offline",
+		"recheck": "Some file states changed. Check the playlist again."
+	},
+	"startPage": {
+		"title": "Start page",
+		"charts": "Charts",
+		"my": "My Music",
+		"favorites": "Favorites",
+		"search": "Search",
+		"nextLaunch": "Saved. Applies on next launch."
 	}
 }

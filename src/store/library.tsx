@@ -1,3 +1,4 @@
+import { saveNewFavoriteOffline } from '@/helpers/favoriteOffline'
 import { initializeFavorites } from '@/helpers/initializeFavorites'
 import { Artist, Playlist, TrackWithPlaylist } from '@/helpers/types'
 import {
@@ -89,13 +90,24 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 		const commit = (favorites: IMusic.IMusicItem[], message?: string) => {
 			PersistStatus.set('music.favorites', favorites)
 			set({ favorites })
-			if (message) showToast(i18n.t(message), '', 'success')
+			const wasFavorite = current.some((item) => isFavoriteTrack(item, track))
+			const favorite = favorites.find((item) => isFavoriteTrack(item, track))
+			showToast(
+				i18n.t(message ?? (favorite ? 'favoriteGroups.saved' : 'favoriteGroups.removed')),
+				'',
+				'success',
+			)
+			if (!wasFavorite && favorite) void saveNewFavoriteOffline(favorite)
 			onComplete?.()
 		}
 		if (!target) {
 			const linked =
 				next.length === current.length && !current.some((item) => isFavoriteTrack(item, track))
-			commit(next, linked ? 'favoriteGroups.linked' : undefined)
+			try {
+				commit(next, linked ? 'favoriteGroups.linked' : undefined)
+			} catch {
+				Alert.alert(i18n.t('favoriteGroups.failed'))
+			}
 			return
 		}
 		if (pendingFavoriteReview) return

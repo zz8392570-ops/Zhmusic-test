@@ -1,3 +1,5 @@
+import { getStartPageRoute } from '@/helpers/startPage'
+import PersistStatus from '@/store/PersistStatus'
 import { startDownloadNetworkPolicy } from '@/player/DownloadManager'
 import { startPlaylistAutoRefresh } from '@/helpers/playlistAutoRefresh'
 import { playbackService } from '@/constants/playbackService'
@@ -17,10 +19,11 @@ import {
 	Stack,
 	ThemeProvider,
 	useRootNavigationState,
+	usePathname,
 } from 'expo-router'
 import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent'
 import { StatusBar } from 'expo-status-bar'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -98,6 +101,18 @@ const ThemedAppShell = ({
 	const { colors, isDark, statusBarStyle } = useAppTheme()
 	const { hasShareIntent } = useShareIntentContext()
 	const navigationState = useRootNavigationState()
+	const pathname = usePathname()
+	const startPageApplied = useRef(false)
+	useEffect(() => {
+		if (!navigationState?.key || playerStatus !== 'ready' || startPageApplied.current) return
+		startPageApplied.current = true
+		const destination = getStartPageRoute(
+			PersistStatus.get('app.startPage'),
+			pathname,
+			hasShareIntent,
+		)
+		if (destination) router.replace(destination)
+	}, [navigationState?.key, playerStatus, pathname, hasShareIntent])
 
 	useEffect(() => {
 		if (navigationState?.key && hasShareIntent) {
