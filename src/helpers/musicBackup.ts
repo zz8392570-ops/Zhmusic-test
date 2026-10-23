@@ -1,3 +1,4 @@
+import { isValidTrackLyricOffsets } from '@/helpers/trackLyricOffset'
 import { normalizeFavoriteGroups } from '@/helpers/favoriteGroups'
 import PersistStatus, { IPersistConfig } from '@/store/PersistStatus'
 import { Buffer } from 'buffer'
@@ -5,6 +6,7 @@ import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 import { isValidDislikeRules } from '@/helpers/dislikeRules'
 
 const settingValidators = {
+	'lyric.trackOffsets': isValidTrackLyricOffsets,
 	'app.startPage': (value: unknown) =>
 		typeof value === 'string' && ['charts', 'my', 'favorites', 'search'].includes(value),
 	'music.favoriteAutoSave': (value: unknown) => typeof value === 'boolean',

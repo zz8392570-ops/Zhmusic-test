@@ -303,6 +303,7 @@ try {
 			await lookup.get(track)
 			const { default: TrackRow } = loadModule('src/components/TracksListItem.tsx', {
 				'@/components/OfflineAvailabilityLabel': 'OfflineLabel',
+				'@/components/LibraryMembershipLabel': 'MembershipLabel',
 				react: { ...react, useEffect() {} },
 				'@/store/library': { useFavorites: () => ({ favorites: [], toggleTrackFavorite() {} }) },
 				'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
@@ -335,6 +336,10 @@ try {
 				'@/utils/haptics': { hapticLight() {}, hapticSelection() {} },
 				'@/helpers/libraryEdits': { getLibraryTrackKey: () => 'key' },
 			})
+			const searchRow = TrackRow({ track, showLibraryStatus: true, onTrackSelect() {} })
+			assert.equal(find(searchRow, 'MembershipLabel')[0].props.track, track)
+			assert.equal(find(searchRow, 'OfflineLabel')[0].props.verifiedCached, true)
+			assert.equal(find(TrackRow({ track, onTrackSelect() {} }), 'MembershipLabel').length, 0)
 			assert.equal(
 				find(TrackRow({ track, onTrackSelect() {} }), 'QualityBadge')[0].props.quality,
 				'flac',
@@ -345,6 +350,24 @@ try {
 				find(TrackRow({ track, onTrackSelect() {} }), 'QualityBadge')[0].props.quality,
 				null,
 			)
+		},
+	)
+	await suite.check(
+		'actual search rows enable collection labels without changing playback selection',
+		() => {
+			const track = song('library-status')
+			const tree = SearchList({
+				tracks: [track],
+				query: 'Song',
+				isLoading: false,
+				hasError: false,
+				hasMore: false,
+				onRetry() {},
+				onLoadMore() {},
+			})
+			const row = find(tree, 'FlashList')[0].props.renderItem({ item: track, index: 0 })
+			assert.equal(row.props.showLibraryStatus, true)
+			assert.equal(row.props.track, track)
 		},
 	)
 	await suite.check(

@@ -1,3 +1,8 @@
+import {
+	getTrackLyricDelay,
+	getTrackLyricOffsetKey,
+	withTrackLyricDelay,
+} from '@/helpers/trackLyricOffset'
 import { searchSongByTitle } from '@/helpers/songSearchNavigation'
 import { shareSong, shareSongFile, copySongInfo, getSongShareActions } from '@/helpers/shareSong'
 import { resolveLeaderboardArtwork } from '@/helpers/leaderboard'
@@ -146,7 +151,8 @@ const PlayerScreenContent = () => {
 	const sleepTimerSeconds = useTimingClose()
 	const [showLyrics, setShowLyrics] = useState(false)
 	const [showLyricDelayControls, setShowLyricDelayControls] = useState(false)
-	const lyricDelaySeconds = PersistStatus.useValue('lyric.delaySeconds', 0) ?? 0
+	const legacyLyricDelay = PersistStatus.useValue('lyric.delaySeconds', 0) ?? 0
+	const trackLyricOffsets = PersistStatus.useValue('lyric.trackOffsets')
 	const lyricsOpacity = useSharedValue(0)
 	const lyricsTranslateY = useSharedValue(50)
 
@@ -156,6 +162,11 @@ const PlayerScreenContent = () => {
 	}))
 
 	const currentActiveTrack = myTrackPlayer.useCurrentMusic()
+	const lyricDelaySeconds = getTrackLyricDelay(
+		currentActiveTrack,
+		trackLyricOffsets,
+		legacyLyricDelay,
+	)
 	const currentLyric = LyricManager.useCurrentLyric()
 	const playbackQuality = playbackQualityStore.useValue()
 	const isPlaybackCached = playbackCachedStore.useValue()
@@ -431,27 +442,35 @@ const PlayerScreenContent = () => {
 		const prefix = rounded > 0 ? '+' : ''
 		return `${prefix}${rounded.toFixed(1)}s`
 	}
-	function updateLyricDelay(nextDelaySeconds: number): void {
-		const normalized = Math.round(nextDelaySeconds * 10) / 10
-		const clamped = Math.max(LYRIC_DELAY_MIN, Math.min(LYRIC_DELAY_MAX, normalized))
-		PersistStatus.set('lyric.delaySeconds', clamped)
-		LyricManager.refreshLyric().catch((err) => {
-			console.error('refresh lyric after delay changed failed', err)
-		})
+	function updateLyricDelay(change: number, reset = false): void {
+		const current = myTrackPlayer.getCurrentMusic()
+		if (
+			!current ||
+			getTrackLyricOffsetKey(current) !== getTrackLyricOffsetKey(currentActiveTrack)
+		) {
+			showToast(i18n.t('player.lyricTrackChanged'), '', 'info')
+			return
+		}
+		try {
+			const offsets = PersistStatus.get('lyric.trackOffsets')
+			const delay = getTrackLyricDelay(current, offsets, PersistStatus.get('lyric.delaySeconds'))
+			const next = reset ? 0 : Math.max(LYRIC_DELAY_MIN, Math.min(LYRIC_DELAY_MAX, delay + change))
+			PersistStatus.set('lyric.trackOffsets', withTrackLyricDelay(current, offsets, next))
+		} catch {
+			showToast(i18n.t('player.lyricDelayFailed'), '', 'error')
+		}
 	}
 	function handleLyricDelayDecrease(): void {
 		hapticSelection()
-		const currentDelay = PersistStatus.get('lyric.delaySeconds') ?? 0
-		updateLyricDelay(currentDelay - LYRIC_DELAY_STEP)
+		updateLyricDelay(-LYRIC_DELAY_STEP)
 	}
 	function handleLyricDelayIncrease(): void {
 		hapticSelection()
-		const currentDelay = PersistStatus.get('lyric.delaySeconds') ?? 0
-		updateLyricDelay(currentDelay + LYRIC_DELAY_STEP)
+		updateLyricDelay(LYRIC_DELAY_STEP)
 	}
 	function handleLyricDelayReset(): void {
 		hapticSelection()
-		updateLyricDelay(0)
+		updateLyricDelay(0, true)
 	}
 	function toggleLyricDelayControls(): void {
 		hapticSelection()
@@ -583,6 +602,7 @@ const PlayerScreenContent = () => {
 									onPress={toggleLyricDelayControls}
 									accessibilityRole="button"
 									accessibilityLabel={i18n.t('player.lyricDelay')}
+									accessibilityHint={i18n.t('player.lyricDelayHint')}
 									accessibilityState={{ expanded: showLyricDelayControls }}
 								>
 									<MaterialCommunityIcons
@@ -593,6 +613,11 @@ const PlayerScreenContent = () => {
 								</TouchableOpacity>
 							</View>
 						</View>
+						{showLyricDelayControls && (
+							<Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'center' }}>
+								{i18n.t('player.lyricDelayHint')}
+							</Text>
+						)}
 						{showLyricDelayControls ? (
 							<View style={[styles.container, styles.lyricDelayContainer]}>
 								<View style={styles.leftItem}>

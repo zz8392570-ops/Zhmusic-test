@@ -11,6 +11,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { PropsWithChildren, useCallback, useMemo, useState } from 'react'
 import type { Track } from '@/player/types'
 import { match, P } from 'ts-pattern'
+import { showToast } from '@/utils/utils'
 import { Alert } from 'react-native'
 import { getFavoriteVariants, getFavoriteIndex } from '@/helpers/favoriteGroups'
 import { preferFavoriteSource, splitFavoriteGroup } from '@/helpers/favoriteGroupActions'
@@ -244,11 +245,22 @@ export const TrackShortcutsMenu = ({
 					const index = Number(actionId.replace('play-source-', ''))
 					const selectedSource = sourceOptions[index]
 					if (selectedSource) {
+						let preferred: Track | undefined
 						try {
-							const preferred = preferFavoriteSource(track, selectedSource)
-							await myTrackPlayer.play((preferred ?? selectedSource) as IMusic.IMusicItem)
+							preferred = preferFavoriteSource(track, selectedSource)
 						} catch {
 							Alert.alert(i18n.t('favoriteGroups.failed'))
+							return
+						}
+						if (isFavorite && !preferred) {
+							Alert.alert(i18n.t('versions.changed'))
+							return
+						}
+						if (preferred) showToast(i18n.t('versions.defaultSaved'), '', 'success')
+						try {
+							await myTrackPlayer.play((preferred ?? selectedSource) as IMusic.IMusicItem)
+						} catch {
+							Alert.alert(i18n.t('versions.playFailed'))
 						}
 					}
 				},

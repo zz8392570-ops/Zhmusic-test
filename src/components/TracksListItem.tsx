@@ -1,3 +1,4 @@
+import LibraryMembershipLabel from '@/components/LibraryMembershipLabel'
 import OfflineAvailabilityLabel from '@/components/OfflineAvailabilityLabel'
 import { useFavorites } from '@/store/library'
 import { getFavoriteIndex } from '@/helpers/favoriteGroups'
@@ -38,6 +39,7 @@ export type TracksListItemProps = {
 	selectedTracks?: Set<string>
 	toggleMultiSelectMode?: () => void
 	showSourceBadge?: boolean
+	showLibraryStatus?: boolean
 	rank?: number
 }
 
@@ -55,6 +57,7 @@ const TracksListItem = ({
 	onReplaceSource,
 	toggleMultiSelectMode,
 	showSourceBadge = false,
+	showLibraryStatus = false,
 	rank,
 }: TracksListItemProps) => {
 	const colors = useThemeColors()
@@ -277,7 +280,10 @@ const TracksListItem = ({
 								</View>
 							</View>
 						) : null}
-						<OfflineAvailabilityLabel track={track} />
+						{showLibraryStatus && !isSinger && (
+							<LibraryMembershipLabel track={track} favorites={favorites} />
+						)}
+						<OfflineAvailabilityLabel track={track} verifiedCached={isCachedTrack} />
 					</View>
 				</View>
 			</TouchableHighlight>

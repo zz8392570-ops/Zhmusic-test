@@ -273,6 +273,13 @@ await check(
 		tasks = [{ track: song('remote'), status: 'downloading', progress: 0.5 }]
 		assert.equal(render(song('remote')).props.children[0], 'cacheCenter.downloading')
 		assert.equal(render(song('no-task')), null)
+		h.reset()
+		assert.equal(
+			Label({ track: song('no-task'), verifiedCached: true }).props.children[0],
+			'offline.available',
+		)
+		h.reset()
+		assert.equal(Label({ track: song('no-task'), verifiedCached: false }), null)
 		cleanup?.()
 	},
 )

@@ -1,3 +1,5 @@
+import { TrackVersionDetails } from '@/components/TrackVersionDetails'
+import { showToast } from '@/utils/utils'
 import { Alert, FlatList, Text, View } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { useFavorites } from '@/store/library'
@@ -19,9 +21,11 @@ export default function FavoriteVersionsScreen() {
 	const groups = favorites.filter((item) =>
 		id ? isFavoriteTrack(item, { id, platform }) : getFavoriteVariants(item).length > 1,
 	)
-	const perform = (action: () => unknown) => {
+	const perform = (action: () => unknown, success?: string) => {
 		try {
-			action()
+			const result = action()
+			if (result === false || (success && !result)) Alert.alert(i18n.t('versions.changed'))
+			else if (success) showToast(i18n.t(success), '', 'success')
 		} catch {
 			Alert.alert(i18n.t('favoriteGroups.failed'))
 		}
@@ -68,16 +72,19 @@ export default function FavoriteVersionsScreen() {
 							style={{ padding: 12, backgroundColor: colors.surfaceMuted, borderRadius: 12 }}
 						>
 							<Text style={{ color: colors.text }}>
-								{i18n.t(getMusicPlatformLabelKey(version.platform) || 'versions.unknown')} ·{' '}
-								{version.id}
+								{i18n.t(getMusicPlatformLabelKey(version.platform) || 'versions.unknown')}
 							</Text>
+							<TrackVersionDetails track={version} />
 							<Button
 								title={i18n.t(
 									version.platform === item.platform && version.id === item.id
 										? 'versions.default'
 										: 'versions.setDefault',
 								)}
-								onPress={() => perform(() => preferFavoriteSource(item, version))}
+								disabled={version.platform === item.platform && version.id === item.id}
+								onPress={() =>
+									perform(() => preferFavoriteSource(item, version), 'versions.defaultSaved')
+								}
 							/>
 							<Button
 								title={i18n.t('versions.remove')}

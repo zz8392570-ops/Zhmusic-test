@@ -684,7 +684,8 @@
 		"unknownSpace": "Unavailable",
 		"lowSpace": "Free space may be insufficient. Consider freeing storage first.",
 		"estimateHint": "Sizes are estimates; actual downloads may differ. Existing files may be reused. Check your mobile data usage.",
-		"confirmDownload": "Start download"
+		"confirmDownload": "Start download",
+		"available": "Available offline"
 	},
 	"continueListening": {
 		"title": "Continue listening",
@@ -725,7 +726,7 @@
 		"next": "Next track",
 		"minutes": "Minutes",
 		"custom": "Custom",
-		"lyricDelay": "Lyric Delay",
+		"lyricDelay": "Song lyric offset",
 		"hideLyrics": "Hide lyrics",
 		"decreaseLyricSize": "Decrease lyric size",
 		"increaseLyricSize": "Increase lyric size",
@@ -792,7 +793,10 @@
 			"noAlternative": "No other source is available. Import or test sources in Settings."
 		},
 		"shareFailed": "Could not open song sharing. Please try again.",
-		"shareUnavailable": "There is no song to share right now."
+		"shareUnavailable": "There is no song to share right now.",
+		"lyricDelayHint": "Remembered separately for each platform recording. Other songs stay unchanged. Tap the value to reset.",
+		"lyricTrackChanged": "The song changed. Adjust the current song again.",
+		"lyricDelayFailed": "Lyric offset was not saved. Please retry."
 	},
 	"menu": {
 		"moreActions": "More actions",
@@ -1036,7 +1040,13 @@
 		"confirmRemove": "Remove this platform version of “%{title}” from favorites? Other versions are kept.",
 		"default": "✓ Default playback source",
 		"setDefault": "Set default playback source",
-		"unknown": "Other platform"
+		"unknown": "Other platform",
+		"offlineAvailable": "Audio available offline",
+		"onlineOnly": "Internet required",
+		"unknownAlbum": "Unknown album",
+		"defaultSaved": "Preferred platform version saved",
+		"changed": "Song versions changed. Go back and select again.",
+		"playFailed": "Cannot play this version right now. Retry or choose another platform."
 	},
 	"history": {
 		"title": "Library history and recovery",
@@ -1121,5 +1131,11 @@
 		"favorites": "Favorites",
 		"search": "Search",
 		"nextLaunch": "Saved. Applies on next launch."
+	},
+	"libraryMembership": {
+		"favorited": "Favorited",
+		"otherFavorite": "Another platform version is favorited",
+		"inOne": "In “%{title}”",
+		"inMany": "In “%{title}” and %{count} playlists total"
 	}
 }

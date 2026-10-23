@@ -59,6 +59,7 @@ export interface IPersistConfig {
 	'lyric.showTranslation': boolean
 	'lyric.detailFontSize': number
 	'lyric.delaySeconds': number
+	'lyric.trackOffsets': import('@/helpers/trackLyricOffset').TrackLyricOffsets
 	'app.logo': 'Default' | 'Logo1'
 	//歌单
 	'music.playLists': IMusic.PlayList[]

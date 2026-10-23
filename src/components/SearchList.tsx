@@ -571,6 +571,7 @@ export const SearchList = ({
 					isActiveTrack={isActiveTrack}
 					isPlaying={isActiveTrack && !!playing}
 					showSourceBadge
+					showLibraryStatus
 				/>
 			)
 		},

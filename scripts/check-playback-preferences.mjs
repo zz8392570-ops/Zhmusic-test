@@ -95,6 +95,7 @@ await check(
 	() => {
 		const h = fixture()
 		const backup = loadModule('src/helpers/musicBackup.ts', {
+			'@/helpers/trackLyricOffset': loadModule('src/helpers/trackLyricOffset.ts', {}),
 			'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
 			'@/helpers/dislikeRules': rules,
 			'@/helpers/downloadFilename': loadModule('src/helpers/downloadFilename.ts', {
@@ -123,6 +124,7 @@ await check(
 		const { TrackShortcutsMenu } = loadModule(
 			'src/components/TrackShortcutsMenu.tsx',
 			{
+				'@/utils/utils': { showToast() {} },
 				react,
 				'ts-pattern': { match, P },
 				'@/helpers/dislikeRules': rules,

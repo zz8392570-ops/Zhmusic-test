@@ -685,7 +685,8 @@
 		"unknownSpace": "暂无法读取",
 		"lowSpace": "当前空间可能不足，建议先清理存储空间。",
 		"estimateHint": "大小为估算值，实际以下载为准。已保存歌曲可能直接复用；请留意移动数据使用。",
-		"confirmDownload": "开始下载"
+		"confirmDownload": "开始下载",
+		"available": "可离线播放"
 	},
 	"continueListening": {
 		"title": "继续收听",
@@ -726,7 +727,7 @@
 		"custom": "自定义",
 		"cancel": "取消",
 		"confirm": "确定",
-		"lyricDelay": "歌词延迟",
+		"lyricDelay": "本曲歌词偏移",
 		"hideLyrics": "收起歌词",
 		"decreaseLyricSize": "减小歌词字号",
 		"increaseLyricSize": "增大歌词字号",
@@ -793,7 +794,10 @@
 			"noAlternative": "没有其他可用音源，请先在设置中导入或测试音源"
 		},
 		"shareFailed": "无法打开歌曲分享，请重试",
-		"shareUnavailable": "当前没有可分享的歌曲"
+		"shareUnavailable": "当前没有可分享的歌曲",
+		"lyricDelayHint": "按歌曲的平台版本分别记忆，其他歌曲不受影响；点数值归零。",
+		"lyricTrackChanged": "歌曲已切换，请重新调整当前歌曲",
+		"lyricDelayFailed": "歌词偏移未保存，请稍后重试"
 	},
 	"menu": {
 		"moreActions": "更多操作",
@@ -1037,7 +1041,13 @@
 		"confirmRemove": "从收藏中移除“%{title}”的这个平台版本？其他版本保留。",
 		"default": "✓ 默认播放来源",
 		"setDefault": "设为默认播放来源",
-		"unknown": "其他平台"
+		"unknown": "其他平台",
+		"offlineAvailable": "有可离线播放的文件",
+		"onlineOnly": "需联网播放",
+		"unknownAlbum": "专辑未知",
+		"defaultSaved": "已记住首选平台版本",
+		"changed": "歌曲版本已变化，请返回后重新选择",
+		"playFailed": "暂时无法播放所选版本，请重试或切换平台"
 	},
 	"history": {
 		"title": "歌单历史与恢复",
@@ -1122,5 +1132,11 @@
 		"favorites": "我喜欢",
 		"search": "搜索",
 		"nextLaunch": "已保存，下次启动时生效"
+	},
+	"libraryMembership": {
+		"favorited": "已收藏",
+		"otherFavorite": "其他平台版本已收藏",
+		"inOne": "在「%{title}」歌单中",
+		"inMany": "在「%{title}」等 %{count} 个歌单中"
 	}
 }

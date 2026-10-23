@@ -8,7 +8,13 @@ import { isLocalSongUrl } from '@/helpers/songSharing'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import i18n from '@/utils/i18n'
 
-export default function OfflineAvailabilityLabel({ track }: { track: Track }) {
+export default function OfflineAvailabilityLabel({
+	track,
+	verifiedCached = false,
+}: {
+	track: Track
+	verifiedCached?: boolean
+}) {
 	const colors = useThemeColors()
 	const revision = cacheRevisionStore.useValue()
 	const tasks = cacheDownloadTasksStore.useValue()
@@ -32,6 +38,15 @@ export default function OfflineAvailabilityLabel({ track }: { track: Track }) {
 		}, [track.url, revision]),
 	)
 	if (!isLocalSongUrl(track.url)) {
+		if (verifiedCached)
+			return (
+				<Text
+					accessibilityLiveRegion="polite"
+					style={{ color: colors.success, fontSize: 11, marginTop: 3 }}
+				>
+					{i18n.t('offline.available')}
+				</Text>
+			)
 		if (!task) return null
 		return (
 			<Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 3 }}>

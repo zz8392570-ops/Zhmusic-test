@@ -461,13 +461,20 @@ await check(
 			played = [],
 			alerts = [],
 			routes = []
+		let playFails = false
 		const { TrackShortcutsMenu } = loadModule(
 			'src/components/TrackShortcutsMenu.tsx',
 			{
+				'@/utils/utils': { showToast: (...args) => h.toasts.push(args) },
 				'@/helpers/dislikeRules': loadModule('src/helpers/dislikeRules.ts', {}),
 				react,
 				'ts-pattern': { match, P },
-				'@/helpers/trackPlayerIndex': { play: async (item) => played.push(item) },
+				'@/helpers/trackPlayerIndex': {
+					play: async (item) => {
+						if (playFails) throw Error('playback failed')
+						played.push(item)
+					},
+				},
 				'@/helpers/musicPlatform': {
 					getMusicPlatformLabelKey: (platform) => platform,
 					supportsCatalogNavigation: () => false,
@@ -515,6 +522,15 @@ await check(
 		assert.equal(played.length, 1)
 		assert.equal(h.current()[0].platform, 'wy')
 		assert.equal(alerts[0][0], 'favoriteGroups.failed')
+		const successes = h.toasts.length
+		playFails = true
+		await updated.props.onPressAction({ nativeEvent: { event: 'play-source-0' } })
+		assert.equal(alerts.at(-1)[0], 'versions.playFailed')
+		assert.equal(h.toasts.length, successes + 1)
+		assert.equal(h.toasts.at(-1)[0], 'versions.defaultSaved')
+		assert.equal(h.current()[0].platform, 'wy')
+		playFails = false
+
 		await menu.props.onPressAction({ nativeEvent: { event: 'split-favorite' } })
 		assert.equal(h.current().length, 2)
 		const saved = h.current()

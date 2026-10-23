@@ -2,6 +2,7 @@
  * 管理当前歌曲的歌词
  */
 
+import { getTrackLyricDelay } from './trackLyricOffset'
 import PersistStatus from '@/store/PersistStatus'
 import { isSameMediaItem } from '@/utils/mediaItem'
 import { GlobalState } from '@/utils/stateMapper'
@@ -23,6 +24,13 @@ const lyricStateStore = new GlobalState<{
 
 const currentLyricStore = new GlobalState<ILyric.IParsedLrcItem | null>(null)
 export const durationStore = new GlobalState<number>(0)
+let trackOffsets = PersistStatus.get('lyric.trackOffsets')
+const offsetSubscription = PersistStatus.subscribe((key) => {
+	if (key === 'lyric.trackOffsets' || key === 'lyric.delaySeconds') {
+		trackOffsets = PersistStatus.get('lyric.trackOffsets')
+		void refreshLyric()
+	}
+})
 const DEFAULT_LYRIC = '[00:00.00]暂无歌词'
 let lastRawLyric = ''
 let lastLyricDelaySeconds: number | null = null
@@ -91,7 +99,11 @@ async function refreshLyric(fromStart?: boolean, forceRequest = false, positionO
 			return
 		}
 
-		const lyricDelaySeconds = PersistStatus.get('lyric.delaySeconds') ?? 0
+		const lyricDelaySeconds = getTrackLyricDelay(
+			musicItem,
+			trackOffsets,
+			PersistStatus.get('lyric.delaySeconds'),
+		)
 		const lrcSource = getLyricSource()
 		const rawLrc = lrcSource.rawLrc || DEFAULT_LYRIC
 		const lyricParser = lyricStateStore.getValue().lyricParser
@@ -167,7 +179,11 @@ const progressSubscription = ReactNativeTrackPlayer.addEventListener(
 
 		const lyricParser = lyricStateStore.getValue().lyricParser
 		const rawLrc = nowLyricState.getValue()?.rawLrc || DEFAULT_LYRIC
-		const lyricDelaySeconds = PersistStatus.get('lyric.delaySeconds') ?? 0
+		const lyricDelaySeconds = getTrackLyricDelay(
+			musicItem,
+			trackOffsets,
+			PersistStatus.get('lyric.delaySeconds'),
+		)
 		const parserReady =
 			!!lyricParser &&
 			isSameMediaItem(lyricParser.getCurrentMusicItem(), musicItem) &&
@@ -202,6 +218,7 @@ const transitionSubscription = ReactNativeTrackPlayer.addEventListener(
 
 const hotModule = module as typeof module & { hot?: { dispose(callback: () => void): void } }
 hotModule.hot?.dispose(() => {
+	offsetSubscription()
 	progressSubscription.remove()
 	transitionSubscription.remove()
 })

@@ -155,7 +155,12 @@ export function createFixture() {
 		stores.playListsStore.setValue([])
 		stores.musicApiStore.setValue([])
 		stores.musicApiTestingStore.setValue(false)
+		const persistListeners = new Set()
 		const persistence = {
+			subscribe: (listener) => {
+				persistListeners.add(listener)
+				return () => persistListeners.delete(listener)
+			},
 			get: (key) => {
 				const value = disk.has(key) ? JSON.parse(disk.get(key)) : null
 				reads.set(key, value)
@@ -165,6 +170,7 @@ export function createFixture() {
 				calls.writes.push({ key, value })
 				if (value === undefined) disk.delete(key)
 				else disk.set(key, JSON.stringify(value))
+				for (const listener of persistListeners) listener(key)
 			},
 		}
 		const nativeFs = {
