@@ -1,3 +1,4 @@
+import { readOfflineArtwork } from '@/helpers/offlineAssets'
 import {
 	getTrackLyricDelay,
 	getTrackLyricOffsetKey,
@@ -25,7 +26,7 @@ import { getSingerMidBySingerName } from '@/helpers/userApi/getMusicSource'
 import { ThemeOverrideProvider, useThemeColors } from '@/hooks/useAppTheme'
 import { usePlayerBackground } from '@/hooks/usePlayerBackground'
 import { useTrackPlayerFavorite } from '@/hooks/useTrackPlayerFavorite'
-import { playbackCachedStore, playbackQualityStore } from '@/player/PlayerStore'
+import { cacheRevisionStore, playbackCachedStore, playbackQualityStore } from '@/player/PlayerStore'
 import PersistStatus from '@/store/PersistStatus'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
@@ -161,6 +162,7 @@ const PlayerScreenContent = () => {
 		transform: [{ translateY: lyricsTranslateY.value }],
 	}))
 
+	const cacheRevision = cacheRevisionStore.useValue()
 	const currentActiveTrack = myTrackPlayer.useCurrentMusic()
 	const lyricDelaySeconds = getTrackLyricDelay(
 		currentActiveTrack,
@@ -192,11 +194,16 @@ const PlayerScreenContent = () => {
 		setResolvedArtwork(null)
 		setArtworkFailed(false)
 		if (trackToDisplay)
-			void resolveLeaderboardArtwork(
-				trackToDisplay.platform,
-				trackToDisplay.id,
-				trackToDisplay.artwork,
-			)
+			void readOfflineArtwork(trackToDisplay)
+				.then(
+					(saved) =>
+						saved ??
+						resolveLeaderboardArtwork(
+							trackToDisplay.platform,
+							trackToDisplay.id,
+							trackToDisplay.artwork,
+						),
+				)
 				.then((uri) => {
 					if (active) {
 						setResolvedArtwork(uri || null)
@@ -207,7 +214,7 @@ const PlayerScreenContent = () => {
 		return () => {
 			active = false
 		}
-	}, [trackToDisplay])
+	}, [trackToDisplay, cacheRevision])
 	const artworkUri = artworkFailed
 		? unknownTrackImageUri
 		: resolvedArtwork || trackToDisplay?.artwork || unknownTrackImageUri

@@ -8,6 +8,7 @@ const createFixture = ({
 	currentMusic = { id: 'current' },
 	favorites = [{ id: 'favorite' }],
 	nextPromise,
+	personalError,
 } = {}) => {
 	const pending = []
 	const listeners = new Set()
@@ -31,6 +32,14 @@ const createFixture = ({
 		playWithReplacePlayList: async (music, list) => calls.push(['favorites', music, list]),
 	}
 	const commands = loadModule('src/helpers/systemPlaybackCommands.ts', {
+		'@/utils/utils': { showToast: (...args) => calls.push(['error', ...args]) },
+		'@/utils/i18n': { t: (key) => key },
+		'./personalLinks': {
+			executePersonalLink: async (...args) => {
+				calls.push(['personal', ...args])
+				if (personalError) throw personalError
+			},
+		},
 		'../../modules/cymusic-native/systemCommands': { __esModule: true, default: native },
 		'@/store/library': { useLibraryStore: { getState: () => ({ favorites }) } },
 		'./trackPlayerIndex': { __esModule: true, default: player },
@@ -41,7 +50,9 @@ const createFixture = ({
 		calls,
 		pending,
 		listeners,
-		emit(command) { listeners.forEach((listener) => listener({ command })) },
+		emit(command) {
+			listeners.forEach((listener) => listener({ command }))
+		},
 	}
 }
 
@@ -90,13 +101,46 @@ await check('a command arriving during async handling is not lost', async () => 
 	fixture.stopSystemPlaybackCommands()
 })
 
+await check(
+	'playlist and scene commands preserve exact IDs and surface failed playback requests',
+	async () => {
+		const h = createFixture()
+		h.pending.push('playlist:p & # 中文')
+		h.startSystemPlaybackCommands()
+		await flush()
+		assert.deepEqual(h.calls[0], ['personal', 'playlist', 'p & # 中文'])
+		h.emit('scene:sleep')
+		await flush()
+		assert.deepEqual(h.calls[1], ['personal', 'scene', 'sleep'])
+		h.stopSystemPlaybackCommands()
+		const failed = createFixture({ personalError: Error('Playlist deleted') })
+		failed.startSystemPlaybackCommands()
+		failed.emit('playlist:deleted')
+		await flush()
+		assert.deepEqual(failed.calls.at(-1), [
+			'error',
+			'personalFeatures.sceneFailed',
+			'Playlist deleted',
+			'error',
+		])
+		failed.stopSystemPlaybackCommands()
+	},
+)
+
 await check('native intents, module registration, and Xcode source membership stay wired', () => {
 	const shortcut = fs.readFileSync(path.join(root, 'ios/CyMusic/CyMusicShortcuts.swift'), 'utf8')
-	for (const value of ['PlayZhMusicIntent', 'PauseZhMusicIntent', 'NextZhMusicIntent', 'PlayFavoritesZhMusicIntent']) {
+	for (const value of [
+		'PlayZhMusicIntent',
+		'PauseZhMusicIntent',
+		'NextZhMusicIntent',
+		'PlayFavoritesZhMusicIntent',
+	]) {
 		assert.match(shortcut, new RegExp(`struct ${value}`))
 	}
 	assert.match(shortcut, /group\.com\.music\.player\.gyc/)
-	const moduleConfig = JSON.parse(fs.readFileSync(path.join(root, 'modules/cymusic-native/expo-module.config.json'), 'utf8'))
+	const moduleConfig = JSON.parse(
+		fs.readFileSync(path.join(root, 'modules/cymusic-native/expo-module.config.json'), 'utf8'),
+	)
 	assert.ok(moduleConfig.apple.modules.includes('CyMusicSystemCommandsModule'))
 	const project = fs.readFileSync(path.join(root, 'ios/CyMusic.xcodeproj/project.pbxproj'), 'utf8')
 	assert.equal((project.match(/CyMusicShortcuts\.swift in Sources/g) ?? []).length, 2)

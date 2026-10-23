@@ -8,6 +8,10 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
+	'music.smartShuffle': boolean
+	'music.listeningScenes': import('@/helpers/personalFeatures').ListeningScene[]
+	'music.trackTags': import('@/helpers/personalFeatures').TrackTags
+	'widget.collectionId': string
 	'app.startPage': 'charts' | 'my' | 'favorites' | 'search'
 	'music.favoriteAutoSave': boolean
 	'music.favoriteOfflineQuality': '128k' | '320k' | 'flac'

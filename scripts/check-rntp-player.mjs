@@ -82,6 +82,10 @@ function runtime(extraOverrides = {}) {
 	}
 	const h = fixture.runtime({
 		moduleOverrides: {
+			'@/helpers/offlineAssets': {
+				getPreparedLyric: (track, fetchLyrics) => fetchLyrics(track),
+				readOfflineArtwork: async () => null,
+			},
 			react,
 			'react-native': nativeViews,
 			'@/helpers/artworkResolver': {
@@ -452,7 +456,7 @@ await check('Settings defaults off for missing, malformed and non-Boolean persis
 		if (raw === undefined) h.disk.delete('music.preciseSeeking')
 		else h.disk.set('music.preciseSeeking', raw)
 		assert.equal(findElement(h.render(), 'Switch').props.value, expected, String(raw))
-		assert.equal(h.listeners.size, 7)
+		assert.equal(h.listeners.size, 8)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 	}
@@ -516,7 +520,7 @@ await check(
 		control.props.onValueChange(true)
 		assert.deepEqual(h.storageWrites, [['music.preciseSeeking', 'true']])
 		assert.equal(findElement(h.render(), 'Switch').props.value, true)
-		assert.equal(h.listeners.size, 7)
+		assert.equal(h.listeners.size, 8)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 		assert.equal(findElement(h.render(), 'Switch').props.value, true)
@@ -601,6 +605,8 @@ await check(
 			h.persistence.set('music.preciseSeeking', initial)
 			await h.setup()
 			await h.facade.play(deepFreeze(song('current', { headers: { Authorization: 'kept' } })))
+			// Settle the initial asynchronous artwork lookup before observing switch side effects.
+			await flush()
 			if (intent === 'pause') h.facade.pause()
 			const queue = h.player.queue
 			const current = JSON.stringify(h.facade.getCurrentMusic())

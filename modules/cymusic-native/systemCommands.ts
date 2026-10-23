@@ -1,6 +1,12 @@
 import { NativeModule, requireOptionalNativeModule } from 'expo'
 
-export type SystemPlaybackCommand = 'play' | 'pause' | 'next' | 'favorites'
+export type SystemPlaybackCommand =
+	| 'play'
+	| 'pause'
+	| 'next'
+	| 'favorites'
+	| `playlist:${string}`
+	| `scene:${string}`
 export type SystemCommandEvent = { command: SystemPlaybackCommand }
 
 type SystemCommandEvents = {

@@ -210,7 +210,7 @@ await check('release versions and newly translated prompts stay consistent', () 
 	const versions = [
 		...read('ios/CyMusic.xcodeproj/project.pbxproj').matchAll(/MARKETING_VERSION = ([\d.]+);/g),
 	]
-	assert.equal(versions.length, 4)
+	assert.equal(versions.length, 6)
 	assert.equal(
 		versions.every((match) => match[1] === version),
 		true,
@@ -226,7 +226,7 @@ await check('release versions and newly translated prompts stay consistent', () 
 			(value) => typeof value === 'string' && !/[\u4e00-\u9fff]/.test(value),
 		),
 	)
-	for (const group of ['common', 'sourceImport', 'sourceErrors']) {
+	for (const group of ['common', 'sourceImport', 'sourceErrors', 'personalFeatures']) {
 		assert.deepEqual(Object.keys(zh[group]).sort(), Object.keys(en[group]).sort())
 	}
 	const diagnostics = loadModule('src/helpers/userApi/sourceDiagnostics.ts', {

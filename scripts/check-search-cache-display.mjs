@@ -304,6 +304,7 @@ try {
 			const { default: TrackRow } = loadModule('src/components/TracksListItem.tsx', {
 				'@/components/OfflineAvailabilityLabel': 'OfflineLabel',
 				'@/components/LibraryMembershipLabel': 'MembershipLabel',
+				'@/helpers/offlineAssets': { readOfflineArtwork: async () => null },
 				react: { ...react, useEffect() {} },
 				'@/store/library': { useFavorites: () => ({ favorites: [], toggleTrackFavorite() {} }) },
 				'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),

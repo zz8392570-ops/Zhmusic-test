@@ -1,3 +1,4 @@
+import PersonalWidgetSync from '@/components/PersonalWidgetSync'
 import { getStartPageRoute } from '@/helpers/startPage'
 import PersistStatus from '@/store/PersistStatus'
 import { startDownloadNetworkPolicy } from '@/player/DownloadManager'
@@ -85,6 +86,7 @@ const App = () => {
 			}}
 		>
 			<AppThemeProvider>
+				{playerStatus === 'ready' && <PersonalWidgetSync />}
 				<ThemedAppShell playerStatus={playerStatus} onRetryPlayer={retryTrackPlayer} />
 			</AppThemeProvider>
 		</ShareIntentProvider>
@@ -260,6 +262,10 @@ const RootNavigation = () => {
 			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 			{(
 				[
+					['(modals)/personalTools', 'personalFeatures.tools'],
+					['(modals)/listeningScenes', 'personalFeatures.scenes'],
+					['(modals)/songTags', 'personalFeatures.tags'],
+					['(modals)/travelPack', 'personalFeatures.travel'],
 					['(modals)/sourceSetup', 'sourceSetup.title'],
 					['(modals)/releaseNotes', 'releaseNotes.title'],
 					['(modals)/recycleBin', 'recycleBin.title'],

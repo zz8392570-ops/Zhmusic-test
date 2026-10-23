@@ -7,6 +7,7 @@ if (process.platform !== 'darwin') {
 }
 
 const checks = [
+	'check-personal-native.mjs',
 	'check-native-services.mjs',
 	'check-rntp-precise-seeking.mjs',
 	'check-rntp-remote-native.mjs',

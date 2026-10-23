@@ -64,6 +64,28 @@ struct PlayFavoritesZhMusicIntent: AudioPlaybackIntent {
 }
 
 @available(iOS 16.0, *)
+struct PlayPlaylistZhMusicIntent: AudioPlaybackIntent {
+  static var title: LocalizedStringResource = "播放指定歌单"
+  static var openAppWhenRun: Bool { true }
+  @Parameter(title: "歌单") var playlist: MusicPlaylistEntity
+  func perform() async throws -> some IntentResult {
+    dispatchCommand("playlist:" + playlist.id)
+    return .result()
+  }
+}
+
+@available(iOS 16.0, *)
+struct PlaySceneZhMusicIntent: AudioPlaybackIntent {
+  static var title: LocalizedStringResource = "启动听歌场景"
+  static var openAppWhenRun: Bool { true }
+  @Parameter(title: "场景") var scene: MusicSceneEntity
+  func perform() async throws -> some IntentResult {
+    dispatchCommand("scene:" + scene.id)
+    return .result()
+  }
+}
+
+@available(iOS 16.0, *)
 struct ZhMusicShortcuts: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     AppShortcut(
@@ -72,6 +94,8 @@ struct ZhMusicShortcuts: AppShortcutsProvider {
       shortTitle: "播放音乐",
       systemImageName: "play.fill"
     )
+    AppShortcut(intent: PlayPlaylistZhMusicIntent(), phrases: ["用 \(.applicationName) 播放指定歌单"], shortTitle: "指定歌单", systemImageName: "music.note.list")
+    AppShortcut(intent: PlaySceneZhMusicIntent(), phrases: ["启动 \(.applicationName) 听歌场景"], shortTitle: "听歌场景", systemImageName: "moon.fill")
     AppShortcut(
       intent: PauseZhMusicIntent(),
       phrases: ["暂停 \(.applicationName)"],

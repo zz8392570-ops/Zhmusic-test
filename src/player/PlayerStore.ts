@@ -36,6 +36,7 @@ export type CacheDownloadTask = {
 	strictQuality?: boolean
 	/** Favorite-triggered saves always wait for Wi-Fi, independent of manual download settings. */
 	favoriteAutoSave?: boolean
+	wifiOnly?: boolean
 	allowDuplicate?: boolean
 	bytesWritten?: number
 	contentLength?: number

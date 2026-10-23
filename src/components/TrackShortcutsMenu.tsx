@@ -227,6 +227,17 @@ export const TrackShortcutsMenu = ({
 					Alert.alert(i18n.t('favoriteGroups.failed'))
 				}
 			})
+			.with('edit-tags', () =>
+				router.push({
+					pathname: '/(modals)/songTags' as any,
+					params: {
+						id: track.id,
+						platform: track.platform,
+						originalId: track.originalId ?? '',
+						title: track.title ?? '',
+					},
+				}),
+			)
 			.with('manage-platforms', () =>
 				router.push({
 					pathname: '/(modals)/favoriteVersions',
@@ -272,6 +283,7 @@ export const TrackShortcutsMenu = ({
 	}
 
 	const allActions: MenuAction[] = [
+		{ id: 'edit-tags', title: i18n.t('personalFeatures.editTags'), image: 'tag' },
 		{ id: 'play-later', title: i18n.t('playLater.add'), image: 'text.badge.plus' },
 		...(dislikeArtists.length
 			? [
@@ -360,6 +372,7 @@ export const TrackShortcutsMenu = ({
 			: []),
 	]
 	const secondaryIds = new Set([
+		'edit-tags',
 		'dislike',
 		'replace-source',
 		'manage-platforms',

@@ -108,6 +108,7 @@ jobs:
           test -s ios/build/Build/Products/Release-iphoneos/CyMusic.app/main.jsbundle
           test -s ios/build/Build/Products/Release-iphoneos/CyMusic.app/user-api-preload.js
           test -d ios/build/Build/Products/Release-iphoneos/CyMusic.app/PlugIns/ShareExtension.appex
+          test -d ios/build/Build/Products/Release-iphoneos/CyMusic.app/PlugIns/ZhMusicWidget.appex
 
       - name: Package IPA
         run: |

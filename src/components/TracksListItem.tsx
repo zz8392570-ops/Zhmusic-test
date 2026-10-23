@@ -1,3 +1,4 @@
+import { readOfflineArtwork } from '@/helpers/offlineAssets'
 import LibraryMembershipLabel from '@/components/LibraryMembershipLabel'
 import OfflineAvailabilityLabel from '@/components/OfflineAvailabilityLabel'
 import { useFavorites } from '@/store/library'
@@ -121,14 +122,16 @@ const TracksListItem = ({
 		let isMounted = true
 		setResolvedArtworkUri(baseArtworkUri)
 		setHasArtworkError(false)
-		void resolveLeaderboardArtwork(track.platform, track.id, track.artwork).then((resolvedUrl) => {
-			if (isMounted && resolvedUrl)
-				setResolvedArtworkUri(getThumbnailArtwork(resolvedUrl) ?? resolvedUrl)
-		})
+		void readOfflineArtwork(cacheLookupTrack)
+			.then((saved) => saved ?? resolveLeaderboardArtwork(track.platform, track.id, track.artwork))
+			.then((resolvedUrl) => {
+				if (isMounted && resolvedUrl)
+					setResolvedArtworkUri(getThumbnailArtwork(resolvedUrl) ?? resolvedUrl)
+			})
 		return () => {
 			isMounted = false
 		}
-	}, [baseArtworkUri, track.artwork, track.id, track.platform])
+	}, [baseArtworkUri, cacheLookupTrack, track.artwork, track.id, track.platform, cacheRevision])
 
 	useEffect(() => {
 		let isMounted = true

@@ -9,7 +9,8 @@
 			"CyMusicSoundEffectsModule",
 			"CyMusicRequestTasksModule",
 			"CyMusicSleepTimerModule",
-			"CyMusicSystemCommandsModule"
+			"CyMusicSystemCommandsModule",
+			"CyMusicPersonalWidgetModule"
 		]
 	}
 }

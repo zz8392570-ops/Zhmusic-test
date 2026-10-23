@@ -5,7 +5,6 @@ import myTrackPlayer, { MusicRepeatMode } from '@/helpers/trackPlayerIndex'
 import { useDefaultStyles } from '@/styles'
 import i18n from '@/utils/i18n'
 import { Ionicons } from '@expo/vector-icons'
-import shuffle from 'lodash.shuffle'
 import { useMemo } from 'react'
 import { StyleSheet, Text, View, ViewProps, TouchableOpacity } from 'react-native'
 import type { Track } from '@/player/types'
@@ -68,7 +67,7 @@ export const QueueControls = ({
 	const handleShufflePlay = async () => {
 		if (isEmpty) return
 		hapticLight()
-		const shuffledTracks = shuffle(tracks)
+		const shuffledTracks = tracks
 		myTrackPlayer.setRepeatMode(MusicRepeatMode.SHUFFLE)
 		await myTrackPlayer.playWithReplacePlayList(
 			shuffledTracks[0] as IMusic.IMusicItem,

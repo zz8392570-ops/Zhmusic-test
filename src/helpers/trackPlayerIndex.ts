@@ -1,3 +1,4 @@
+import { getPreparedLyric, readOfflineArtwork } from './offlineAssets'
 import { persistPlaylistsWithRecovery } from './libraryRecycle'
 import { sortIndexSymbol, timeStampSymbol } from '@/constants/commonConst'
 import { SoundAsset } from '@/constants/constant'
@@ -7,7 +8,7 @@ import { isSameMediaItem, mergeProps, sortByTimestampAndIndex } from '@/utils/me
 import * as FileSystem from 'expo-file-system/legacy'
 import { produce } from 'immer'
 import * as Network from 'expo-network'
-import shuffle from 'lodash.shuffle'
+import { shuffleForListening as shuffle } from './shuffleForListening'
 import ReactNativeTrackPlayer, {
 	Event,
 	PlaybackState,
@@ -1165,7 +1166,9 @@ const refreshNativeArtwork = async (track: Track, token: string) => {
 		if (attempt) await new Promise<void>((resolve) => setTimeout(resolve, 31_000))
 		if (nativeQueue?.token !== token) return
 		try {
-			const artwork = await resolveLeaderboardArtwork(track.platform, track.id, track.artwork)
+			const artwork =
+				(await readOfflineArtwork(track)) ??
+				(await resolveLeaderboardArtwork(track.platform, track.id, track.artwork))
 			if (nativeQueue?.token !== token) return
 			if (!artwork) {
 				if (track.platform !== 'kw') return
@@ -1662,7 +1665,7 @@ const play = async (
 		}
 
 		// 7. Fetch lyrics in background (non-blocking)
-		myGetLyric(musicItem)
+		getPreparedLyric(musicItem, myGetLyric)
 			.then((lyricSource) => {
 				if (isCurrentMusic(musicItem) && nativeQueue?.token === appliedToken) {
 					nowLyricState.setValue(lyricSource)

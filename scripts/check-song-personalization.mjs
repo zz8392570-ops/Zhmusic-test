@@ -452,6 +452,9 @@ await check(
 	() => {
 		const persist = storage(),
 			validator = loadModule('src/helpers/musicBackup.ts', {
+				'@/helpers/personalFeatures': loadModule('src/helpers/personalFeatures.ts', {
+					'./favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+				}),
 				'@/store/PersistStatus': persist,
 				'@/helpers/trackLyricOffset': offsets,
 				'@/helpers/favoriteGroups': groups,

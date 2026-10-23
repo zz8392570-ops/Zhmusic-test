@@ -197,6 +197,10 @@ export function createFixture() {
 		}
 		const progressListeners = new Set()
 		const legacyNative = {
+			readAsStringAsync: (address) => fsp.readFile(rawPath(address), 'utf8'),
+			writeAsStringAsync: (address, text, options) =>
+				fsp.writeFile(rawPath(address), text, options?.encoding === 'base64' ? 'base64' : 'utf8'),
+			EncodingType: { Base64: 'base64', UTF8: 'utf8' },
 			getFreeDiskStorageAsync: async () => 16 * 1024 ** 3,
 			documentDirectory: uri(documents),
 			cacheDirectory: uri(`${library}/Caches`),
@@ -536,7 +540,12 @@ export function createFixture() {
 					: specifier
 				if (Object.hasOwn(overrides, key)) return overrides[key]
 				if (absolute) return load(absolute)
-				if (specifier === 'immer' || specifier === 'lodash.shuffle' || specifier === 'buffer')
+				if (
+					specifier === 'immer' ||
+					specifier === 'lodash.shuffle' ||
+					specifier === 'buffer' ||
+					specifier.startsWith('crypto-js/')
+				)
 					return projectRequire(specifier)
 				throw new Error(`Unexpected import ${specifier} from ${relativeFile}`)
 			}

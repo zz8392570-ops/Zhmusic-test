@@ -1,3 +1,6 @@
+import { showToast } from '@/utils/utils'
+import i18n from '@/utils/i18n'
+import { executePersonalLink } from './personalLinks'
 import CyMusicSystemCommands, {
 	type SystemPlaybackCommand,
 } from '../../modules/cymusic-native/systemCommands'
@@ -18,6 +21,14 @@ const playFavorites = async () => {
 
 const execute = async (command: SystemPlaybackCommand) => {
 	logInfo('执行系统播放指令', command)
+	if (command.startsWith('playlist:')) {
+		await executePersonalLink('playlist', command.slice(9))
+		return
+	}
+	if (command.startsWith('scene:')) {
+		await executePersonalLink('scene', command.slice(6))
+		return
+	}
 	switch (command) {
 		case 'pause':
 			myTrackPlayer.pause()
@@ -53,6 +64,7 @@ const drainPendingCommand = async (fallback?: SystemPlaybackCommand) => {
 		}
 	} catch (error) {
 		logError('系统播放指令执行失败', error)
+		showToast(i18n.t('personalFeatures.sceneFailed'), (error as Error).message, 'error')
 	} finally {
 		handling = false
 		if (queuedFallback) void drainPendingCommand(queuedFallback)

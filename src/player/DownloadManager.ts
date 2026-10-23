@@ -41,6 +41,7 @@ type DownloadOptions = {
 	kind?: 'saved' | 'automatic'
 	strictQuality?: boolean
 	favoriteAutoSave?: boolean
+	wifiOnly?: boolean
 }
 const active = new Map<string, AbortController>()
 const activeMedia = new Map<string, string>()
@@ -149,6 +150,7 @@ export const restoreDownloadTasks = () => {
 			...task,
 			strictQuality: task.strictQuality === true,
 			favoriteAutoSave: task.favoriteAutoSave === true,
+			wifiOnly: task.wifiOnly === true,
 			kind: task.kind === 'automatic' ? 'automatic' : 'saved',
 			progress: Number.isFinite(task.progress) ? Math.max(0, Math.min(1, task.progress)) : 0,
 			status:
@@ -425,14 +427,17 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 				update({
 					...existing,
 					kind,
+					wifiOnly: existing.wifiOnly || options.wifiOnly,
 					favoriteAutoSave:
 						existing.kind === 'saved'
 							? existing.favoriteAutoSave === true && options.favoriteAutoSave === true
 							: options.favoriteAutoSave === true,
 					silent: options.silent === true && existing.silent !== false,
 				})
-				if (!(await allowedForDownload({ ...existing, kind })))
-					await pauseCacheTask(existing.id, true)
+				const updatedTask = cacheDownloadTasksStore
+					.getValue()
+					.find((item) => item.id === existing.id) ?? { ...existing, kind }
+				if (!(await allowedForDownload(updatedTask))) await pauseCacheTask(existing.id, true)
 			}
 			if (!options.silent) showToast(i18n.t('cacheCenter.alreadyDownloading'), track.title, 'info')
 			return
@@ -446,6 +451,7 @@ export const enqueueDownload = async (track: IMusic.IMusicItem, options: Downloa
 		quality,
 		strictQuality: options.strictQuality === true,
 		favoriteAutoSave: options.favoriteAutoSave === true,
+		wifiOnly: options.wifiOnly === true,
 		allowDuplicate: kind === 'saved' && PersistStatus.get('music.allowDuplicateDownloads') === true,
 		progress: 0,
 		status: 'queued',
@@ -528,7 +534,7 @@ export const clearAutomaticDownloads = async (clearFiles: () => Promise<void>) =
 
 export const downloadPlaylist = async (
 	tracks: IMusic.IMusicItem[],
-	options: Pick<DownloadOptions, 'quality' | 'strictQuality'> = {},
+	options: Pick<DownloadOptions, 'quality' | 'strictQuality' | 'wifiOnly'> = {},
 ) => {
 	const downloadable = [
 		...new Map(
@@ -553,7 +559,13 @@ const wifiNetwork = (state: Network.NetworkState) =>
 	state.isConnected !== false &&
 	[Network.NetworkStateType.WIFI, Network.NetworkStateType.ETHERNET].includes(state.type)
 const allowedForDownload = async (task: CacheDownloadTask, state?: Network.NetworkState) => {
-	if (task.favoriteAutoSave) return wifiNetwork(state ?? (await Network.getNetworkStateAsync()))
+	// Coalescing may promote an active task to a stricter trip policy.
+	task =
+		cacheDownloadTasksStore
+			.getValue()
+			.find((item) => item.id === task.id && item.runId === task.runId) ?? task
+	if (task.favoriteAutoSave || task.wifiOnly)
+		return wifiNetwork(state ?? (await Network.getNetworkStateAsync()))
 	if (task.kind !== 'automatic' && !PersistStatus.get('music.downloadWifiOnly')) return true
 	if (task.kind === 'automatic' && !autoCacheWifiOnlyStore.getValue()) return true
 	return wifiNetwork(state ?? (await Network.getNetworkStateAsync()))
@@ -572,6 +584,7 @@ export const retryFailedCacheTasks = async () => {
 			strictQuality: task.strictQuality,
 			kind: task.kind,
 			favoriteAutoSave: task.favoriteAutoSave,
+			wifiOnly: task.wifiOnly,
 			silent: true,
 		})
 }
@@ -591,11 +604,12 @@ export const startDownloadNetworkPolicy = () => {
 				await cancelCacheTask(task.id)
 				continue
 			}
-			const allowed = task.favoriteAutoSave
-				? wifiNetwork(network)
-				: task.kind === 'automatic'
-					? !autoCacheWifiOnlyStore.getValue() || wifiNetwork(network)
-					: !PersistStatus.get('music.downloadWifiOnly') || wifiNetwork(network)
+			const allowed =
+				task.favoriteAutoSave || task.wifiOnly
+					? wifiNetwork(network)
+					: task.kind === 'automatic'
+						? !autoCacheWifiOnlyStore.getValue() || wifiNetwork(network)
+						: !PersistStatus.get('music.downloadWifiOnly') || wifiNetwork(network)
 			if (!allowed && ['queued', 'downloading'].includes(task.status))
 				await pauseCacheTask(task.id, true)
 			else if (allowed && task.status === 'waiting-network') resumeCacheTask(task.id)

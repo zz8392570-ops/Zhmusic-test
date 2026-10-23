@@ -41,6 +41,9 @@ function fixture() {
 		},
 	}
 	const backup = loadModule('src/helpers/musicBackup.ts', {
+		'@/helpers/personalFeatures': loadModule('src/helpers/personalFeatures.ts', {
+			'./favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
+		}),
 		'@/helpers/trackLyricOffset': loadModule('src/helpers/trackLyricOffset.ts', {}),
 		'@/helpers/favoriteGroups': loadModule('src/helpers/favoriteGroups.ts', {}),
 		'@/helpers/dislikeRules': loadModule('src/helpers/dislikeRules.ts', {}),

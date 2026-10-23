@@ -1,3 +1,4 @@
+import { isValidScenes, isValidTrackTags } from '@/helpers/personalFeatures'
 import { isValidTrackLyricOffsets } from '@/helpers/trackLyricOffset'
 import { normalizeFavoriteGroups } from '@/helpers/favoriteGroups'
 import PersistStatus, { IPersistConfig } from '@/store/PersistStatus'
@@ -6,6 +7,11 @@ import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 import { isValidDislikeRules } from '@/helpers/dislikeRules'
 
 const settingValidators = {
+	'music.smartShuffle': (value: unknown) => typeof value === 'boolean',
+	'music.listeningScenes': isValidScenes,
+	'music.trackTags': isValidTrackTags,
+	'widget.collectionId': (value: unknown) =>
+		typeof value === 'string' && value.length > 0 && value.length <= 1024,
 	'lyric.trackOffsets': isValidTrackLyricOffsets,
 	'app.startPage': (value: unknown) =>
 		typeof value === 'string' && ['charts', 'my', 'favorites', 'search'].includes(value),
