@@ -115,6 +115,53 @@ await check(
 	},
 )
 await check(
+	'download preview closes once and stale dismissals cannot unlock a newer confirmation',
+	async () => {
+		const alerts = []
+		let closed = 0,
+			queued = 0
+		const owner = loadModule('src/helpers/confirmPlaylistDownload.ts', {
+			'react-native': { Alert: { alert: (...args) => alerts.push(args) } },
+			'expo-file-system/legacy': { getFreeDiskStorageAsync: async () => 10 ** 10 },
+			'@/utils/i18n': { t: (key) => key },
+			'./downloadPreview': preview,
+		})
+		await owner.confirmPlaylistDownload(
+			[song('a')],
+			'320k',
+			async () => {
+				queued++
+			},
+			() => {
+				closed++
+			},
+		)
+		alerts[0][2][0].onPress()
+		assert.equal(closed, 1)
+		await owner.confirmPlaylistDownload(
+			[song('b')],
+			'320k',
+			async () => {
+				queued++
+			},
+			() => {
+				closed++
+			},
+		)
+		alerts[0][3].onDismiss()
+		await owner.confirmPlaylistDownload([song('c')], '320k', async () => {
+			queued++
+		})
+		assert.equal(alerts.length, 2)
+		alerts[1][2][1].onPress()
+		alerts[1][2][1].onPress()
+		alerts[1][3].onDismiss()
+		await flush()
+		assert.equal(closed, 2)
+		assert.equal(queued, 1)
+	},
+)
+await check(
 	'unknown disk space and FLAC sizes remain explicit and allow a later retry',
 	async () => {
 		const alerts = []

@@ -1,3 +1,5 @@
+import PersistStatus from '@/store/PersistStatus'
+import { router } from 'expo-router'
 import myTrackPlayer from '@/helpers/trackPlayerIndex'
 import { useThemeColors } from '@/hooks/useAppTheme'
 import {
@@ -10,6 +12,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 
 export default function SourceLoadingStatus() {
 	const colors = useThemeColors()
+	const offline = PersistStatus.useValue('music.offlinePlayback', false)
 	const progress = sourceLoadingProgressStore.useValue()
 	const error = sourceLoadingErrorStore.useValue()
 	const loading = trackSourceLoadingStore.useValue() !== null
@@ -45,10 +48,12 @@ export default function SourceLoadingStatus() {
 			</View>
 			<View style={{ flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
 				{error ? action(i18n.t('find.retry'), () => void myTrackPlayer.play(null, true)) : null}
-				{action(
-					i18n.t('player.sourceLoading.switch'),
-					() => void myTrackPlayer.retryWithNextSource(),
-				)}
+				{offline
+					? action(i18n.t('library.localMusic'), () => router.push('/(tabs)/favorites/localMusic'))
+					: action(
+							i18n.t('player.sourceLoading.switch'),
+							() => void myTrackPlayer.retryWithNextSource(),
+						)}
 				{action(i18n.t('player.sourceLoading.next'), () => void myTrackPlayer.skipToNext())}
 				{loading ? action(i18n.t('find.cancel'), myTrackPlayer.cancelSourceLoading) : null}
 			</View>

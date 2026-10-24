@@ -11,7 +11,8 @@ import { showToast } from '@/utils/utils'
 export default function ListeningScenesScreen() {
 	const colors = useThemeColors(),
 		stored = PersistStatus.useValue('music.listeningScenes'),
-		playlists = PersistStatus.useValue('music.playLists', []) ?? []
+		playlists = PersistStatus.useValue('music.playLists', []) ?? [],
+		dynamic = PersistStatus.useValue('music.tagCollections', []) ?? []
 	const scenes = stored ?? getListeningScenes()
 	const [draft, setDraft] = useState<ListeningScene | null>(null),
 		[busy, setBusy] = useState(false)
@@ -27,6 +28,7 @@ export default function ListeningScenesScreen() {
 	const collections = [
 		{ id: 'favorites', title: i18n.t('appTab.favoritesSongs') },
 		...playlists.map((item) => ({ id: item.id, title: item.name })),
+		...dynamic.map((item) => ({ id: item.id, title: item.name })),
 	]
 	const save = () => {
 		if (!draft) return
@@ -110,6 +112,7 @@ export default function ListeningScenesScreen() {
 						/>
 					</MenuView>
 					{[
+						['pinned', 'personalRefinement.pinScene'],
 						['shuffle', 'personalFeatures.shuffle'],
 						['offlineOnly', 'personalFeatures.offlineOnly'],
 					].map(([key, label]) => (
@@ -124,7 +127,7 @@ export default function ListeningScenesScreen() {
 							<Text style={{ color: colors.text }}>{i18n.t(label)}</Text>
 							<Switch
 								accessibilityLabel={i18n.t(label)}
-								value={draft[key] as boolean}
+								value={!!draft[key]}
 								onValueChange={(value) => setDraft({ ...draft, [key]: value })}
 							/>
 						</View>

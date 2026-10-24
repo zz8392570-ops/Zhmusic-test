@@ -456,7 +456,7 @@ await check('Settings defaults off for missing, malformed and non-Boolean persis
 		if (raw === undefined) h.disk.delete('music.preciseSeeking')
 		else h.disk.set('music.preciseSeeking', raw)
 		assert.equal(findElement(h.render(), 'Switch').props.value, expected, String(raw))
-		assert.equal(h.listeners.size, 8)
+		assert.equal(h.listeners.size, 9)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 	}
@@ -520,7 +520,7 @@ await check(
 		control.props.onValueChange(true)
 		assert.deepEqual(h.storageWrites, [['music.preciseSeeking', 'true']])
 		assert.equal(findElement(h.render(), 'Switch').props.value, true)
-		assert.equal(h.listeners.size, 8)
+		assert.equal(h.listeners.size, 9)
 		h.unmount()
 		assert.equal(h.listeners.size, 0)
 		assert.equal(findElement(h.render(), 'Switch').props.value, true)
@@ -2549,6 +2549,42 @@ await check(
 		assert.equal(later.facade.getCurrentMusic().id, base.id)
 	},
 )
+
+await check(
+	'offline playback stops a live remote item and rejects a retained or late remote source',
+	async () => {
+		const h = runtime()
+		await h.setup()
+		await h.facade.play(song('online'), true)
+		assert.ok(h.player.getQueue().length > 0)
+		h.persistence.set('music.offlinePlayback', true)
+		assert.equal(h.player.getQueue().length, 0)
+		const plays = h.calls.plays
+		await h.facade.play(null, true)
+		assert.equal(h.calls.plays, plays)
+		assert.equal(h.stores.sourceLoadingErrorStore.getValue(), 'personalRefinement.offlineMissing')
+		h.persistence.set('music.offlinePlayback', false)
+		const gate = deferred()
+		h.setResolver(() => gate.promise)
+		const pending = h.facade.play(song('late-online'), true)
+		await flush()
+		h.persistence.set('music.offlinePlayback', true)
+		gate.resolve({ url: 'https://audio.example/late.mp3', wasCached: false })
+		await pending
+		assert.equal(h.calls.plays, plays)
+		assert.equal(h.player.getQueue().length, 0)
+	},
+)
+await check('enabling offline mode leaves a local native item playing', async () => {
+	const h = runtime()
+	await h.setup()
+	await h.facade.play(song('local', { url: 'file:///app/Documents/audio.mp3' }), true)
+	const stops = h.count('stop'),
+		queue = h.player.getQueue()
+	h.persistence.set('music.offlinePlayback', true)
+	assert.equal(h.count('stop'), stops)
+	assert.deepEqual(h.player.getQueue(), queue)
+})
 
 await fixture.dispose()
 const failed = results.filter((result) => !result.passed)

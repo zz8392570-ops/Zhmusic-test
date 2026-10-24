@@ -1,6 +1,9 @@
+import { createFixture } from './file-system-fixture.mjs'
 import { assert, checks, loadModule, flush } from './native-services-fixture.mjs'
 
 const { check, finish } = checks()
+const policyFixture = createFixture()
+const { isBackupDataKey } = policyFixture.runtime().load('src/helpers/musicBackup.ts')
 const values = new Map()
 const persist = {
 	get: (key) => values.get(key) ?? null,
@@ -13,7 +16,7 @@ let calls = 0
 const auto = loadModule('src/helpers/webDavAutoBackup.ts', {
 	'@/store/PersistStatus': { subscribe: () => () => {} },
 	'@/helpers/logger': { logError() {}, logInfo() {} },
-	'@/helpers/musicBackup': { createMusicBackup: () => ({}) },
+	'@/helpers/musicBackup': { isBackupDataKey, createMusicBackup: () => ({}) },
 	'@/helpers/webDavBackup': {
 		runDailyWebDavBackup: async () => {
 			calls++
@@ -88,7 +91,7 @@ function autoFixture() {
 				},
 			},
 			'@/helpers/logger': { logError() {}, logInfo() {} },
-			'@/helpers/musicBackup': { createMusicBackup: () => ({ changed }) },
+			'@/helpers/musicBackup': { isBackupDataKey, createMusicBackup: () => ({ changed }) },
 			'@/helpers/webDavBackup': {
 				runDailyWebDavBackup: async () => {
 					calls++
@@ -197,4 +200,27 @@ await check(
 		assert.equal(h.timers.size, 0)
 	},
 )
+await check(
+	'personal tags, scenes, lyric timing and dynamic filters trigger debounced automatic backup',
+	async () => {
+		const h = autoFixture(),
+			stop = h.startWebDavAutoBackup()
+		await flush()
+		for (const key of [
+			'music.trackTags',
+			'music.listeningScenes',
+			'lyric.trackOffsets',
+			'music.tagCollections',
+		])
+			h.change(key)
+		assert.equal(h.timers.size, 1)
+		h.fire()
+		await flush()
+		assert.equal(h.calls, 2)
+		h.change('backup.restorePoint')
+		assert.equal(h.timers.size, 0)
+		stop()
+	},
+)
+await policyFixture.dispose()
 finish()

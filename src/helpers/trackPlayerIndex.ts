@@ -219,6 +219,7 @@ function retireBackgroundTasks(clearCache = false) {
 }
 
 async function preloadNextTrack(position: number, duration: number) {
+	if (PersistStatus.get('music.offlinePlayback')) return
 	const revision = backgroundRevision
 	const token = nativeQueue?.token
 	const current = nativeQueue?.track
@@ -468,7 +469,7 @@ async function setupTrackPlayer() {
 		logError('启动时加载音源失败，继续恢复播放器:', error)
 		showToast(i18n.t('common.error'), i18n.t('sourceImport.selectionFailed'), 'error')
 	}
-	void runBackgroundHealthTests()
+	if (!PersistStatus.get('music.offlinePlayback')) void runBackgroundHealthTests()
 	if (importedLocalMusic) {
 		importedLocalMusicStore.setValue(importedLocalMusic)
 	}
@@ -689,6 +690,13 @@ const switchPlaybackPlatform = (failed: IMusic.IMusicItem, allowPaused = false) 
 
 /** 播放失败时的情况 */
 async function failToPlay(failure?: { code?: string; message?: string }) {
+	if (PersistStatus.get('music.offlinePlayback')) {
+		stop()
+		nativeQueue = null
+		ReactNativeTrackPlayer.clear()
+		sourceLoadingErrorStore.setValue(i18n.t('personalRefinement.offlineMissing'))
+		return
+	}
 	if (failoverInProgress) return
 	failoverInProgress = true
 	try {
@@ -1124,6 +1132,11 @@ const markPlaybackStarted = (track: IMusic.IMusicItem) => {
 
 /** 设置音源 */
 const setTrackSource = (track: Track, restoring = false) => {
+	if (PersistStatus.get('music.offlinePlayback') && !/^(file:\/\/|\/)/.test(track.url || '')) {
+		const error = new Error(i18n.t('personalRefinement.offlineMissing'))
+		error.name = 'OfflineAudioUnavailable'
+		throw error
+	}
 	retireBackgroundTasks()
 	currentIndex = getPlaybackMusicIndex(track as IMusic.IMusicItem)
 	const resumePosition =
@@ -1132,6 +1145,8 @@ const setTrackSource = (track: Track, restoring = false) => {
 			: 0
 	const token = createTrackSourceLoadingToken(track as IMusic.IMusicItem)
 	// Snapshot after source resolution. A preference change never reloads the active item.
+	if (PersistStatus.get('music.offlinePlayback') && /^https?:/.test(track.artwork || ''))
+		track = { ...track, artwork: undefined }
 	const playbackOptions = { preciseSeeking: PersistStatus.get('music.preciseSeeking') === true }
 	const items = [
 		toMediaItem(track, token, false, playbackOptions),
@@ -1168,8 +1183,14 @@ const refreshNativeArtwork = async (track: Track, token: string) => {
 		try {
 			const artwork =
 				(await readOfflineArtwork(track)) ??
-				(await resolveLeaderboardArtwork(track.platform, track.id, track.artwork))
-			if (nativeQueue?.token !== token) return
+				(PersistStatus.get('music.offlinePlayback')
+					? null
+					: await resolveLeaderboardArtwork(track.platform, track.id, track.artwork))
+			if (
+				nativeQueue?.token !== token ||
+				(PersistStatus.get('music.offlinePlayback') && /^https?:/.test(artwork || ''))
+			)
+				return
 			if (!artwork) {
 				if (track.platform !== 'kw') return
 				continue
@@ -1619,6 +1640,7 @@ const play = async (
 					trackSourceLoadingStore.getValue() !== trackSourceLoadingToken ||
 					(error as Error)?.name === 'AbortError' ||
 					(error as Error)?.name === 'TimeoutError' ||
+					(error as Error)?.name === 'OfflineAudioUnavailable' ||
 					(error as Error)?.message === PlayFailReason.FORBID_CELLUAR_NETWORK_PLAY
 				)
 					throw error
@@ -1731,9 +1753,11 @@ const play = async (
 			nativeQueue = null
 			ReactNativeTrackPlayer.clear()
 			sourceLoadingErrorStore.setValue(
-				e?.name === 'TimeoutError'
-					? i18n.t('player.sourceLoading.timeout')
-					: i18n.t('player.sourceLoading.failed'),
+				e?.name === 'OfflineAudioUnavailable'
+					? i18n.t('personalRefinement.offlineMissing')
+					: e?.name === 'TimeoutError'
+						? i18n.t('player.sourceLoading.timeout')
+						: i18n.t('player.sourceLoading.failed'),
 			)
 		}
 	} finally {
@@ -2179,3 +2203,19 @@ configureDownloads(() => [
 
 export default myTrackPlayer
 export { MusicRepeatMode, PlaybackState as MusicState }
+
+// Retire remote transport and unresolved work when the preference changes, including backup restore.
+const unsubscribeOfflinePlayback = PersistStatus.subscribe((key) => {
+	if (key !== 'music.offlinePlayback' || !PersistStatus.get('music.offlinePlayback')) return
+	clearPreloadedSources()
+	retireBackgroundTasks()
+	activeSourceRequest?.abort(requestAbortError())
+	trackSourceLoadingStore.setValue(null)
+	if (nativeQueue && /^(file:\/\/|\/)/.test(nativeQueue.track.url || '')) return
+	stop()
+	nativeQueue = null
+	ReactNativeTrackPlayer.clear()
+	if (currentMusicStore.getValue())
+		sourceLoadingErrorStore.setValue(i18n.t('personalRefinement.offlineEnabled'))
+})
+hotModule.hot?.dispose(unsubscribeOfflinePlayback)

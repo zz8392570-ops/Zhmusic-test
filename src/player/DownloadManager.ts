@@ -559,6 +559,7 @@ const wifiNetwork = (state: Network.NetworkState) =>
 	state.isConnected !== false &&
 	[Network.NetworkStateType.WIFI, Network.NetworkStateType.ETHERNET].includes(state.type)
 const allowedForDownload = async (task: CacheDownloadTask, state?: Network.NetworkState) => {
+	if (PersistStatus.get('music.offlinePlayback')) return false
 	// Coalescing may promote an active task to a stricter trip policy.
 	task =
 		cacheDownloadTasksStore
@@ -593,7 +594,11 @@ export const startDownloadNetworkPolicy = () => {
 	let closed = false
 	const reconcile = async (state?: Network.NetworkState) => {
 		const owner = ++revision
-		const network = state ?? (await Network.getNetworkStateAsync())
+		const network =
+			state ??
+			(PersistStatus.get('music.offlinePlayback')
+				? { type: Network.NetworkStateType.NONE, isConnected: false }
+				: await Network.getNetworkStateAsync())
 		if (closed || owner !== revision) return
 		const tasks = [...cacheDownloadTasksStore.getValue()]
 		for (const snapshot of tasks) {
@@ -605,11 +610,12 @@ export const startDownloadNetworkPolicy = () => {
 				continue
 			}
 			const allowed =
-				task.favoriteAutoSave || task.wifiOnly
+				!PersistStatus.get('music.offlinePlayback') &&
+				(task.favoriteAutoSave || task.wifiOnly
 					? wifiNetwork(network)
 					: task.kind === 'automatic'
 						? !autoCacheWifiOnlyStore.getValue() || wifiNetwork(network)
-						: !PersistStatus.get('music.downloadWifiOnly') || wifiNetwork(network)
+						: !PersistStatus.get('music.downloadWifiOnly') || wifiNetwork(network))
 			if (!allowed && ['queued', 'downloading'].includes(task.status))
 				await pauseCacheTask(task.id, true)
 			else if (allowed && task.status === 'waiting-network') resumeCacheTask(task.id)
@@ -621,7 +627,12 @@ export const startDownloadNetworkPolicy = () => {
 	const network = Network.addNetworkStateListener(invoke)
 	const unsubscribe = PersistStatus.subscribe((key) => {
 		if (
-			['music.downloadWifiOnly', 'music.autoCacheWifiOnly', 'music.favoriteAutoSave'].includes(key)
+			[
+				'music.offlinePlayback',
+				'music.downloadWifiOnly',
+				'music.autoCacheWifiOnly',
+				'music.favoriteAutoSave',
+			].includes(key)
 		)
 			invoke()
 	})

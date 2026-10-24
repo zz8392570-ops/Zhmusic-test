@@ -1,3 +1,4 @@
+import { clearOfflineAssets, getOfflineAssetUsage } from '@/helpers/offlineAssets'
 import OfflineAvailabilityLabel from '@/components/OfflineAvailabilityLabel'
 import { ThemeColors } from '@/constants/tokens'
 import myTrackPlayer, {
@@ -43,6 +44,9 @@ const CacheManagerScreen = () => {
 	const importedTracks = useMemo(() => importedTracksValue || [], [importedTracksValue])
 	const revision = cacheRevisionStore.useValue()
 	const [cacheUsage, setCacheUsage] = useState({ automatic: 0, saved: 0, total: 0 })
+	const [assetUsage, setAssetUsage] = useState({ lyric: 0, artwork: 0, protected: 0, total: 0 })
+	const [assetBusy, setAssetBusy] = useState(false)
+	const [usageFailed, setUsageFailed] = useState(false)
 	const wifiOnly = PersistStatus.useValue('music.downloadWifiOnly', false) ?? false
 	const allowDuplicates = PersistStatus.useValue('music.allowDuplicateDownloads', false) ?? false
 	const cacheLimitMB = PersistStatus.useValue('music.cacheLimitMB', 1024) ?? 1024
@@ -55,11 +59,17 @@ const CacheManagerScreen = () => {
 	const refreshSize = useCallback(() => setSizeRefresh((value) => value + 1), [])
 	useEffect(() => {
 		let active = true
-		void getCacheUsage()
-			.then((usage) => {
-				if (active) setCacheUsage(usage)
+		void Promise.all([getCacheUsage(), getOfflineAssetUsage()])
+			.then(([usage, assets]) => {
+				if (active) {
+					setCacheUsage(usage)
+					setAssetUsage(assets)
+					setUsageFailed(false)
+				}
 			})
-			.catch(() => {})
+			.catch(() => {
+				if (active) setUsageFailed(true)
+			})
 		return () => {
 			active = false
 		}
@@ -324,7 +334,11 @@ const CacheManagerScreen = () => {
 			ListHeaderComponent={
 				<View>
 					<View style={styles.summary}>
-						<Text style={styles.summaryValue}>{formatBytes(cacheUsage.total)}</Text>
+						<Text style={styles.summaryValue}>
+							{usageFailed
+								? i18n.t('personalRefinement.usageFailed')
+								: formatBytes(cacheUsage.total + assetUsage.total)}
+						</Text>
 						<Text style={styles.summaryLabel}>
 							{i18n.t('cacheCenter.automatic')} {formatBytes(cacheUsage.automatic)} ·{' '}
 							{i18n.t('cacheCenter.saved')} {formatBytes(cacheUsage.saved)}
@@ -333,6 +347,43 @@ const CacheManagerScreen = () => {
 							{i18n.t('cacheCenter.summary', { count: cachedTracks.length })}
 						</Text>
 						<Text style={styles.summaryLabel}>{i18n.t('offline.retentionHint')}</Text>
+						<Text style={styles.summaryLabel}>
+							{i18n.t('personalRefinement.assetUsage', {
+								lyric: formatBytes(assetUsage.lyric),
+								artwork: formatBytes(assetUsage.artwork),
+								retained: formatBytes(assetUsage.protected),
+							})}
+						</Text>
+						<Pressable
+							accessibilityRole="button"
+							disabled={assetBusy}
+							style={styles.action}
+							onPress={() =>
+								Alert.alert(
+									i18n.t('personalRefinement.clearAssets'),
+									i18n.t('personalRefinement.clearAssetsHint'),
+									[
+										{ text: i18n.t('find.cancel'), style: 'cancel' },
+										{
+											text: i18n.t('personalRefinement.clearAssets'),
+											onPress: async () => {
+												setAssetBusy(true)
+												try {
+													await clearOfflineAssets()
+													refreshSize()
+												} catch {
+													Alert.alert(i18n.t('settings.actions.cache.error'))
+												} finally {
+													setAssetBusy(false)
+												}
+											},
+										},
+									],
+								)
+							}
+						>
+							<Text style={styles.actionText}>{i18n.t('personalRefinement.clearAssets')}</Text>
+						</Pressable>
 					</View>
 					<View
 						style={{

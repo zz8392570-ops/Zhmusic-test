@@ -8,6 +8,7 @@ import {
 	readOfflineLyric,
 	saveOfflineArtwork,
 	saveOfflineLyric,
+	retainOfflineAssets,
 } from './offlineAssets'
 import {
 	getPlaybackCachedAudioInfo,
@@ -65,15 +66,20 @@ export async function prepareTravelMetadata(
 		failed = 0
 	for (const entry of entries) {
 		if (signal.aborted) break
+		if (PersistStatus.get('music.offlinePlayback')) throw Error('OFFLINE_PLAYBACK')
 		if (!wifiAvailable(await Network.getNetworkStateAsync())) throw Error('WIFI_REQUIRED')
 		const controller = new AbortController(),
 			abort = () => controller.abort()
 		signal.addEventListener('abort', abort)
+		const unsubscribe = PersistStatus.subscribe((key) => {
+			if (key === 'music.offlinePlayback' && PersistStatus.get('music.offlinePlayback')) abort()
+		})
 		const network = Network.addNetworkStateListener((state) => {
 			if (!wifiAvailable(state)) abort()
 		})
 		try {
 			if (signal.aborted) break
+			retainOfflineAssets(entry.track)
 			// Protect existing cached audio while preparing a trip, without downloading it again.
 			if (entry.audio) {
 				const cache = await getPlaybackCachedAudioInfo(entry.track as IMusic.IMusicItem)
@@ -133,6 +139,7 @@ export async function prepareTravelMetadata(
 			}
 		} finally {
 			signal.removeEventListener('abort', abort)
+			unsubscribe()
 			network.remove()
 		}
 	}

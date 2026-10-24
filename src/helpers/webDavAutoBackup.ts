@@ -1,6 +1,6 @@
 import PersistStatus from '@/store/PersistStatus'
 import { logError, logInfo } from '@/helpers/logger'
-import { createMusicBackup } from '@/helpers/musicBackup'
+import { createMusicBackup, isBackupDataKey } from '@/helpers/musicBackup'
 import { runDailyWebDavBackup } from '@/helpers/webDavBackup'
 import { recordWebDavBackupFailure, recordWebDavBackupSuccess } from '@/helpers/webDavBackupStatus'
 import Constants from 'expo-constants'
@@ -49,8 +49,7 @@ export const startWebDavAutoBackup = () => {
 	appState = AppState.currentState
 	void requestDailyBackup()
 	const unsubscribe = PersistStatus.subscribe((key) => {
-		if (['music.favorites', 'music.playLists', 'music.recentlyPlayed'].includes(key))
-			scheduleBackup()
+		if (isBackupDataKey(key)) scheduleBackup()
 	})
 	const subscription = AppState.addEventListener('change', (nextState) => {
 		const returnedToForeground = appState !== 'active' && nextState === 'active'

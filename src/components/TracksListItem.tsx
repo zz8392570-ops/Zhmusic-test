@@ -1,3 +1,4 @@
+import PersistStatus from '@/store/PersistStatus'
 import { readOfflineArtwork } from '@/helpers/offlineAssets'
 import LibraryMembershipLabel from '@/components/LibraryMembershipLabel'
 import OfflineAvailabilityLabel from '@/components/OfflineAvailabilityLabel'
@@ -104,13 +105,20 @@ const TracksListItem = ({
 			track.url,
 		],
 	)
+	const offlinePlayback = PersistStatus.useValue('music.offlinePlayback', false) ?? false
 	const baseArtworkUri = useMemo(
-		() => getThumbnailArtwork(track.artwork) ?? unknownTrackImageUri,
-		[track.artwork],
+		() =>
+			offlinePlayback && /^https?:/.test(track.artwork || '')
+				? unknownTrackImageUri
+				: getThumbnailArtwork(track.artwork) ?? unknownTrackImageUri,
+		[track.artwork, offlinePlayback],
 	)
 	const [resolvedArtworkUri, setResolvedArtworkUri] = useState(baseArtworkUri)
 	const [hasArtworkError, setHasArtworkError] = useState(false)
-	const artworkUri = hasArtworkError ? unknownTrackImageUri : resolvedArtworkUri
+	const artworkUri =
+		hasArtworkError || (offlinePlayback && /^https?:/.test(resolvedArtworkUri))
+			? unknownTrackImageUri
+			: resolvedArtworkUri
 	const artworkSource = useMemo(() => ({ uri: artworkUri }), [artworkUri])
 	const cacheLookupKey = cacheDisplayLookup.key(cacheLookupTrack)
 	const cachedQuality =
@@ -123,7 +131,13 @@ const TracksListItem = ({
 		setResolvedArtworkUri(baseArtworkUri)
 		setHasArtworkError(false)
 		void readOfflineArtwork(cacheLookupTrack)
-			.then((saved) => saved ?? resolveLeaderboardArtwork(track.platform, track.id, track.artwork))
+			.then(
+				(saved) =>
+					saved ??
+					(offlinePlayback
+						? null
+						: resolveLeaderboardArtwork(track.platform, track.id, track.artwork)),
+			)
 			.then((resolvedUrl) => {
 				if (isMounted && resolvedUrl)
 					setResolvedArtworkUri(getThumbnailArtwork(resolvedUrl) ?? resolvedUrl)
@@ -131,7 +145,15 @@ const TracksListItem = ({
 		return () => {
 			isMounted = false
 		}
-	}, [baseArtworkUri, cacheLookupTrack, track.artwork, track.id, track.platform, cacheRevision])
+	}, [
+		baseArtworkUri,
+		cacheLookupTrack,
+		track.artwork,
+		track.id,
+		track.platform,
+		cacheRevision,
+		offlinePlayback,
+	])
 
 	useEffect(() => {
 		let isMounted = true

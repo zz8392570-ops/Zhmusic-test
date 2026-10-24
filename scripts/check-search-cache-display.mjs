@@ -302,6 +302,9 @@ try {
 			await write(filePath, 'Audio bytes')
 			await lookup.get(track)
 			const { default: TrackRow } = loadModule('src/components/TracksListItem.tsx', {
+				'@/store/PersistStatus': {
+					useValue: (key, fallback) => h.persistence.get(key) ?? fallback,
+				},
 				'@/components/OfflineAvailabilityLabel': 'OfflineLabel',
 				'@/components/LibraryMembershipLabel': 'MembershipLabel',
 				'@/helpers/offlineAssets': { readOfflineArtwork: async () => null },

@@ -12,11 +12,25 @@ export async function confirmPlaylistDownload(
 		tracks: IMusic.IMusicItem[],
 		options: { quality: IMusic.IQualityKey; strictQuality: true },
 	) => Promise<unknown>,
+	onPreviewClosed?: () => void,
 ) {
-	if (preparing) return
+	if (preparing) {
+		onPreviewClosed?.()
+		return
+	}
 	const candidates = getDownloadCandidates(tracks)
-	if (!candidates.length) return
+	if (!candidates.length) {
+		onPreviewClosed?.()
+		return
+	}
 	preparing = true
+	let closed = false
+	const closePreview = () => {
+		if (closed) return
+		closed = true
+		preparing = false
+		onPreviewClosed?.()
+	}
 	try {
 		const estimate = estimateDownloadSize(candidates, quality)
 		let free: number | null = null
@@ -50,13 +64,14 @@ export async function confirmPlaylistDownload(
 					text: i18n.t('find.cancel'),
 					style: 'cancel',
 					onPress: () => {
-						preparing = false
+						closePreview()
 					},
 				},
 				{
 					text: i18n.t('offline.confirmDownload'),
 					onPress: () => {
-						preparing = false
+						if (closed) return
+						closePreview()
 						void enqueue(candidates as IMusic.IMusicItem[], { quality, strictQuality: true }).catch(
 							() => Alert.alert(i18n.t('cacheCenter.downloadFailed')),
 						)
@@ -66,12 +81,12 @@ export async function confirmPlaylistDownload(
 			{
 				cancelable: true,
 				onDismiss: () => {
-					preparing = false
+					closePreview()
 				},
 			},
 		)
 	} catch {
-		preparing = false
+		closePreview()
 		Alert.alert(i18n.t('cacheCenter.downloadFailed'))
 	}
 }

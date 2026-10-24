@@ -339,6 +339,7 @@ const MusicSourceMenu = ({ isDelete, onSelectSource }) => {
 }
 
 const SettingModal = () => {
+	const offlinePlayback = PersistStatus.useValue('music.offlinePlayback', false) ?? false
 	const smartShuffle = PersistStatus.useValue('music.smartShuffle', false) === true
 	const startPage = PersistStatus.useValue('app.startPage', 'charts') ?? 'charts'
 	const favoriteAutoSave = PersistStatus.useValue('music.favoriteAutoSave', false) === true
@@ -428,6 +429,14 @@ const SettingModal = () => {
 					value: restorePlaybackOnStartup,
 					onValueChange: (value: boolean) =>
 						PersistStatus.set('music.restorePlaybackOnStartup', value),
+				},
+				{
+					id: 'offline-playback',
+					title: i18n.t('personalRefinement.offlinePlayback'),
+					description: i18n.t('personalRefinement.offlineHint'),
+					type: 'switch',
+					value: offlinePlayback,
+					onValueChange: (value: boolean) => PersistStatus.set('music.offlinePlayback', value),
 				},
 				{
 					id: 'smart-shuffle',

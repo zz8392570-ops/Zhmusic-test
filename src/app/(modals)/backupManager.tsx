@@ -2,6 +2,9 @@ import {
 	createMusicBackup,
 	parseMusicBackup,
 	restoreMusicBackup,
+	restoreBackupCheckpoint,
+	backupSettingConflicts,
+	backupPersonalConflicts,
 	MAX_BACKUP_BYTES,
 	MusicBackup,
 } from '@/helpers/musicBackup'
@@ -72,6 +75,7 @@ export default function BackupManagerScreen() {
 	const [snapshots, setSnapshots] = useState<WebDavSnapshot[] | null>(null)
 	const [previewSource, setPreviewSource] = useState('')
 	const backupStatus = PersistStatus.useValue('backup.webdavStatus')
+	const restorePoint = PersistStatus.useValue('backup.restorePoint')
 	const showBackupPreview = (value: MusicBackup, source: string) => {
 		if (!mounted.current) return
 		setBackup(value)
@@ -285,29 +289,48 @@ export default function BackupManagerScreen() {
 			if (mounted.current) setBusy(false)
 		}
 	}
+	const refreshRestoredState = (
+		library: MusicBackup['library'],
+		restoreSettings: boolean,
+		restoreDefaults = false,
+	) => {
+		useLibraryStore.setState({ favorites: library.favorites })
+		playListsStore.setValue(library.playlists)
+		recentlyPlayedStore.setValue(library.recentlyPlayed)
+		if (restoreSettings) {
+			const settings = {
+				...(restoreDefaults
+					? {
+							'music.quality': '128k',
+							'music.autoCacheLocal': true,
+							'music.autoCacheWifiOnly': true,
+							'music.isCachedIconVisible': true,
+							'music.songsNumsToLoad': 100,
+							'app.themeMode': 'system',
+						}
+					: {}),
+				...createMusicBackup('').settings,
+			} as MusicBackup['settings']
+			if (settings['music.quality'] !== undefined)
+				myTrackPlayer.setQuality(settings['music.quality'])
+			if (settings['music.autoCacheLocal'] !== undefined)
+				myTrackPlayer.toggleAutoCacheLocal(settings['music.autoCacheLocal'])
+			if (settings['music.autoCacheWifiOnly'] !== undefined)
+				myTrackPlayer.toggleAutoCacheWifiOnly(settings['music.autoCacheWifiOnly'])
+			if (settings['music.isCachedIconVisible'] !== undefined)
+				myTrackPlayer.toggleIsCachedIconVisible(settings['music.isCachedIconVisible'])
+			if (settings['music.songsNumsToLoad'] !== undefined)
+				songsNumsToLoadStore.setValue(settings['music.songsNumsToLoad'])
+			if (settings['app.themeMode'] !== undefined) setThemeMode(settings['app.themeMode'])
+			if (settings['app.language'] !== undefined) changeLanguage(settings['app.language'])
+		}
+	}
 	const restore = async () => {
 		if (!backup || busy || filePickerActive.current || activeRequest.current) return
 		setBusy(true)
 		try {
 			const library = restoreMusicBackup(backup, mode, restoreSettings)
-			useLibraryStore.setState({ favorites: library.favorites })
-			playListsStore.setValue(library.playlists)
-			recentlyPlayedStore.setValue(library.recentlyPlayed)
-			if (restoreSettings) {
-				const settings = backup.settings
-				if (settings['music.quality'] !== undefined)
-					myTrackPlayer.setQuality(settings['music.quality'])
-				if (settings['music.autoCacheLocal'] !== undefined)
-					myTrackPlayer.toggleAutoCacheLocal(settings['music.autoCacheLocal'])
-				if (settings['music.autoCacheWifiOnly'] !== undefined)
-					myTrackPlayer.toggleAutoCacheWifiOnly(settings['music.autoCacheWifiOnly'])
-				if (settings['music.isCachedIconVisible'] !== undefined)
-					myTrackPlayer.toggleIsCachedIconVisible(settings['music.isCachedIconVisible'])
-				if (settings['music.songsNumsToLoad'] !== undefined)
-					songsNumsToLoadStore.setValue(settings['music.songsNumsToLoad'])
-				if (settings['app.themeMode'] !== undefined) setThemeMode(settings['app.themeMode'])
-				if (settings['app.language'] !== undefined) changeLanguage(settings['app.language'])
-			}
+			refreshRestoredState(library, restoreSettings)
 			setBackup(null)
 			setFileImportStatus('')
 			Alert.alert(
@@ -388,6 +411,31 @@ export default function BackupManagerScreen() {
 				</Text>
 				{button(i18n.t('backup.export'), () => void exportBackup())}
 				{button(i18n.t('backup.import'), () => void selectBackup())}
+				{restorePoint &&
+					button(i18n.t('personalRefinement.undoImport'), () =>
+						Alert.alert(
+							i18n.t('personalRefinement.undoImport'),
+							i18n.t('personalRefinement.undoImportHint', {
+								date: new Date(restorePoint.createdAt).toLocaleString(),
+							}),
+							[
+								{ text: i18n.t('find.cancel'), style: 'cancel' },
+								{
+									text: i18n.t('backup.restore'),
+									onPress: () => {
+										if (busy || filePickerActive.current || activeRequest.current) return
+										try {
+											const restored = restoreBackupCheckpoint()
+											refreshRestoredState(restored.library, true, true)
+											Alert.alert(i18n.t('backup.restored'))
+										} catch {
+											Alert.alert(i18n.t('backup.restoreFailed'))
+										}
+									},
+								},
+							],
+						),
+					)}
 				{fileImportStatus ? (
 					<View style={{ gap: 8 }}>
 						{filePickerActive.current ? <ActivityIndicator color={colors.primary} /> : null}
@@ -432,6 +480,34 @@ export default function BackupManagerScreen() {
 								accessibilityLabel={i18n.t('backup.restoreSettings')}
 							/>
 						</View>
+						{restoreSettings && (
+							<Text style={{ color: colors.textMuted }}>
+								{i18n.t(
+									mode === 'merge'
+										? 'personalRefinement.mergePolicy'
+										: 'personalRefinement.replacePolicy',
+									{ count: backupSettingConflicts(backup).length },
+								)}
+							</Text>
+						)}
+						{restoreSettings &&
+							backupPersonalConflicts(backup)
+								.filter((item) => item.count)
+								.map((item) => (
+									<Text key={item.key} style={{ color: colors.textMuted }}>
+										{i18n.t('personalRefinement.conflictGroup', {
+											name: i18n.t(
+												{
+													'music.trackTags': 'personalFeatures.tags',
+													'music.listeningScenes': 'personalFeatures.scenes',
+													'music.tagCollections': 'personalRefinement.dynamicPlaylist',
+													'lyric.trackOffsets': 'personalRefinement.lyricTiming',
+												}[item.key],
+											),
+											count: item.count,
+										})}
+									</Text>
+								))}
 						{button(i18n.t('backup.restore'), confirmRestore)}
 					</View>
 				) : null}

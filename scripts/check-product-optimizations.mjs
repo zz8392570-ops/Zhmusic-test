@@ -368,7 +368,14 @@ await check(
 		backup.library.favorites = [track('new')]
 		h.store.failOnce('music.playLists')
 		assert.throws(() => h.restoreMusicBackup(backup, 'replace', true), /Storage failure/)
-		assert.deepEqual([...h.store.disk], before)
+		assert.deepEqual(
+			[...h.store.disk].filter(([key]) => key !== 'backup.restorePoint'),
+			before,
+		)
+		assert.equal(
+			JSON.parse(h.store.disk.get('backup.restorePoint')).values['music.favorites'][0].id,
+			'old',
+		)
 	},
 )
 await check(

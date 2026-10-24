@@ -8,6 +8,10 @@ const PersistConfig = {
 }
 
 export interface IPersistConfig {
+	'music.tagCollections': import('@/helpers/personalFeatures').TagCollection[]
+	'music.offlinePlayback': boolean
+	'offline.assetPins': string[]
+	'backup.restorePoint': import('@/helpers/musicBackup').BackupRestorePoint
 	'music.smartShuffle': boolean
 	'music.listeningScenes': import('@/helpers/personalFeatures').ListeningScene[]
 	'music.trackTags': import('@/helpers/personalFeatures').TrackTags

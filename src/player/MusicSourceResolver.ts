@@ -1,3 +1,4 @@
+import PersistStatus from '@/store/PersistStatus'
 import i18n from '@/utils/i18n'
 import { fakeAudioMp3Uri } from '@/constants/images'
 import { resolveLocalFile } from '@/helpers/localFile'
@@ -99,6 +100,7 @@ function makePreloadKey(item: IMusic.IMusicItem, quality = qualityStore.getValue
 }
 
 export const getPreloadedUrl = (item: IMusic.IMusicItem): string | undefined => {
+	if (PersistStatus.get('music.offlinePlayback')) return undefined
 	const key = makePreloadKey(item)
 	const entry = preloadCache.get(key)
 	if (!entry) return undefined
@@ -132,6 +134,7 @@ export const clearPreloadedSources = (clearCache = true) => {
 }
 
 export const preloadSource = (item: IMusic.IMusicItem): Promise<void> => {
+	if (PersistStatus.get('music.offlinePlayback')) return Promise.resolve()
 	const key = makePreloadKey(item)
 	if (getPreloadedUrl(item)) return Promise.resolve()
 	const pending = pendingPreloads.get(key)
@@ -227,6 +230,12 @@ const resolveSourceInternal = async (
 		preloadCache.delete(preloadKey)
 		logInfo('使用缓存的音频路径播放:', cached.localPath)
 		return { url: cached.localPath, wasCached: true, quality: cached.quality }
+	}
+
+	if (PersistStatus.get('music.offlinePlayback')) {
+		const error = new Error(i18n.t('personalRefinement.offlineMissing'))
+		error.name = 'OfflineAudioUnavailable'
+		throw error
 	}
 
 	// 只在本地与磁盘缓存都未命中时，才复用预加载的远端音源

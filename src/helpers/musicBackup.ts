@@ -1,4 +1,9 @@
-import { isValidScenes, isValidTrackTags } from '@/helpers/personalFeatures'
+import {
+	isValidScenes,
+	isValidTrackTags,
+	normalizeTags,
+	isValidTagCollections,
+} from '@/helpers/personalFeatures'
 import { isValidTrackLyricOffsets } from '@/helpers/trackLyricOffset'
 import { normalizeFavoriteGroups } from '@/helpers/favoriteGroups'
 import PersistStatus, { IPersistConfig } from '@/store/PersistStatus'
@@ -7,6 +12,8 @@ import { isValidDownloadTemplate } from '@/helpers/downloadFilename'
 import { isValidDislikeRules } from '@/helpers/dislikeRules'
 
 const settingValidators = {
+	'music.tagCollections': isValidTagCollections,
+	'music.offlinePlayback': (value: unknown) => typeof value === 'boolean',
 	'music.smartShuffle': (value: unknown) => typeof value === 'boolean',
 	'music.listeningScenes': isValidScenes,
 	'music.trackTags': isValidTrackTags,
@@ -50,6 +57,9 @@ const settingValidators = {
 		typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 15,
 }
 type BackupSettingKey = keyof typeof settingValidators
+export const isBackupDataKey = (key: string) =>
+	['music.favorites', 'music.playLists', 'music.recentlyPlayed'].includes(key) ||
+	Object.hasOwn(settingValidators, key)
 export type MusicBackup = {
 	format: 'zhmusic-backup'
 	version: 1
@@ -156,6 +166,129 @@ const mergeTracks = (existing: IMusic.IMusicItem[], incoming: IMusic.IMusicItem[
 	return [...tracks.values()]
 }
 
+/** Merge personal collections by identity; ordinary preferences retain explicit restore semantics. */
+export function mergeBackupSettings(
+	current: MusicBackup['settings'],
+	incoming: MusicBackup['settings'],
+) {
+	const result = { ...current, ...incoming }
+	for (const key of ['music.trackTags', 'lyric.trackOffsets'] as const) {
+		if (incoming[key]) Object.assign(result, { [key]: { ...incoming[key], ...current[key] } })
+	}
+	if (incoming['music.trackTags']) {
+		const tags = { ...result['music.trackTags'] }
+		for (const [key, labels] of Object.entries(incoming['music.trackTags']))
+			tags[key] = normalizeTags([...(current['music.trackTags']?.[key] ?? []), ...labels])
+		result['music.trackTags'] = tags
+	}
+	for (const key of [
+		'music.listeningScenes',
+		'music.tagCollections',
+		'music.dislikeRules',
+	] as const) {
+		if (!incoming[key]) continue
+		const entries = new Map<string, unknown>(
+			(current[key] ?? []).map((item) => [item.id, item] as const),
+		)
+		for (const item of incoming[key]!) if (!entries.has(item.id)) entries.set(item.id, item)
+		Object.assign(result, { [key]: [...entries.values()] })
+	}
+	for (const [key, value] of Object.entries(result))
+		if (!settingValidators[key as BackupSettingKey](value))
+			throw Error('Merged settings exceed limits')
+	return result
+}
+
+export function backupSettingConflicts(backup: MusicBackup) {
+	const current = createMusicBackup('').settings
+	return Object.keys(backup.settings).filter((key) => {
+		const name = key as BackupSettingKey
+		return (
+			current[name] !== undefined &&
+			JSON.stringify(current[name]) !== JSON.stringify(backup.settings[name])
+		)
+	})
+}
+
+export function backupPersonalConflicts(backup: MusicBackup) {
+	const current = createMusicBackup('').settings
+	return [
+		'music.trackTags',
+		'music.listeningScenes',
+		'music.tagCollections',
+		'lyric.trackOffsets',
+	].map((key) => {
+		const name = key as BackupSettingKey
+		const before = current[name],
+			after = backup.settings[name]
+		const index = (value: unknown): Record<string, unknown> =>
+			Array.isArray(value)
+				? Object.fromEntries(value.map((item) => [item.id, item]))
+				: ((value ?? {}) as Record<string, unknown>)
+		const oldEntries = index(before),
+			newEntries = index(after)
+		return {
+			key,
+			count: Object.keys(newEntries).filter(
+				(id) =>
+					Object.hasOwn(oldEntries, id) &&
+					JSON.stringify(oldEntries[id]) !== JSON.stringify(newEntries[id]),
+			).length,
+		}
+	})
+}
+
+type BackupValues = Partial<{ [K in keyof IPersistConfig]: IPersistConfig[K] | null }>
+export type BackupRestorePoint = { createdAt: string; values: BackupValues }
+function applyBackupValues(values: BackupValues) {
+	const keys = Object.keys(values) as (keyof IPersistConfig)[]
+	const previous = Object.fromEntries(
+		keys.map((key) => [key, PersistStatus.get(key)]),
+	) as BackupValues
+	const checkpoint: BackupRestorePoint = { createdAt: new Date().toISOString(), values: previous }
+	if (Buffer.byteLength(JSON.stringify(checkpoint), 'utf8') > MAX_BACKUP_BYTES)
+		throw Error('Recovery point exceeds size limit')
+	// Failure to save a recovery point must stop the import before it changes any data.
+	PersistStatus.set('backup.restorePoint', checkpoint)
+	try {
+		for (const key of keys) PersistStatus.set(key, values[key] ?? undefined)
+	} catch (error) {
+		for (const key of keys) {
+			try {
+				PersistStatus.set(key, previous[key] ?? undefined)
+			} catch {
+				/* Storage unavailable. */
+			}
+		}
+		throw error
+	}
+}
+
+export function restoreBackupCheckpoint() {
+	const point = PersistStatus.get('backup.restorePoint')
+	if (!point || !Object.keys(point.values).every(isBackupDataKey))
+		throw Error('Invalid recovery point')
+	const current = createMusicBackup('')
+	const values = point.values
+	parseMusicBackup(
+		JSON.stringify({
+			...current,
+			library: {
+				favorites: values['music.favorites'] ?? [],
+				playlists: values['music.playLists'] ?? [],
+				recentlyPlayed: values['music.recentlyPlayed'] ?? [],
+			},
+			settings: Object.fromEntries(
+				Object.entries(values).filter(
+					([key, value]) => Object.hasOwn(settingValidators, key) && value !== null,
+				),
+			),
+		}),
+	)
+	applyBackupValues(values)
+	return createMusicBackup('')
+}
+
 export function restoreMusicBackup(
 	backup: MusicBackup,
 	mode: 'merge' | 'replace',
@@ -195,21 +328,22 @@ export function restoreMusicBackup(
 		'music.favorites': library.favorites,
 		'music.playLists': library.playlists,
 		'music.recentlyPlayed': library.recentlyPlayed,
-		...(restoreSettings ? backup.settings : {}),
+		...(restoreSettings
+			? mode === 'merge'
+				? mergeBackupSettings(existing.settings, backup.settings)
+				: backup.settings
+			: {}),
 	}
-	const keys = Object.keys(values) as (keyof IPersistConfig)[]
-	const previous = keys.map((key) => [key, PersistStatus.get(key)] as const)
-	try {
-		for (const key of keys) PersistStatus.set(key, values[key])
-	} catch (error) {
-		for (const [key, value] of previous) {
-			try {
-				PersistStatus.set(key, value ?? undefined)
-			} catch {
-				/* Best effort if storage itself remains unavailable. */
-			}
-		}
-		throw error
-	}
+	// The combined library must remain exportable, even when two valid backups exceed a limit together.
+	parseMusicBackup(
+		JSON.stringify({
+			...backup,
+			library,
+			settings: Object.fromEntries(
+				Object.entries(values).filter(([key]) => Object.hasOwn(settingValidators, key)),
+			),
+		}),
+	)
+	applyBackupValues(values)
 	return library
 }

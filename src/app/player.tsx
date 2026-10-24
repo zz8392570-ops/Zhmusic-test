@@ -187,6 +187,7 @@ const PlayerScreenContent = () => {
 		? i18n.t(platformLabelKey)
 		: String(trackToDisplay?.platform ?? '').toUpperCase()
 
+	const offlinePlayback = PersistStatus.useValue('music.offlinePlayback', false) ?? false
 	const [resolvedArtwork, setResolvedArtwork] = useState<string | null>(null)
 	const [artworkFailed, setArtworkFailed] = useState(false)
 	useEffect(() => {
@@ -198,11 +199,13 @@ const PlayerScreenContent = () => {
 				.then(
 					(saved) =>
 						saved ??
-						resolveLeaderboardArtwork(
-							trackToDisplay.platform,
-							trackToDisplay.id,
-							trackToDisplay.artwork,
-						),
+						(offlinePlayback
+							? null
+							: resolveLeaderboardArtwork(
+									trackToDisplay.platform,
+									trackToDisplay.id,
+									trackToDisplay.artwork,
+								)),
 				)
 				.then((uri) => {
 					if (active) {
@@ -214,10 +217,14 @@ const PlayerScreenContent = () => {
 		return () => {
 			active = false
 		}
-	}, [trackToDisplay, cacheRevision])
-	const artworkUri = artworkFailed
+	}, [trackToDisplay, cacheRevision, offlinePlayback])
+	const fallbackArtwork = offlinePlayback
 		? unknownTrackImageUri
-		: resolvedArtwork || trackToDisplay?.artwork || unknownTrackImageUri
+		: trackToDisplay?.artwork || unknownTrackImageUri
+	const artworkUri =
+		artworkFailed || (offlinePlayback && /^https?:/.test(resolvedArtwork || ''))
+			? unknownTrackImageUri
+			: resolvedArtwork || fallbackArtwork
 	const artworkSource = useMemo(() => ({ uri: artworkUri }), [artworkUri])
 	const { backgroundColor } = usePlayerBackground(artworkUri)
 	const artworkFade = useMemo(

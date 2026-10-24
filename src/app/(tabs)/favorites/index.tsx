@@ -1,4 +1,5 @@
 import { LibraryToolButton } from '@/components/LibraryToolButton'
+import SceneShortcuts from '@/components/SceneShortcuts'
 import ContinueListening from '@/components/ContinueListening'
 import localImage from '@/assets/local.png'
 import { PlaylistsList } from '@/components/PlaylistsList'
@@ -253,6 +254,7 @@ const FavoritesScreen = () => {
 				contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 150 }}
 			>
 				<ContinueListening />
+				<SceneShortcuts />
 				<LibraryToolButton
 					title={i18n.t('personalFeatures.tools')}
 					onPress={() => router.push('/(modals)/personalTools' as any)}
